@@ -1,6 +1,6 @@
 param(
-    [ValidateSet('eu','us','cn','in')]
-    [string]$Region = 'eu',
+    [ValidateSet('eu','weu','us','cn','in')]
+    [string]$Region = 'weu',
 
     [string]$PcapInterface,
 
