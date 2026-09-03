@@ -340,8 +340,14 @@ def iter_device_list(api: Any) -> Iterable[dict[str, Any]]:
                     "(code 28841107). Enable the matching data center in Tuya Developer Platform "
                     "(Cloud > Development/Project Management > Open Project > Overview > Edit), "
                     "then under Devices > Link Tuya App Account select that same data center and "
-                    "link/scan the Smart Life account. For Czech/Slovak Smart Life accounts created "
-                    "since 2025-11-25, use Western Europe (--region weu). "
+                    "link/scan the Smart Life account. "
+                    f"Raw response: {sanitize(resp)}"
+                )
+            if resp.get("code") == 28841002:
+                raise ToolError(
+                    "Tuya cloud development plan expired (code 28841002). "
+                    "This endpoint is valid for the project, but OpenAPI calls are blocked until "
+                    "the Cloud Development/IoT Core trial or plan is extended/renewed. "
                     f"Raw response: {sanitize(resp)}"
                 )
             raise ToolError(f"Tuya device list failed: {sanitize(resp)}")
@@ -515,6 +521,7 @@ def probe_tuya_regions(outdir: Path) -> tuple[Any, str, list[dict[str, Any]]]:
     """Read-only probe of Tuya public data centers; select the one exposing the target."""
     probes: list[dict[str, Any]] = []
     usable: list[tuple[str, Any, list[dict[str, Any]], dict[str, Any] | None]] = []
+    expired_plan_regions: list[str] = []
 
     print("[INFO] Auto-detecting Tuya data center with read-only authentication/device-list GETs...")
     for region in TUYA_PROBE_ORDER:
@@ -535,11 +542,33 @@ def probe_tuya_regions(outdir: Path) -> tuple[Any, str, list[dict[str, Any]]]:
             print(f"  [OK] {region:4s} {endpoint} devices={len(devices)}{marker}")
         except Exception as exc:
             msg = str(exc)
-            rec.update({"success": False, "error": msg})
-            print(f"  [--] {region:4s} {endpoint} -> {msg}")
+            if "28841002" in msg:
+                rec.update({"success": False, "region_confirmed": True, "plan_expired": True, "error": msg})
+                expired_plan_regions.append(region)
+                print(f"  [PLAN EXPIRED] {region:4s} {endpoint} -> 28841002")
+            else:
+                rec.update({"success": False, "error": msg})
+                print(f"  [--] {region:4s} {endpoint} -> {msg}")
         probes.append(rec)
 
     dump_json(outdir / "tuya_region_probe.sanitized.json", sanitize(probes))
+
+    if expired_plan_regions:
+        # 28841002 is materially different from a suspended/unlinked data center:
+        # the project reached a valid regional OpenAPI service, but its plan entitlement expired.
+        region = expired_plan_regions[0]
+        dump_json(outdir / "tuya_selected_region.json", {
+            "region": region,
+            "endpoint": TUYA_ENDPOINTS[region],
+            "status": "CONFIRMED_BUT_CLOUD_PLAN_EXPIRED",
+            "error_code": 28841002,
+        })
+        raise ToolError(
+            f"Tuya region confirmed as {region} ({TUYA_ENDPOINTS[region]}), but the Cloud "
+            "Development plan is expired (28841002). Do not reset/re-pair the device. "
+            "In Tuya Developer Platform request/renew the Cloud Development/IoT Core trial/plan; "
+            "after it becomes active, rerun Phase 2 only."
+        )
 
     target_hits = [x for x in usable if x[3] is not None]
     if len(target_hits) == 1:
