@@ -1,0 +1,104 @@
+{
+  "startedAt": "2026-09-03T09:19:45.891Z",
+  "reads": [
+    {
+      "cluster": "genBasic",
+      "clusterId": "0x0000",
+      "ep": 11,
+      "attr": "65533",
+      "value": 1
+    },
+    {
+      "cluster": "genOnOff",
+      "clusterId": "0x0006",
+      "ep": 11,
+      "attr": "65533",
+      "value": 1
+    },
+    {
+      "cluster": "genLevelCtrl",
+      "clusterId": "0x0008",
+      "ep": 11,
+      "attr": "65533",
+      "value": 1
+    },
+    {
+      "cluster": "lightingColorCtrl",
+      "clusterId": "0x0300",
+      "ep": 11,
+      "attr": "65533",
+      "value": 1
+    },
+    {
+      "cluster": "genOta",
+      "clusterId": "0x0019",
+      "ep": 11,
+      "attr": "upgradeServerId",
+      "value": "0xffffffffffffffff"
+    },
+    {
+      "cluster": "genOta",
+      "clusterId": "0x0019",
+      "ep": 11,
+      "attr": "fileOffset",
+      "value": 4294967295
+    },
+    {
+      "cluster": "genOta",
+      "clusterId": "0x0019",
+      "ep": 11,
+      "attr": "currentFileVersion",
+      "value": 637612033
+    },
+    {
+      "cluster": "genOta",
+      "clusterId": "0x0019",
+      "ep": 11,
+      "attr": "currentZigbeeStackVersion",
+      "value": 2
+    },
+    {
+      "cluster": "genOta",
+      "clusterId": "0x0019",
+      "ep": 11,
+      "attr": "downloadedFileVersion",
+      "value": 4294967295
+    },
+    {
+      "cluster": "genOta",
+      "clusterId": "0x0019",
+      "ep": 11,
+      "attr": "downloadedZigbeeStackVersion",
+      "value": 65535
+    },
+    {
+      "cluster": "genOta",
+      "clusterId": "0x0019",
+      "ep": 11,
+      "attr": "imageUpgradeStatus",
+      "value": 0
+    },
+    {
+      "cluster": "genOta",
+      "clusterId": "0x0019",
+      "ep": 11,
+      "attr": "manufacturerId",
+      "value": 4687
+    },
+    {
+      "cluster": "genOta",
+      "clusterId": "0x0019",
+      "ep": 11,
+      "attr": "imageTypeId",
+      "value": 65535
+    },
+    {
+      "cluster": "genOta",
+      "clusterId": "0x0019",
+      "ep": 11,
+      "attr": "minimumBlockReqDelay",
+      "value": 0
+    }
+  ],
+  "finishedAt": "2026-09-03T09:19:51.388Z"
+}

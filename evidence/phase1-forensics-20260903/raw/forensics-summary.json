@@ -1,0 +1,35 @@
+{
+  "ota_header": {
+    "magic": "0xbeef11e",
+    "header_version": "0x100",
+    "header_length": 56,
+    "field_control": "0x0",
+    "manufacturer_code": "0x124f",
+    "manufacturer_code_dec": 4687,
+    "image_type": "0x1416",
+    "image_type_dec": 5142,
+    "file_version": "0x24013001",
+    "stack_version": 2,
+    "header_string": "Telink OTA Sample Usage",
+    "total_image_size": 212738,
+    "file_size": 212738
+  },
+  "raw_payload": {
+    "size": 212676,
+    "sha256": "7413603aba92c83ef2499a386fbb355572cb103914669e15f15d1529ac67be62",
+    "sha512": "05b1dd0dbf7487db46019191b29fc21870e0361174932152ff78f224546b131ce86ad667b11069e35baae1c0cf4c85d63384084f3aa20e3c9f2ffdae554f5831"
+  },
+  "boot_probe": {
+    "first_64_hex": "58 80 01 30 01 24 5d 02 4b 4e 4c 54 90 01 88 00 06 81 4f 12 16 14 00 00 c4 3e 03 00 00 00 00 00 0c 64 81 a2 22 0b 1a 40 c0 06 c0 06 c0 06 c0 06 c0 06 c0 06 c0 06 c0 06 c0 06 c0 06 c0 06 c0 06",
+    "u32_at": {
+      "0x0": "0x30018058",
+      "0x4": "0x25d2401",
+      "0x8": "0x544c4e4b",
+      "0x10": "0x124f8106",
+      "0x18": "0x33ec4",
+      "0x20": "0xa281640c"
+    },
+    "u16_0x12": "0x124f",
+    "u16_0x14": "0x1416"
+  }
+}
