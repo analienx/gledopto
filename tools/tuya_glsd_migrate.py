@@ -45,12 +45,14 @@ DEFAULT_Z2M_DIR = "/config/zigbee2mqtt"
 DEFAULT_SSH = "ha"
 
 TUYA_ENDPOINTS = {
-    "eu": "https://openapi.tuyaeu.com",          # Central Europe (legacy Europe)
-    "weu": "https://openapi-weaz.tuyaeu.com",  # Western Europe (new EU accounts since 2025-11-25)
+    "eu": "https://openapi.tuyaeu.com",
+    "weu": "https://openapi-weaz.tuyaeu.com",
     "us": "https://openapi.tuyaus.com",
+    "ueaz": "https://openapi-ueaz.tuyaus.com",
     "cn": "https://openapi.tuyacn.com",
     "in": "https://openapi.tuyain.com",
 }
+TUYA_PROBE_ORDER = ("weu", "eu", "us", "ueaz", "in", "cn")
 
 OTA_MAGIC = 0x0BEEF11E
 URL_KEYS = {"url", "fw_url", "download_url", "firmware_url", "file_url"}
@@ -509,6 +511,82 @@ def stop_process(proc: subprocess.Popen[bytes] | None) -> None:
             proc.kill()
 
 
+def probe_tuya_regions(outdir: Path) -> tuple[Any, str, list[dict[str, Any]]]:
+    """Read-only probe of Tuya public data centers; select the one exposing the target."""
+    probes: list[dict[str, Any]] = []
+    usable: list[tuple[str, Any, list[dict[str, Any]], dict[str, Any] | None]] = []
+
+    print("[INFO] Auto-detecting Tuya data center with read-only authentication/device-list GETs...")
+    for region in TUYA_PROBE_ORDER:
+        endpoint = TUYA_ENDPOINTS[region]
+        rec: dict[str, Any] = {"region": region, "endpoint": endpoint}
+        try:
+            api = get_tuya_openapi(region)
+            devices = list(iter_device_list(api))
+            cand = choose_candidate(devices, "auto")
+            rec.update({
+                "success": True,
+                "device_count": len(devices),
+                "target_candidate": sanitize(cand) if cand else None,
+                "top_candidates": sanitize(devices[:10]),
+            })
+            usable.append((region, api, devices, cand))
+            marker = " TARGET" if cand else ""
+            print(f"  [OK] {region:4s} {endpoint} devices={len(devices)}{marker}")
+        except Exception as exc:
+            msg = str(exc)
+            rec.update({"success": False, "error": msg})
+            print(f"  [--] {region:4s} {endpoint} -> {msg}")
+        probes.append(rec)
+
+    dump_json(outdir / "tuya_region_probe.sanitized.json", sanitize(probes))
+
+    target_hits = [x for x in usable if x[3] is not None]
+    if len(target_hits) == 1:
+        region, api, _devices, _cand = target_hits[0]
+        print(f"[OK] Auto-selected Tuya region: {region} ({TUYA_ENDPOINTS[region]})")
+        return api, region, probes
+    if len(target_hits) > 1:
+        # Prefer the hit with the strongest exact target score.
+        target_hits.sort(
+            key=lambda x: device_score(x[3] or {}),
+            reverse=True,
+        )
+        if len(target_hits) == 1 or device_score(target_hits[0][3] or {}) > device_score(target_hits[1][3] or {}):
+            region, api, _devices, _cand = target_hits[0]
+            print(f"[OK] Auto-selected strongest Tuya target match: {region} ({TUYA_ENDPOINTS[region]})")
+            return api, region, probes
+        raise ToolError(
+            "Target-like GL-SD devices were visible in multiple Tuya data centers. "
+            "Inspect tuya_region_probe.sanitized.json and rerun with explicit --region."
+        )
+
+    nonempty = [x for x in usable if x[2]]
+    if len(nonempty) == 1:
+        region, api, devices, _cand = nonempty[0]
+        print(
+            f"[WARN] No exact GL-SD model/name match, but only {region} exposes devices "
+            f"({len(devices)} total); selecting it."
+        )
+        return api, region, probes
+
+    if len(usable) == 1:
+        region, api, _devices, _cand = usable[0]
+        print(f"[WARN] Only one Tuya data center is accessible; selecting {region}.")
+        return api, region, probes
+
+    if not usable:
+        raise ToolError(
+            "No Tuya data center permitted device-list access. Enable/link the Smart Life account "
+            "to at least one data center in the Tuya Cloud project. See tuya_region_probe.sanitized.json."
+        )
+
+    raise ToolError(
+        "Multiple Tuya data centers are accessible but none uniquely exposes the GL-SD target. "
+        "Inspect tuya_region_probe.sanitized.json or rerun with explicit --region."
+    )
+
+
 def query_firmware(api: Any, device_id: str) -> dict[str, Any]:
     responses = {
         "device_v1_1": tuya_get(api, f"/v1.1/iot-03/devices/{device_id}"),
@@ -519,9 +597,18 @@ def query_firmware(api: Any, device_id: str) -> dict[str, Any]:
 
 
 def tuya_watch(args: argparse.Namespace) -> Path:
-    api = get_tuya_openapi(args.region)
     outdir = Path(args.out or f"glsd-tuya-extract-{utc_stamp()}").resolve()
     outdir.mkdir(parents=True, exist_ok=True)
+    if args.region == "auto":
+        api, selected_region, _probes = probe_tuya_regions(outdir)
+    else:
+        api = get_tuya_openapi(args.region)
+        selected_region = args.region
+        print(f"[INFO] Using explicit Tuya region: {selected_region} ({TUYA_ENDPOINTS[selected_region]})")
+    dump_json(outdir / "tuya_selected_region.json", {
+        "region": selected_region,
+        "endpoint": TUYA_ENDPOINTS[selected_region],
+    })
     proc = start_tshark(args.pcap_interface, outdir)
     deadline = time.monotonic() + args.timeout
     last_summary = None
@@ -801,7 +888,7 @@ def build_parser() -> argparse.ArgumentParser:
     g = sub.add_parser("guided", help="interactive end-to-end migration/extraction/return workflow")
     g.add_argument("--ssh", default=DEFAULT_SSH)
     g.add_argument("--z2m-dir", default=DEFAULT_Z2M_DIR)
-    g.add_argument("--region", choices=sorted(TUYA_ENDPOINTS), default="weu")
+    g.add_argument("--region", choices=["auto", *sorted(TUYA_ENDPOINTS)], default="auto")
     g.add_argument("--device-id", default="auto", help="use explicit Tuya child ID if automatic project device listing is unavailable")
     g.add_argument("--timeout", type=int, default=900)
     g.add_argument("--interval", type=int, default=5)
@@ -821,7 +908,7 @@ def build_parser() -> argparse.ArgumentParser:
     s.set_defaults(func=snapshot_z2m)
 
     t = sub.add_parser("tuya-watch", help="poll Tuya Cloud for the paired GL-SD and extract firmware metadata/URL")
-    t.add_argument("--region", choices=sorted(TUYA_ENDPOINTS), default="weu")
+    t.add_argument("--region", choices=["auto", *sorted(TUYA_ENDPOINTS)], default="auto")
     t.add_argument("--device-id", default="auto", help="Tuya child device ID, or auto")
     t.add_argument("--watch", action="store_true", help="keep polling while you physically reset/pair the dimmer")
     t.add_argument("--timeout", type=int, default=900)
