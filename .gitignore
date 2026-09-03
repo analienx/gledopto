@@ -1,0 +1,4 @@
+# Local-only executor scratch
+.local/
+.work/
+*.log

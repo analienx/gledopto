@@ -1,0 +1,111 @@
+{
+  "timestamp": "2026-09-03T06:36:21.558Z",
+  "results": [
+    {
+      "id": 1,
+      "kind": "pong",
+      "eventsSeen": 0
+    },
+    {
+      "id": 1,
+      "kind": "pong",
+      "eventsSeen": 0
+    },
+    {
+      "id": 2,
+      "action": "read",
+      "cluster": "genBasic",
+      "manufacturerCode": null,
+      "attrs": [
+        18
+      ],
+      "result": {
+        "deviceEnabled": 1
+      }
+    },
+    {
+      "id": 2,
+      "action": "read",
+      "cluster": "genBasic",
+      "manufacturerCode": null,
+      "attrs": [
+        18
+      ],
+      "result": {
+        "deviceEnabled": 1
+      }
+    },
+    {
+      "id": 3,
+      "action": "read",
+      "cluster": "genBasic",
+      "manufacturerCode": null,
+      "attrs": [
+        16384
+      ],
+      "result": {
+        "swBuildId": "20651203"
+      }
+    },
+    {
+      "id": 3,
+      "action": "read",
+      "cluster": "genBasic",
+      "manufacturerCode": null,
+      "attrs": [
+        16384
+      ],
+      "result": {
+        "swBuildId": "20651203"
+      }
+    },
+    {
+      "id": 4,
+      "action": "read",
+      "cluster": "genLevelCtrl",
+      "manufacturerCode": null,
+      "attrs": [
+        0
+      ],
+      "result": {
+        "currentLevel": 0
+      }
+    },
+    {
+      "id": 4,
+      "action": "read",
+      "cluster": "genLevelCtrl",
+      "manufacturerCode": null,
+      "attrs": [
+        0
+      ],
+      "result": {
+        "currentLevel": 0
+      }
+    },
+    {
+      "id": 5,
+      "action": "read",
+      "cluster": "genLevelCtrl",
+      "manufacturerCode": null,
+      "attrs": [
+        16384
+      ],
+      "result": {
+        "startUpCurrentLevel": 255
+      }
+    },
+    {
+      "id": 5,
+      "action": "read",
+      "cluster": "genLevelCtrl",
+      "manufacturerCode": null,
+      "attrs": [
+        16384
+      ],
+      "result": {
+        "startUpCurrentLevel": 255
+      }
+    }
+  ]
+}

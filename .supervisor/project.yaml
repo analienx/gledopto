@@ -1,0 +1,30 @@
+schema_version: 1
+project_id: gledopto-gl-sd-301p
+repo: analienx/gledopto
+lifecycle: active
+canonical_skill:
+  repo: analienx/config
+  path: skills/supervisor-executor/SKILL.md
+registry:
+  repo: analienx/config
+  path: supervisor/projects.yaml
+context:
+  root_agents: AGENTS.md
+  device_ledger: devices/gl-sd-301p/README.md
+  device_status: devices/gl-sd-301p/STATUS.md
+control:
+  mode: task_issue
+  primary_issue: 1
+user_shorthand:
+  ".": supervise_latest
+executor:
+  environment: windows_notebook
+  management_paths:
+    - local_shell
+    - ssh_ha
+    - zigbee2mqtt_mqtt
+    - home_assistant_api
+notes: >-
+  Registered here first; add to analienx/config:supervisor/projects.yaml when
+  the control plane is next updated. Phase 1 software-only rules of issue #1
+  apply to all work on the installed production unit.

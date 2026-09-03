@@ -1,0 +1,330 @@
+{
+  "timestamp": "2026-09-03T06:24:20.139Z",
+  "results": {
+    "1": {
+      "cmd": null,
+      "id": 1,
+      "kind": "cleared"
+    },
+    "2": {
+      "cmd": null,
+      "id": 2,
+      "action": "read",
+      "cluster": "genBasic",
+      "manufacturerCode": null,
+      "attrs": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7
+      ],
+      "result": {
+        "zclVersion": 3,
+        "appVersion": 1,
+        "stackVersion": 2,
+        "hwVersion": 2,
+        "manufacturerName": "GLEDOPTO",
+        "modelId": "GL-SD-301P",
+        "dateCode": "20240704",
+        "powerSource": 1
+      }
+    },
+    "3": {
+      "cmd": null,
+      "id": 3,
+      "action": "read",
+      "cluster": "genBasic",
+      "manufacturerCode": 4687,
+      "attrs": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7
+      ],
+      "result": {
+        "zclVersion": 3,
+        "appVersion": 1,
+        "stackVersion": 2,
+        "hwVersion": 2,
+        "manufacturerName": "GLEDOPTO",
+        "modelId": "GL-SD-301P",
+        "dateCode": "20240704",
+        "powerSource": 1
+      }
+    },
+    "4": {
+      "cmd": null,
+      "id": 4,
+      "error": "Error: ZCL command 0xa4c13850cfcdb3a4/11 genBasic.read([8,9,10,11,12,13,14], {\"timeout\":8000,\"disableResponse\":false,\"disableRecovery\":false,\"disableDefaultResponse\":true,\"direction\":0,\"reservedBits\":0,\"manufacturerCode\":4687,\"writeUndiv\":false}) failed (Status 'UNSUPPORTED_ATTRIBUTE')\n    at Endpoint.checkStatus (/app/node_modules/.pnpm/zigbee-herdsman@10.8.0/node_modules/zigbee-herdsman/src/controller/model/endpoint.ts:458:28)\n    at Endpoint.zclCommand (/app/node_modules/.pnpm/zigbee-herdsman@10.8.0/node_modules/zigbee-herdsman/src/controller/model/endpoint.ts:1179:26)\n    at async Endpoint.read (/app/node_modules/.pnpm/zigbee-herdsman@10.8.0/node_modules/zigbee-herdsman/src/controller/model/endpoint.ts:597:29)\n    at async GledoptoProbe.handle (/config/zigbee2mqtt/external_extensions/.tmp-ed42d4f2-gledopto_probe_ext-fd24c6b1-681d-4ec3-8af2-b5fa48049bd8.js:115:28)"
+    },
+    "5": {
+      "cmd": null,
+      "id": 5,
+      "error": "Error: ZCL command 0xa4c13850cfcdb3a4/11 genBasic.read([17,18,16384], {\"timeout\":8000,\"disableResponse\":false,\"disableRecovery\":false,\"disableDefaultResponse\":true,\"direction\":0,\"reservedBits\":0,\"manufacturerCode\":4687,\"writeUndiv\":false}) failed (Status 'UNSUPPORTED_ATTRIBUTE')\n    at Endpoint.checkStatus (/app/node_modules/.pnpm/zigbee-herdsman@10.8.0/node_modules/zigbee-herdsman/src/controller/model/endpoint.ts:458:28)\n    at Endpoint.zclCommand (/app/node_modules/.pnpm/zigbee-herdsman@10.8.0/node_modules/zigbee-herdsman/src/controller/model/endpoint.ts:1179:26)\n    at async Endpoint.read (/app/node_modules/.pnpm/zigbee-herdsman@10.8.0/node_modules/zigbee-herdsman/src/controller/model/endpoint.ts:597:29)\n    at async GledoptoProbe.handle (/config/zigbee2mqtt/external_extensions/.tmp-ed42d4f2-gledopto_probe_ext-fd24c6b1-681d-4ec3-8af2-b5fa48049bd8.js:115:28)"
+    },
+    "6": {
+      "cmd": null,
+      "id": 6,
+      "action": "read",
+      "cluster": "genOnOff",
+      "manufacturerCode": null,
+      "attrs": [
+        0,
+        16387
+      ],
+      "result": {
+        "onOff": 0,
+        "startUpOnOff": 1
+      }
+    },
+    "7": {
+      "cmd": null,
+      "id": 7,
+      "action": "read",
+      "cluster": "genOnOff",
+      "manufacturerCode": 4687,
+      "attrs": [
+        0,
+        16387
+      ],
+      "result": {
+        "onOff": 0,
+        "startUpOnOff": 1
+      }
+    },
+    "8": {
+      "cmd": null,
+      "id": 8,
+      "error": "Error: ZCL command 0xa4c13850cfcdb3a4/11 genLevelCtrl.read([0,2,3,15], {\"timeout\":8000,\"disableResponse\":false,\"disableRecovery\":false,\"disableDefaultResponse\":true,\"direction\":0,\"reservedBits\":0,\"writeUndiv\":false}) failed (Status 'UNSUPPORTED_ATTRIBUTE')\n    at Endpoint.checkStatus (/app/node_modules/.pnpm/zigbee-herdsman@10.8.0/node_modules/zigbee-herdsman/src/controller/model/endpoint.ts:458:28)\n    at Endpoint.zclCommand (/app/node_modules/.pnpm/zigbee-herdsman@10.8.0/node_modules/zigbee-herdsman/src/controller/model/endpoint.ts:1179:26)\n    at async Endpoint.read (/app/node_modules/.pnpm/zigbee-herdsman@10.8.0/node_modules/zigbee-herdsman/src/controller/model/endpoint.ts:597:29)\n    at async GledoptoProbe.handle (/config/zigbee2mqtt/external_extensions/.tmp-ed42d4f2-gledopto_probe_ext-fd24c6b1-681d-4ec3-8af2-b5fa48049bd8.js:115:28)"
+    },
+    "9": {
+      "cmd": null,
+      "id": 9,
+      "error": "Error: ZCL command 0xa4c13850cfcdb3a4/11 genLevelCtrl.read([16,17,18,19,20,16384], {\"timeout\":8000,\"disableResponse\":false,\"disableRecovery\":false,\"disableDefaultResponse\":true,\"direction\":0,\"reservedBits\":0,\"writeUndiv\":false}) failed (Status 'UNSUPPORTED_ATTRIBUTE')\n    at Endpoint.checkStatus (/app/node_modules/.pnpm/zigbee-herdsman@10.8.0/node_modules/zigbee-herdsman/src/controller/model/endpoint.ts:458:28)\n    at Endpoint.zclCommand (/app/node_modules/.pnpm/zigbee-herdsman@10.8.0/node_modules/zigbee-herdsman/src/controller/model/endpoint.ts:1179:26)\n    at async Endpoint.read (/app/node_modules/.pnpm/zigbee-herdsman@10.8.0/node_modules/zigbee-herdsman/src/controller/model/endpoint.ts:597:29)\n    at async GledoptoProbe.handle (/config/zigbee2mqtt/external_extensions/.tmp-ed42d4f2-gledopto_probe_ext-fd24c6b1-681d-4ec3-8af2-b5fa48049bd8.js:115:28)"
+    },
+    "10": {
+      "cmd": null,
+      "id": 10,
+      "error": "Error: ZCL command 0xa4c13850cfcdb3a4/11 genLevelCtrl.read([0,2,3,15], {\"timeout\":8000,\"disableResponse\":false,\"disableRecovery\":false,\"disableDefaultResponse\":true,\"direction\":0,\"reservedBits\":0,\"manufacturerCode\":4687,\"writeUndiv\":false}) failed (Status 'UNSUPPORTED_ATTRIBUTE')\n    at Endpoint.checkStatus (/app/node_modules/.pnpm/zigbee-herdsman@10.8.0/node_modules/zigbee-herdsman/src/controller/model/endpoint.ts:458:28)\n    at Endpoint.zclCommand (/app/node_modules/.pnpm/zigbee-herdsman@10.8.0/node_modules/zigbee-herdsman/src/controller/model/endpoint.ts:1179:26)\n    at async Endpoint.read (/app/node_modules/.pnpm/zigbee-herdsman@10.8.0/node_modules/zigbee-herdsman/src/controller/model/endpoint.ts:597:29)\n    at async GledoptoProbe.handle (/config/zigbee2mqtt/external_extensions/.tmp-ed42d4f2-gledopto_probe_ext-fd24c6b1-681d-4ec3-8af2-b5fa48049bd8.js:115:28)"
+    },
+    "11": {
+      "cmd": null,
+      "id": 11,
+      "error": "Error: ZCL command 0xa4c13850cfcdb3a4/11 genLevelCtrl.read([16,17,18,19,20,16384], {\"timeout\":8000,\"disableResponse\":false,\"disableRecovery\":false,\"disableDefaultResponse\":true,\"direction\":0,\"reservedBits\":0,\"manufacturerCode\":4687,\"writeUndiv\":false}) failed (Status 'UNSUPPORTED_ATTRIBUTE')\n    at Endpoint.checkStatus (/app/node_modules/.pnpm/zigbee-herdsman@10.8.0/node_modules/zigbee-herdsman/src/controller/model/endpoint.ts:458:28)\n    at Endpoint.zclCommand (/app/node_modules/.pnpm/zigbee-herdsman@10.8.0/node_modules/zigbee-herdsman/src/controller/model/endpoint.ts:1179:26)\n    at async Endpoint.read (/app/node_modules/.pnpm/zigbee-herdsman@10.8.0/node_modules/zigbee-herdsman/src/controller/model/endpoint.ts:597:29)\n    at async GledoptoProbe.handle (/config/zigbee2mqtt/external_extensions/.tmp-ed42d4f2-gledopto_probe_ext-fd24c6b1-681d-4ec3-8af2-b5fa48049bd8.js:115:28)"
+    },
+    "12": {
+      "cmd": null,
+      "id": 12,
+      "action": "discover",
+      "cluster": "genBasic",
+      "sub": "discover",
+      "request": {
+        "startAttrId": 0,
+        "maxAttrIds": 240
+      },
+      "manufacturerCode": null,
+      "responsePayload": null
+    },
+    "13": {
+      "cmd": null,
+      "id": 13,
+      "action": "discover",
+      "cluster": "genBasic",
+      "sub": "discoverCommands",
+      "request": {
+        "startCommandId": 0,
+        "maxCommandIds": 240
+      },
+      "manufacturerCode": null,
+      "responsePayload": null
+    },
+    "14": {
+      "cmd": null,
+      "id": 14,
+      "action": "discover",
+      "cluster": "genBasic",
+      "sub": "discoverCommandsGen",
+      "request": {
+        "startCommandId": 0,
+        "maxCommandIds": 240
+      },
+      "manufacturerCode": null,
+      "responsePayload": null
+    },
+    "15": {
+      "cmd": null,
+      "id": 15,
+      "action": "discover",
+      "cluster": "genOnOff",
+      "sub": "discover",
+      "request": {
+        "startAttrId": 0,
+        "maxAttrIds": 240
+      },
+      "manufacturerCode": null,
+      "responsePayload": null
+    },
+    "16": {
+      "cmd": null,
+      "id": 16,
+      "action": "discover",
+      "cluster": "genOnOff",
+      "sub": "discoverCommands",
+      "request": {
+        "startCommandId": 0,
+        "maxCommandIds": 240
+      },
+      "manufacturerCode": null,
+      "responsePayload": null
+    },
+    "17": {
+      "cmd": null,
+      "id": 17,
+      "action": "discover",
+      "cluster": "genOnOff",
+      "sub": "discoverCommandsGen",
+      "request": {
+        "startCommandId": 0,
+        "maxCommandIds": 240
+      },
+      "manufacturerCode": null,
+      "responsePayload": null
+    },
+    "18": {
+      "cmd": null,
+      "id": 18,
+      "action": "discover",
+      "cluster": "genLevelCtrl",
+      "sub": "discover",
+      "request": {
+        "startAttrId": 0,
+        "maxAttrIds": 240
+      },
+      "manufacturerCode": null,
+      "responsePayload": null
+    },
+    "19": {
+      "cmd": null,
+      "id": 19,
+      "action": "discover",
+      "cluster": "genLevelCtrl",
+      "sub": "discoverCommands",
+      "request": {
+        "startCommandId": 0,
+        "maxCommandIds": 240
+      },
+      "manufacturerCode": null,
+      "responsePayload": null
+    },
+    "20": {
+      "cmd": null,
+      "id": 20,
+      "action": "discover",
+      "cluster": "genLevelCtrl",
+      "sub": "discoverCommandsGen",
+      "request": {
+        "startCommandId": 0,
+        "maxCommandIds": 240
+      },
+      "manufacturerCode": null,
+      "responsePayload": null
+    },
+    "21": {
+      "cmd": null,
+      "id": 21,
+      "action": "discover",
+      "cluster": "lightingColorCtrl",
+      "sub": "discover",
+      "request": {
+        "startAttrId": 0,
+        "maxAttrIds": 240
+      },
+      "manufacturerCode": null,
+      "responsePayload": null
+    },
+    "22": {
+      "cmd": null,
+      "id": 22,
+      "action": "discover",
+      "cluster": "lightingColorCtrl",
+      "sub": "discoverCommands",
+      "request": {
+        "startCommandId": 0,
+        "maxCommandIds": 240
+      },
+      "manufacturerCode": null,
+      "responsePayload": null
+    },
+    "23": {
+      "cmd": null,
+      "id": 23,
+      "action": "discover",
+      "cluster": "lightingColorCtrl",
+      "sub": "discoverCommandsGen",
+      "request": {
+        "startCommandId": 0,
+        "maxCommandIds": 240
+      },
+      "manufacturerCode": null,
+      "responsePayload": null
+    },
+    "24": {
+      "cmd": null,
+      "id": 24,
+      "action": "discover",
+      "cluster": "genBasic",
+      "sub": "discover",
+      "request": {
+        "startAttrId": 0,
+        "maxAttrIds": 240
+      },
+      "manufacturerCode": 4687,
+      "responsePayload": null
+    },
+    "25": {
+      "cmd": null,
+      "id": 25,
+      "action": "discover",
+      "cluster": "genBasic",
+      "sub": "discoverExt",
+      "request": {
+        "startAttrId": 0,
+        "maxAttrIds": 15
+      },
+      "manufacturerCode": null,
+      "responsePayload": null
+    },
+    "26": {
+      "cmd": null,
+      "id": 26,
+      "kind": "zcl_events",
+      "events": []
+    }
+  },
+  "eventLog": [
+    {
+      "receivedAt": "2026-09-03T06:24:17.739Z",
+      "msg": {
+        "id": 26,
+        "kind": "zcl_events",
+        "events": []
+      }
+    },
+    {
+      "receivedAt": "2026-09-03T06:24:17.740Z",
+      "msg": {
+        "id": 26,
+        "kind": "zcl_events",
+        "events": []
+      }
+    }
+  ]
+}

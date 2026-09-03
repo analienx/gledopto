@@ -1,0 +1,106 @@
+{
+  "text_hits": {
+    "configuration.yaml": {
+      "0xa4c13850cfcdb3a4": 1
+    },
+    "configuration_backup_v4.yaml": {
+      "0xa4c13850cfcdb3a4": 1
+    },
+    "log/2026-09-03.06-17-02/log.log": {
+      "GL-SD-301P": 18,
+      "20651203": 17,
+      "20240704": 16,
+      "4687": 21,
+      "GLEDOPTO": 21,
+      "0xa4c13850cfcdb3a4": 22
+    },
+    "log/2026-09-03.07-16-09/log.log": {
+      "GL-SD-301P": 2,
+      "20651203": 1,
+      "20240704": 1,
+      "4687": 3,
+      "GLEDOPTO": 3,
+      "0xa4c13850cfcdb3a4": 2
+    },
+    "log/2026-09-03.07-18-40/log.log": {
+      "GL-SD-301P": 2,
+      "20651203": 1,
+      "20240704": 1,
+      "4687": 14,
+      "GLEDOPTO": 14,
+      "0xa4c13850cfcdb3a4": 4
+    },
+    "log/2026-09-03.07-54-13/log.log": {
+      "GL-SD-301P": 3,
+      "20651203": 2,
+      "20240704": 2,
+      "4687": 7,
+      "GLEDOPTO": 7,
+      "0xa4c13850cfcdb3a4": 3
+    },
+    "log/2026-09-03.08-02-05/log.log": {
+      "GL-SD-301P": 2,
+      "20651203": 1,
+      "20240704": 1,
+      "4687": 5,
+      "GLEDOPTO": 5,
+      "0xa4c13850cfcdb3a4": 2
+    },
+    "log/2026-09-03.08-08-45/log.log": {
+      "GL-SD-301P": 39,
+      "20651203": 27,
+      "20240704": 28,
+      "4687": 45,
+      "GLEDOPTO": 33,
+      "0xa4c13850cfcdb3a4": 64
+    },
+    "log/2026-09-03.08-23-09/log.log": {
+      "GL-SD-301P": 27,
+      "20651203": 26,
+      "20240704": 26,
+      "4687": 48,
+      "GLEDOPTO": 30,
+      "0xa4c13850cfcdb3a4": 111
+    },
+    "log/2026-09-03.08-37-34/log.log": {
+      "GL-SD-301P": 4,
+      "20651203": 3,
+      "20240704": 3,
+      "4687": 8,
+      "GLEDOPTO": 8,
+      "0xa4c13850cfcdb3a4": 5
+    },
+    "log/2026-09-03.08-48-22/log.log": {
+      "GL-SD-301P": 2,
+      "20651203": 1,
+      "20240704": 1,
+      "4687": 3,
+      "GLEDOPTO": 3,
+      "0xa4c13850cfcdb3a4": 2
+    },
+    "log/2026-09-03.08-48-54/log.log": {
+      "GL-SD-301P": 3,
+      "20651203": 2,
+      "20240704": 2,
+      "4687": 15,
+      "GLEDOPTO": 6,
+      "0xa4c13850cfcdb3a4": 3
+    },
+    "state.json": {
+      "0xa4c13850cfcdb3a4": 1
+    }
+  },
+  "binaries": [
+    {
+      "path": "bseed_ota/canary.ota",
+      "size": 183634
+    },
+    {
+      "path": "bseed_ota/recovery.ota",
+      "size": 183186
+    }
+  ],
+  "log_hits": [
+    "[2026-09-03 08:08:54] info: \tz2m:mqtt: MQTT publish: topic 'homeassistant/update/0xa4c13850cfcdb3a4/update/config', payload '{\"availability\":[{\"topic\":\"zigbee2mqtt/bridge/state\",\"value_template\":\"{{ value_json.state }}\"},{\"topic\":\"zigbee2mqtt/LivingRoomCircleLightDimmer/availability\",\"value_template"
+  ]
+}

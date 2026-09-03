@@ -1,0 +1,134 @@
+{
+  "timestamp": "2026-09-03T06:53:21.253Z",
+  "status": "DONE",
+  "replies": [
+    {
+      "id": 1,
+      "kind": "cleared"
+    },
+    {
+      "id": 1,
+      "kind": "cleared"
+    },
+    {
+      "kind": "ota_query_event",
+      "event": {
+        "ts": "2026-09-03T06:52:02.352Z",
+        "type": "commandQueryNextImageRequest",
+        "endpoint": 11,
+        "cluster": "genOta",
+        "payload": {
+          "fieldControl": 0,
+          "manufacturerCode": 4687,
+          "imageType": 5142,
+          "fileVersion": 637612033
+        },
+        "tsn": 88
+      }
+    },
+    {
+      "kind": "ota_query_event",
+      "event": {
+        "ts": "2026-09-03T06:52:02.367Z",
+        "type": "commandQueryNextImageRequest",
+        "endpoint": 11,
+        "cluster": "genOta",
+        "payload": {
+          "fieldControl": 0,
+          "manufacturerCode": 4687,
+          "imageType": 5142,
+          "fileVersion": 637612033
+        },
+        "tsn": 89
+      }
+    },
+    {
+      "id": 2,
+      "action": "check_ota",
+      "available": false,
+      "current": {
+        "fieldControl": 0,
+        "manufacturerCode": 4687,
+        "imageType": 5142,
+        "fileVersion": 637612033
+      },
+      "availableMetaUrl": null
+    },
+    {
+      "id": 2,
+      "action": "check_ota",
+      "available": false,
+      "current": {
+        "fieldControl": 0,
+        "manufacturerCode": 4687,
+        "imageType": 5142,
+        "fileVersion": 637612033
+      },
+      "availableMetaUrl": null
+    },
+    {
+      "id": 3,
+      "kind": "zcl_events",
+      "events": [
+        {
+          "ts": "2026-09-03T06:52:02.352Z",
+          "type": "commandQueryNextImageRequest",
+          "endpoint": 11,
+          "cluster": "genOta",
+          "payload": {
+            "fieldControl": 0,
+            "manufacturerCode": 4687,
+            "imageType": 5142,
+            "fileVersion": 637612033
+          },
+          "tsn": 88
+        },
+        {
+          "ts": "2026-09-03T06:52:02.367Z",
+          "type": "commandQueryNextImageRequest",
+          "endpoint": 11,
+          "cluster": "genOta",
+          "payload": {
+            "fieldControl": 0,
+            "manufacturerCode": 4687,
+            "imageType": 5142,
+            "fileVersion": 637612033
+          },
+          "tsn": 89
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "kind": "zcl_events",
+      "events": [
+        {
+          "ts": "2026-09-03T06:52:02.352Z",
+          "type": "commandQueryNextImageRequest",
+          "endpoint": 11,
+          "cluster": "genOta",
+          "payload": {
+            "fieldControl": 0,
+            "manufacturerCode": 4687,
+            "imageType": 5142,
+            "fileVersion": 637612033
+          },
+          "tsn": 88
+        },
+        {
+          "ts": "2026-09-03T06:52:02.367Z",
+          "type": "commandQueryNextImageRequest",
+          "endpoint": 11,
+          "cluster": "genOta",
+          "payload": {
+            "fieldControl": 0,
+            "manufacturerCode": 4687,
+            "imageType": 5142,
+            "fileVersion": 637612033
+          },
+          "tsn": 89
+        }
+      ]
+    }
+  ]
+}

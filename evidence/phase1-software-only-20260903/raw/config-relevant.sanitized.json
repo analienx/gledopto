@@ -1,0 +1,15 @@
+{
+  "ota": {
+    "block_size": 192,
+    "default_maximum_data_size": 100
+  },
+  "external_converters": null,
+  "advanced_log_level": "info",
+  "log_level": "info",
+  "target_device_block": {
+    "friendly_name": "LivingRoomCircleLightDimmer",
+    "transition": 1,
+    "state_action": true
+  },
+  "permit_join": null
+}

@@ -1,0 +1,17 @@
+{
+  "startedAt": "2026-09-03T06:37:41.472Z",
+  "request": "zigbee2mqtt/bridge/request/device/ota_update/check",
+  "target": "0xa4c13850cfcdb3a4",
+  "payload": {
+    "id": "0xa4c13850cfcdb3a4"
+  },
+  "response": {
+    "id": "0xa4c13850cfcdb3a4"
+  },
+  "extensionEvents": [],
+  "log": [
+    "publishing check request at 2026-09-03T06:37:43.502Z"
+  ],
+  "finishedAt": "2026-09-03T06:39:13.504Z",
+  "status": "DONE"
+}
