@@ -15,6 +15,12 @@ class TestTuyaGlsdMigrate(unittest.TestCase):
     def test_western_europe_endpoint(self):
         self.assertEqual(mod.TUYA_ENDPOINTS['weu'], 'https://openapi-weaz.tuyaeu.com')
 
+    def test_eastern_america_endpoint(self):
+        self.assertEqual(mod.TUYA_ENDPOINTS['ueaz'], 'https://openapi-ueaz.tuyaus.com')
+
+    def test_probe_order_covers_all_regions(self):
+        self.assertEqual(set(mod.TUYA_PROBE_ORDER), set(mod.TUYA_ENDPOINTS))
+
     def test_parse_ota(self):
         header = bytearray(56)
         struct.pack_into('<IHHHHHIH', header, 0,
