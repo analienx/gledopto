@@ -5,7 +5,7 @@ import struct
 import tempfile
 import unittest
 
-MOD_PATH = Path(__file__).with_name('tuya_glsd_migrate.py')
+MOD_PATH = Path(__file__).resolve().parents[1] / 'tuya_glsd_migrate.py'
 spec = importlib.util.spec_from_file_location('tuya_glsd_migrate', MOD_PATH)
 mod = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(mod)
