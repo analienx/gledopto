@@ -12,6 +12,9 @@ spec.loader.exec_module(mod)
 
 
 class TestTuyaGlsdMigrate(unittest.TestCase):
+    def test_western_europe_endpoint(self):
+        self.assertEqual(mod.TUYA_ENDPOINTS['weu'], 'https://openapi-weaz.tuyaeu.com')
+
     def test_parse_ota(self):
         header = bytearray(56)
         struct.pack_into('<IHHHHHIH', header, 0,
