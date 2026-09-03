@@ -6,6 +6,8 @@ param(
 
     [switch]$ResetCredentials,
 
+    [switch]$Phase2Only,
+
     [string]$DeviceId = 'auto'
 )
 
@@ -78,12 +80,24 @@ try {
     Write-Host "[OK] Tuya credentials loaded into this child process only." -ForegroundColor Green
     Write-Host "[INFO] Region: $Region; DeviceId: $DeviceId" -ForegroundColor Cyan
 
-    $argsList = @(
-        $pythonTool,
-        'guided',
-        '--region', $Region,
-        '--device-id', $DeviceId
-    )
+    if ($Phase2Only) {
+        Write-Host '[INFO] Resuming Tuya extraction only; no Z2M snapshot/reset/re-pair step will run.' -ForegroundColor Cyan
+        $argsList = @(
+            $pythonTool,
+            'tuya-watch',
+            '--region', $Region,
+            '--device-id', $DeviceId,
+            '--watch'
+        )
+    }
+    else {
+        $argsList = @(
+            $pythonTool,
+            'guided',
+            '--region', $Region,
+            '--device-id', $DeviceId
+        )
+    }
 
     if ($PcapInterface) {
         $argsList += @('--pcap-interface', $PcapInterface)
