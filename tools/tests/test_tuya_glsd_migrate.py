@@ -49,6 +49,14 @@ class TestTuyaGlsdMigrate(unittest.TestCase):
         self.assertIn('https://cdn.example.com/fw2.bin', vals)
         self.assertNotIn('https://example.com/icon.png', vals)
 
+    def test_reporting_payload_accepts_z2m_database_field_names(self):
+        payload = mod.reporting_to_payload('LivingRoomCircleLightDimmer', {
+            'cluster': 8, 'attrId': 0, 'minRepIntval': 5, 'maxRepIntval': 65000, 'repChange': 1,
+        })
+        self.assertEqual(payload['minimum_report_interval'], 5)
+        self.assertEqual(payload['maximum_report_interval'], 65000)
+        self.assertEqual(payload['reportable_change'], 1)
+
     def test_compare_state_detects_missing_group_and_binding(self):
         snapshot = {
             'target': {'ieee': mod.TARGET_IEEE},
