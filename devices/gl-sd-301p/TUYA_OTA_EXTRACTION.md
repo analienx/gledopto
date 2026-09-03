@@ -49,27 +49,56 @@ Optional:
 - Wireshark/TShark. This is useful as evidence only; modern Tuya traffic is TLS
   encrypted, so the Cloud API is the primary extractor.
 
-## Tuya developer setup
+## Tuya developer setup and local credential storage
 
 Before the migration, create/link a Tuya Cloud project for the same Smart Life
 account that owns the Tuya gateway.
 
-Set the credentials **only in the local PowerShell environment**. Never post
-these values to GitHub or chat:
+**Do not commit Tuya credentials or copy them into issue comments.** Use the
+Windows wrapper supplied in this repository:
 
 ```powershell
-$env:TUYA_ACCESS_ID = '<project Access ID>'
-$env:TUYA_ACCESS_KEY = '<project Access Secret>'
+.\tools\run_tuya_guided.ps1 -Region eu
 ```
 
-Europe is the default endpoint. For another data center pass `--region us`,
-`--region cn`, or `--region in`. `TUYA_ENDPOINT` can override the endpoint.
+On the first run it securely prompts for:
+
+- Tuya Cloud **Access ID**;
+- Tuya Cloud **Access Secret**;
+- optional Tuya **Project ID / Code**.
+
+The secret prompt is hidden. The values are stored only on that Windows account
+and machine in:
+
+```text
+.local/tuya-credentials.clixml
+```
+
+The repository already ignores `.local/`. PowerShell `Export-Clixml` stores
+the `SecureString` using Windows DPAPI, so the Access Secret is not placed in
+plaintext in the repository. The wrapper decrypts it only long enough to set
+the child process environment, runs the Python extractor, then clears the
+environment variables and zeroes the temporary BSTR.
+
+To replace the locally stored credentials:
+
+```powershell
+.\tools\run_tuya_guided.ps1 -Region eu -ResetCredentials
+```
+
+Europe is the default endpoint. For another data center pass `-Region us`,
+`-Region cn`, or `-Region in`.
 
 ## Recommended one-command workflow
 
+After the Python environment/dependencies are installed:
+
 ```powershell
-python tools\tuya_glsd_migrate.py guided --region eu
+.\tools\run_tuya_guided.ps1 -Region eu
 ```
+
+The first invocation asks for the credentials once, then immediately starts the
+guided extraction workflow.
 
 The script performs these phases:
 
@@ -122,7 +151,7 @@ tshark -D
 Then:
 
 ```powershell
-python tools\tuya_glsd_migrate.py guided --region eu --pcap-interface 4
+.\tools\run_tuya_guided.ps1 -Region eu -PcapInterface 4
 ```
 
 The resulting `tuya_gateway_capture.pcapng` may show DNS/TLS endpoints and
