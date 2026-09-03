@@ -1,0 +1,10 @@
+{
+ "device_visible": [],
+ "product_hardwares": {
+  "code": 28841101,
+  "msg": "No permissions. This API is not subscribed.",
+  "success": false,
+  "t": 1788468860074,
+  "tid": "a274bdffa7d911f1a1ebd6dbc6e5ffad"
+ }
+}
