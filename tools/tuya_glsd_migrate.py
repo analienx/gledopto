@@ -45,7 +45,8 @@ DEFAULT_Z2M_DIR = "/config/zigbee2mqtt"
 DEFAULT_SSH = "ha"
 
 TUYA_ENDPOINTS = {
-    "eu": "https://openapi.tuyaeu.com",
+    "eu": "https://openapi.tuyaeu.com",          # Central Europe (legacy Europe)
+    "weu": "https://openapi-weaz.tuyaeu.com",  # Western Europe (new EU accounts since 2025-11-25)
     "us": "https://openapi.tuyaus.com",
     "cn": "https://openapi.tuyacn.com",
     "in": "https://openapi.tuyain.com",
@@ -307,7 +308,7 @@ def get_tuya_openapi(region: str):
         raise ToolError("Set TUYA_ACCESS_ID and TUYA_ACCESS_KEY environment variables. Never paste them into GitHub/chat.")
     endpoint = os.environ.get("TUYA_ENDPOINT") or TUYA_ENDPOINTS.get(region)
     if not endpoint:
-        raise ToolError(f"Unknown region {region!r}; use eu/us/cn/in or set TUYA_ENDPOINT")
+        raise ToolError(f"Unknown region {region!r}; use one of {', '.join(sorted(TUYA_ENDPOINTS))} or set TUYA_ENDPOINT")
     api = TuyaOpenAPI(endpoint, access_id, access_key)
     ok = api.connect()
     if isinstance(ok, dict) and ok.get("success") is False:
@@ -331,6 +332,16 @@ def iter_device_list(api: Any) -> Iterable[dict[str, Any]]:
         resp = tuya_get(api, "/v1.3/iot-03/devices", params)
         result = resp.get("result") or {}
         if not resp.get("success", False):
+            if resp.get("code") == 28841107:
+                raise ToolError(
+                    "Tuya device list failed because this cloud-project data center is suspended "
+                    "(code 28841107). Enable the matching data center in Tuya Developer Platform "
+                    "(Cloud > Development/Project Management > Open Project > Overview > Edit), "
+                    "then under Devices > Link Tuya App Account select that same data center and "
+                    "link/scan the Smart Life account. For Czech/Slovak Smart Life accounts created "
+                    "since 2025-11-25, use Western Europe (--region weu). "
+                    f"Raw response: {sanitize(resp)}"
+                )
             raise ToolError(f"Tuya device list failed: {sanitize(resp)}")
         items = result.get("list") if isinstance(result, dict) else None
         if not isinstance(items, list):
@@ -790,7 +801,7 @@ def build_parser() -> argparse.ArgumentParser:
     g = sub.add_parser("guided", help="interactive end-to-end migration/extraction/return workflow")
     g.add_argument("--ssh", default=DEFAULT_SSH)
     g.add_argument("--z2m-dir", default=DEFAULT_Z2M_DIR)
-    g.add_argument("--region", choices=sorted(TUYA_ENDPOINTS), default="eu")
+    g.add_argument("--region", choices=sorted(TUYA_ENDPOINTS), default="weu")
     g.add_argument("--device-id", default="auto", help="use explicit Tuya child ID if automatic project device listing is unavailable")
     g.add_argument("--timeout", type=int, default=900)
     g.add_argument("--interval", type=int, default=5)
@@ -810,7 +821,7 @@ def build_parser() -> argparse.ArgumentParser:
     s.set_defaults(func=snapshot_z2m)
 
     t = sub.add_parser("tuya-watch", help="poll Tuya Cloud for the paired GL-SD and extract firmware metadata/URL")
-    t.add_argument("--region", choices=sorted(TUYA_ENDPOINTS), default="eu")
+    t.add_argument("--region", choices=sorted(TUYA_ENDPOINTS), default="weu")
     t.add_argument("--device-id", default="auto", help="Tuya child device ID, or auto")
     t.add_argument("--watch", action="store_true", help="keep polling while you physically reset/pair the dimmer")
     t.add_argument("--timeout", type=int, default=900)
