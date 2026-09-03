@@ -1,0 +1,315 @@
+{
+  "binding_target_map": {
+    "0xfdb1122d004b1200": {
+      "friendly_name": "Coordinator",
+      "manufName": null,
+      "modelId": null,
+      "type": "Coordinator"
+    }
+  },
+  "configuration": {
+    "devices": {
+      "0xa4c13850cfcdb3a4": {
+        "friendly_name": "LivingRoomCircleLightDimmer",
+        "state_action": true,
+        "transition": 1
+      }
+    },
+    "groups": {
+      "1": {
+        "friendly_name": "Sockets Critical"
+      },
+      "10": {
+        "friendly_name": "Living Room Lights Power"
+      },
+      "11": {
+        "friendly_name": "Living Room Circle "
+      },
+      "110": {
+        "friendly_name": "LR Circle"
+      },
+      "12": {
+        "friendly_name": "Kitchen Linear"
+      },
+      "13": {
+        "friendly_name": "Lights Hall Entrance"
+      },
+      "14": {
+        "friendly_name": "Lights Bulbs Entrance"
+      },
+      "2": {
+        "friendly_name": "Sockets Supportive"
+      },
+      "20": {
+        "friendly_name": "Bedroom Lights",
+        "optimistic": true
+      },
+      "22": {
+        "friendly_name": "Work Room Table Lights"
+      },
+      "23": {
+        "friendly_name": "LR LinearDimmerButtLeft"
+      },
+      "24": {
+        "friendly_name": "LR KitchenBulbsDimmerButtMiddle"
+      },
+      "25": {
+        "friendly_name": "Kitchen Table Bulbs",
+        "optimistic": true
+      },
+      "26": {
+        "friendly_name": "Lights Hall All"
+      },
+      "30": {
+        "friendly_name": "LR KitchenBulbsAndLinear"
+      },
+      "31": {
+        "friendly_name": "Sockets Nonessential Shutdown",
+        "off_state": "all_members_off",
+        "optimistic": true,
+        "retain": false
+      },
+      "4": {
+        "friendly_name": "Breakers"
+      },
+      "5": {
+        "friendly_name": "Lights Hall"
+      },
+      "6": {
+        "friendly_name": "Group Ikea HA Switch Bind Essentials"
+      },
+      "7": {
+        "friendly_name": "Lights Power Kitchen Living Room"
+      },
+      "8": {
+        "friendly_name": "Lights  All"
+      }
+    },
+    "mqtt": {
+      "server": "mqtt://homeassistant:1883"
+    }
+  },
+  "created_utc": "20260903T190945Z",
+  "device_record": {
+    "appVersion": 1,
+    "dateCode": "20240704",
+    "endpoints": {
+      "11": {
+        "binds": [
+          {
+            "cluster": 6,
+            "deviceIeeeAddress": "0x00124b002d12b1fd",
+            "endpointID": 1,
+            "type": "endpoint"
+          },
+          {
+            "cluster": 6,
+            "deviceIeeeAddress": "0xfdb1122d004b1200",
+            "endpointID": 1,
+            "type": "endpoint"
+          },
+          {
+            "cluster": 8,
+            "deviceIeeeAddress": "0xfdb1122d004b1200",
+            "endpointID": 1,
+            "type": "endpoint"
+          }
+        ],
+        "clusters": {
+          "genBasic": {
+            "attributes": {
+              "65533": 1,
+              "appVersion": 1,
+              "dateCode": "20240704",
+              "deviceEnabled": 1,
+              "hwVersion": 2,
+              "manufacturerName": "GLEDOPTO",
+              "modelId": "GL-SD-301P",
+              "powerSource": 1,
+              "stackVersion": 2,
+              "swBuildId": "20651203",
+              "zclVersion": 3
+            }
+          },
+          "genLevelCtrl": {
+            "attributes": {
+              "65533": 1,
+              "currentLevel": 0,
+              "startUpCurrentLevel": 255
+            }
+          },
+          "genOnOff": {
+            "attributes": {
+              "65533": 1,
+              "onOff": 0,
+              "startUpOnOff": 1
+            }
+          },
+          "genOta": {
+            "attributes": {
+              "currentFileVersion": 637612033,
+              "currentZigbeeStackVersion": 2,
+              "downloadedFileVersion": 4294967295,
+              "downloadedZigbeeStackVersion": 65535,
+              "fileOffset": 4294967295,
+              "imageTypeId": 65535,
+              "imageUpgradeStatus": 0,
+              "manufacturerId": 4687,
+              "minimumBlockReqDelay": 0,
+              "upgradeServerId": "0xffffffffffffffff"
+            }
+          },
+          "lightingColorCtrl": {
+            "attributes": {
+              "65533": 1,
+              "colorCapabilities": 0,
+              "colorTempPhysicalMax": 495,
+              "colorTempPhysicalMin": 158
+            }
+          }
+        },
+        "configuredReportings": [
+          {
+            "attrId": 0,
+            "cluster": 6,
+            "maxRepIntval": 65000,
+            "minRepIntval": 0,
+            "repChange": 1
+          },
+          {
+            "attrId": 0,
+            "cluster": 8,
+            "maxRepIntval": 65000,
+            "minRepIntval": 5,
+            "repChange": 1
+          }
+        ],
+        "devId": 257,
+        "epId": 11,
+        "inClusterList": [
+          0,
+          3,
+          4,
+          5,
+          6,
+          8,
+          768,
+          4096
+        ],
+        "meta": {
+          "onLevelSupported": false
+        },
+        "outClusterList": [
+          25
+        ],
+        "profId": 260
+      },
+      "242": {
+        "binds": [],
+        "clusters": {},
+        "configuredReportings": [],
+        "devId": 97,
+        "epId": 242,
+        "inClusterList": [],
+        "meta": {},
+        "outClusterList": [
+          33
+        ],
+        "profId": 41440
+      }
+    },
+    "epList": [
+      11,
+      242
+    ],
+    "hwVersion": 2,
+    "id": 39,
+    "ieeeAddr": "0xa4c13850cfcdb3a4",
+    "interviewCompleted": true,
+    "interviewState": "SUCCESSFUL",
+    "lastSeen": 1788462258469,
+    "manufId": 4687,
+    "manufName": "GLEDOPTO",
+    "meta": {
+      "configured": "0.0.0"
+    },
+    "modelId": "GL-SD-301P",
+    "nwkAddr": 52572,
+    "powerSource": "Mains (single phase)",
+    "stackVersion": 2,
+    "swBuildId": "20651203",
+    "type": "Router",
+    "zclVersion": 3
+  },
+  "endpoint_state": {
+    "bindings": [
+      {
+        "cluster": 6,
+        "endpoint": 1,
+        "group": null,
+        "ieee": "0x00124b002d12b1fd",
+        "type": "endpoint"
+      },
+      {
+        "cluster": 6,
+        "endpoint": 1,
+        "group": null,
+        "ieee": "0xfdb1122d004b1200",
+        "type": "endpoint"
+      },
+      {
+        "cluster": 8,
+        "endpoint": 1,
+        "group": null,
+        "ieee": "0xfdb1122d004b1200",
+        "type": "endpoint"
+      }
+    ],
+    "configured_reporting": [
+      {
+        "attrId": 0,
+        "cluster": 6,
+        "maxRepIntval": 65000,
+        "minRepIntval": 0,
+        "repChange": 1
+      },
+      {
+        "attrId": 0,
+        "cluster": 8,
+        "maxRepIntval": 65000,
+        "minRepIntval": 5,
+        "repChange": 1
+      }
+    ],
+    "endpoint": 11
+  },
+  "groups": [
+    {
+      "groupID": 110,
+      "id": 235,
+      "members": [
+        {
+          "deviceIeeeAddr": "0xa4c13843a9d40f85",
+          "endpointID": 6
+        },
+        {
+          "deviceIeeeAddr": "0xa4c13850cfcdb3a4",
+          "endpointID": 11
+        }
+      ],
+      "meta": {},
+      "type": "Group"
+    }
+  ],
+  "schema": 1,
+  "target": {
+    "endpoint": 11,
+    "friendly_name": "LivingRoomCircleLightDimmer",
+    "ieee": "0xa4c13850cfcdb3a4",
+    "model": "GL-SD-301P"
+  },
+  "warnings": [
+    "This is a pre-migration snapshot. Do not treat cached Z2M state as proof that device-side tables survive a factory reset.",
+    "Raw configuration.yaml is deliberately not saved because it can contain MQTT/network secrets."
+  ]
+}

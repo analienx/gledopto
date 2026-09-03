@@ -1,0 +1,57 @@
+{
+  "device_v1_1": {
+    "result": {
+      "active_time": 1788464134,
+      "category": "dj",
+      "category_name": "Light Source",
+      "create_time": 1788463897,
+      "gateway_id": "bf47000fd4eac93dcc217x",
+      "icon": "smart/program_category_icon/dj.png",
+      "id": "bf84f22bd18834fddfyisf",
+      "ip": "",
+      "lat": "50.1058",
+      "local_key": "<redacted>",
+      "lon": "14.5188",
+      "model": "",
+      "name": "Smart Lighting 5",
+      "node_id": "a4c13850cfcdb3a4",
+      "online": true,
+      "owner_id": "180605882",
+      "product_id": "1jlpstyg",
+      "product_name": "Smart Lighting",
+      "sub": true,
+      "time_zone": "+02:00",
+      "update_time": 1788464283,
+      "uuid": "bf84f22bd18834fddfyisf"
+    },
+    "success": true,
+    "t": 1788468003823,
+    "tid": "a40e662aa7d711f1987f2e1e02062fcf"
+  },
+  "firmware_v2": {
+    "result": [
+      {
+        "channel": 3,
+        "control_type": 0,
+        "current_version": "1.0.0",
+        "dev_type": 0,
+        "firmware_key": "",
+        "last_upgrade_time": 0,
+        "timeout": 0,
+        "type": 3,
+        "type_desc": "ZigBee Module",
+        "upgrade_status": 0
+      }
+    ],
+    "success": true,
+    "t": 1788468004309,
+    "tid": "a4287300a7d711f1a1e4d6dbc6e5ffad"
+  },
+  "upgrade_infos_legacy": {
+    "code": 28841101,
+    "msg": "No permissions. This API is not subscribed.",
+    "success": false,
+    "t": 1788468004669,
+    "tid": "a46bf792a7d711f1b9c9c6f569fbce83"
+  }
+}
