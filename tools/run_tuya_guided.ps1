@@ -16,6 +16,8 @@ $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $localDir = Join-Path $repoRoot '.local'
 $credentialPath = Join-Path $localDir 'tuya-credentials.clixml'
 $pythonTool = Join-Path $repoRoot 'tools\tuya_glsd_migrate.py'
+$venvPython = Join-Path $repoRoot '.venv-tuya\Scripts\python.exe'
+$pythonExe = if (Test-Path $venvPython) { $venvPython } else { 'python' }
 
 New-Item -ItemType Directory -Force -Path $localDir | Out-Null
 
@@ -86,7 +88,7 @@ try {
         $argsList += @('--pcap-interface', $PcapInterface)
     }
 
-    & python @argsList
+    & $pythonExe @argsList
     $exitCode = $LASTEXITCODE
 }
 finally {
