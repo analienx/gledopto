@@ -1,0 +1,42 @@
+{
+  "capturedAt": "2026-09-03T09:32:54.856461+02:00",
+  "availability": "{\"state\":\"online\"}",
+  "bridge_state": "{\"state\":\"online\"}",
+  "fresh_read_0": {
+    "state": "OFF",
+    "brightness": 0,
+    "power_on_behavior": "on",
+    "linkquality": 120,
+    "update": {
+      "installed_version": 637612033,
+      "latest_release_notes": null,
+      "latest_source": null,
+      "latest_version": 637612033,
+      "state": "idle"
+    }
+  },
+  "fresh_read_1": {
+    "state": "OFF",
+    "brightness": 0,
+    "power_on_behavior": "on",
+    "linkquality": 120,
+    "update": {
+      "installed_version": 637612033,
+      "latest_release_notes": null,
+      "latest_source": null,
+      "latest_version": 637612033,
+      "state": "idle"
+    }
+  },
+  "newest_log_file": "/config/zigbee2mqtt/log/2026-09-03.08-57-22/log.log",
+  "recent_target_lines": [
+    "[2026-09-03 09:30:38] info: \tz2m:mqtt: MQTT publish: topic 'zigbee2mqtt/LivingRoomCircleLightDimmer', payload '{\"brightness\":0,\"device\":{\"applicationVersion\":1,\"dateCode\":\"20240704\",\"friendlyName\":\"LivingRoomCircleLightDimmer\",\"hardwareVers",
+    "[2026-09-03 09:30:38] info: \tz2m:mqtt: MQTT publish: topic 'zigbee2mqtt/LivingRoomCircleLightDimmer', payload '{\"action\":\"off\",\"brightness\":0,\"device\":{\"applicationVersion\":1,\"dateCode\":\"20240704\",\"friendlyName\":\"LivingRoomCircleLightDimmer",
+    "[2026-09-03 09:30:38] info: \tz2m:mqtt: MQTT publish: topic 'zigbee2mqtt/LivingRoomCircleLightDimmer/action', payload 'off'",
+    "[2026-09-03 09:30:38] info: \tz2m:mqtt: MQTT publish: topic 'zigbee2mqtt/LivingRoomCircleLightDimmer', payload '{\"brightness\":0,\"device\":{\"applicationVersion\":1,\"dateCode\":\"20240704\",\"friendlyName\":\"LivingRoomCircleLightDimmer\",\"hardwareVers",
+    "[2026-09-03 09:32:56] info: \tz2m:mqtt: MQTT publish: topic 'zigbee2mqtt/LivingRoomCircleLightDimmer', payload '{\"brightness\":0,\"device\":{\"applicationVersion\":1,\"dateCode\":\"20240704\",\"friendlyName\":\"LivingRoomCircleLightDimmer\",\"hardwareVers",
+    "[2026-09-03 09:32:57] info: \tz2m:mqtt: MQTT publish: topic 'zigbee2mqtt/LivingRoomCircleLightDimmer', payload '{\"action\":\"off\",\"brightness\":0,\"device\":{\"applicationVersion\":1,\"dateCode\":\"20240704\",\"friendlyName\":\"LivingRoomCircleLightDimmer",
+    "[2026-09-03 09:32:57] info: \tz2m:mqtt: MQTT publish: topic 'zigbee2mqtt/LivingRoomCircleLightDimmer/action', payload 'off'",
+    "[2026-09-03 09:32:57] info: \tz2m:mqtt: MQTT publish: topic 'zigbee2mqtt/LivingRoomCircleLightDimmer', payload '{\"brightness\":0,\"device\":{\"applicationVersion\":1,\"dateCode\":\"20240704\",\"friendlyName\":\"LivingRoomCircleLightDimmer\",\"hardwareVers"
+  ]
+}
