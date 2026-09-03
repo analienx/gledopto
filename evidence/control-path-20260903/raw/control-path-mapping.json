@@ -1,0 +1,630 @@
+{
+  "capturedAt": "2026-09-03T18:35:33.449001+02:00",
+  "resolved": {
+    "0xfdb1122d004b1200": {
+      "friendly_name": "Coordinator",
+      "model": null,
+      "description": null,
+      "type": "Coordinator",
+      "endpoints": {
+        "1": {
+          "bindings": [],
+          "configured_reportings": [],
+          "clusters_in": [],
+          "clusters_out": []
+        },
+        "10": {
+          "bindings": [],
+          "configured_reportings": [],
+          "clusters_in": [],
+          "clusters_out": []
+        },
+        "11": {
+          "bindings": [],
+          "configured_reportings": [],
+          "clusters_in": [
+            "ssIasAce",
+            "genTime"
+          ],
+          "clusters_out": [
+            "ssIasZone",
+            "ssIasWd"
+          ]
+        },
+        "110": {
+          "bindings": [],
+          "configured_reportings": [],
+          "clusters_in": [],
+          "clusters_out": []
+        },
+        "12": {
+          "bindings": [],
+          "configured_reportings": [],
+          "clusters_in": [],
+          "clusters_out": []
+        },
+        "13": {
+          "bindings": [],
+          "configured_reportings": [],
+          "clusters_in": [
+            "genOta"
+          ],
+          "clusters_out": []
+        },
+        "2": {
+          "bindings": [],
+          "configured_reportings": [],
+          "clusters_in": [],
+          "clusters_out": []
+        },
+        "242": {
+          "bindings": [],
+          "configured_reportings": [],
+          "clusters_in": [],
+          "clusters_out": []
+        },
+        "3": {
+          "bindings": [],
+          "configured_reportings": [],
+          "clusters_in": [],
+          "clusters_out": []
+        },
+        "4": {
+          "bindings": [],
+          "configured_reportings": [],
+          "clusters_in": [],
+          "clusters_out": []
+        },
+        "47": {
+          "bindings": [],
+          "configured_reportings": [],
+          "clusters_in": [],
+          "clusters_out": []
+        },
+        "5": {
+          "bindings": [],
+          "configured_reportings": [],
+          "clusters_in": [],
+          "clusters_out": []
+        },
+        "6": {
+          "bindings": [],
+          "configured_reportings": [],
+          "clusters_in": [],
+          "clusters_out": []
+        },
+        "8": {
+          "bindings": [],
+          "configured_reportings": [],
+          "clusters_in": [],
+          "clusters_out": []
+        }
+      }
+    },
+    "0xa4c13850cfcdb3a4": {
+      "friendly_name": "LivingRoomCircleLightDimmer",
+      "model": "GL-SD-301P",
+      "description": "Zigbee triac AC dimmer",
+      "type": "Router",
+      "endpoints": {
+        "11": {
+          "bindings": [
+            {
+              "cluster": "genOnOff",
+              "target": {
+                "endpoint": 1,
+                "ieee_address": "0xfdb1122d004b1200",
+                "type": "endpoint"
+              }
+            },
+            {
+              "cluster": "genLevelCtrl",
+              "target": {
+                "endpoint": 1,
+                "ieee_address": "0xfdb1122d004b1200",
+                "type": "endpoint"
+              }
+            }
+          ],
+          "configured_reportings": [
+            {
+              "attribute": "onOff",
+              "cluster": "genOnOff",
+              "maximum_report_interval": 65000,
+              "minimum_report_interval": 0,
+              "reportable_change": 1
+            },
+            {
+              "attribute": "currentLevel",
+              "cluster": "genLevelCtrl",
+              "maximum_report_interval": 65000,
+              "minimum_report_interval": 5,
+              "reportable_change": 1
+            }
+          ],
+          "clusters_in": [
+            "genBasic",
+            "genIdentify",
+            "genGroups",
+            "genScenes",
+            "genOnOff",
+            "genLevelCtrl",
+            "lightingColorCtrl",
+            "touchlink"
+          ],
+          "clusters_out": [
+            "genOta"
+          ]
+        },
+        "242": {
+          "bindings": [],
+          "configured_reportings": [],
+          "clusters_in": [],
+          "clusters_out": [
+            "greenPower"
+          ]
+        }
+      }
+    },
+    "0xa4c13843a9d40f85": {
+      "friendly_name": "LivingRoomMainDimmer",
+      "model": "EC-GL86ZPCS31",
+      "description": "BSEED 3-gang smart-light controller \u2014 protected mains control, direct binding and advanced configuration",
+      "type": "Router",
+      "endpoints": {
+        "1": {
+          "bindings": [
+            {
+              "cluster": "genMultistateInput",
+              "target": {
+                "endpoint": 1,
+                "ieee_address": "0xfdb1122d004b1200",
+                "type": "endpoint"
+              }
+            },
+            {
+              "cluster": "genOnOff",
+              "target": {
+                "endpoint": 1,
+                "ieee_address": "0xfdb1122d004b1200",
+                "type": "endpoint"
+              }
+            },
+            {
+              "cluster": "genLevelCtrl",
+              "target": {
+                "endpoint": 1,
+                "ieee_address": "0xfdb1122d004b1200",
+                "type": "endpoint"
+              }
+            },
+            {
+              "cluster": "genLevelCtrl",
+              "target": {
+                "endpoint": 11,
+                "ieee_address": "0xa4c1388b709b209c",
+                "type": "endpoint"
+              }
+            },
+            {
+              "cluster": "genOnOff",
+              "target": {
+                "endpoint": 11,
+                "ieee_address": "0xa4c1388b709b209c",
+                "type": "endpoint"
+              }
+            },
+            {
+              "cluster": "genOnOff",
+              "target": {
+                "endpoint": 4,
+                "ieee_address": "0xa4c13843a9d40f85",
+                "type": "endpoint"
+              }
+            }
+          ],
+          "configured_reportings": [
+            {
+              "attribute": "presentValue",
+              "cluster": "genMultistateInput",
+              "maximum_report_interval": 65000,
+              "minimum_report_interval": 0,
+              "reportable_change": 1
+            }
+          ],
+          "clusters_in": [
+            "genBasic",
+            "genOnOffSwitchCfg",
+            "genMultistateInput"
+          ],
+          "clusters_out": [
+            "genOta",
+            "genOnOff",
+            "genLevelCtrl"
+          ]
+        },
+        "2": {
+          "bindings": [
+            {
+              "cluster": "genLevelCtrl",
+              "target": {
+                "id": 25,
+                "type": "group"
+              }
+            },
+            {
+              "cluster": "genOnOff",
+              "target": {
+                "id": 25,
+                "type": "group"
+              }
+            },
+            {
+              "cluster": "genOnOff",
+              "target": {
+                "endpoint": 5,
+                "ieee_address": "0xa4c13843a9d40f85",
+                "type": "endpoint"
+              }
+            },
+            {
+              "cluster": "genMultistateInput",
+              "target": {
+                "endpoint": 1,
+                "ieee_address": "0xfdb1122d004b1200",
+                "type": "endpoint"
+              }
+            },
+            {
+              "cluster": "genOnOff",
+              "target": {
+                "endpoint": 1,
+                "ieee_address": "0xfdb1122d004b1200",
+                "type": "endpoint"
+              }
+            },
+            {
+              "cluster": "genLevelCtrl",
+              "target": {
+                "endpoint": 1,
+                "ieee_address": "0xfdb1122d004b1200",
+                "type": "endpoint"
+              }
+            }
+          ],
+          "configured_reportings": [
+            {
+              "attribute": "presentValue",
+              "cluster": "genMultistateInput",
+              "maximum_report_interval": 65000,
+              "minimum_report_interval": 0,
+              "reportable_change": 1
+            }
+          ],
+          "clusters_in": [
+            "genOnOffSwitchCfg",
+            "genMultistateInput"
+          ],
+          "clusters_out": [
+            "genOnOff",
+            "genLevelCtrl"
+          ]
+        },
+        "3": {
+          "bindings": [
+            {
+              "cluster": "genMultistateInput",
+              "target": {
+                "endpoint": 1,
+                "ieee_address": "0xfdb1122d004b1200",
+                "type": "endpoint"
+              }
+            },
+            {
+              "cluster": "genOnOff",
+              "target": {
+                "endpoint": 1,
+                "ieee_address": "0xfdb1122d004b1200",
+                "type": "endpoint"
+              }
+            },
+            {
+              "cluster": "genLevelCtrl",
+              "target": {
+                "endpoint": 1,
+                "ieee_address": "0xfdb1122d004b1200",
+                "type": "endpoint"
+              }
+            }
+          ],
+          "configured_reportings": [
+            {
+              "attribute": "presentValue",
+              "cluster": "genMultistateInput",
+              "maximum_report_interval": 65000,
+              "minimum_report_interval": 0,
+              "reportable_change": 1
+            }
+          ],
+          "clusters_in": [
+            "genOnOffSwitchCfg",
+            "genMultistateInput"
+          ],
+          "clusters_out": [
+            "genOnOff",
+            "genLevelCtrl"
+          ]
+        },
+        "4": {
+          "bindings": [
+            {
+              "cluster": "genOnOff",
+              "target": {
+                "endpoint": 1,
+                "ieee_address": "0xfdb1122d004b1200",
+                "type": "endpoint"
+              }
+            },
+            {
+              "cluster": "genLevelCtrl",
+              "target": {
+                "endpoint": 1,
+                "ieee_address": "0xfdb1122d004b1200",
+                "type": "endpoint"
+              }
+            }
+          ],
+          "configured_reportings": [
+            {
+              "attribute": "attr0",
+              "cluster": "genOnOff",
+              "maximum_report_interval": 65000,
+              "minimum_report_interval": 0,
+              "reportable_change": 1
+            },
+            {
+              "attribute": "onOff",
+              "cluster": "genOnOff",
+              "maximum_report_interval": 300,
+              "minimum_report_interval": 0,
+              "reportable_change": 0
+            }
+          ],
+          "clusters_in": [
+            "genOnOff",
+            "genLevelCtrl",
+            "genGroups"
+          ],
+          "clusters_out": []
+        },
+        "5": {
+          "bindings": [
+            {
+              "cluster": "genOnOff",
+              "target": {
+                "endpoint": 1,
+                "ieee_address": "0xfdb1122d004b1200",
+                "type": "endpoint"
+              }
+            },
+            {
+              "cluster": "genLevelCtrl",
+              "target": {
+                "endpoint": 1,
+                "ieee_address": "0xfdb1122d004b1200",
+                "type": "endpoint"
+              }
+            }
+          ],
+          "configured_reportings": [
+            {
+              "attribute": "attr0",
+              "cluster": "genOnOff",
+              "maximum_report_interval": 65000,
+              "minimum_report_interval": 0,
+              "reportable_change": 1
+            },
+            {
+              "attribute": "onOff",
+              "cluster": "genOnOff",
+              "maximum_report_interval": 300,
+              "minimum_report_interval": 0,
+              "reportable_change": 0
+            }
+          ],
+          "clusters_in": [
+            "genOnOff",
+            "genLevelCtrl",
+            "genGroups"
+          ],
+          "clusters_out": []
+        },
+        "6": {
+          "bindings": [
+            {
+              "cluster": "genOnOff",
+              "target": {
+                "endpoint": 1,
+                "ieee_address": "0xfdb1122d004b1200",
+                "type": "endpoint"
+              }
+            }
+          ],
+          "configured_reportings": [
+            {
+              "attribute": "attr0",
+              "cluster": "genOnOff",
+              "maximum_report_interval": 65000,
+              "minimum_report_interval": 0,
+              "reportable_change": 1
+            },
+            {
+              "attribute": "onOff",
+              "cluster": "genOnOff",
+              "maximum_report_interval": 65000,
+              "minimum_report_interval": 0,
+              "reportable_change": 1
+            }
+          ],
+          "clusters_in": [
+            "genOnOff",
+            "genLevelCtrl",
+            "genGroups"
+          ],
+          "clusters_out": []
+        }
+      }
+    }
+  },
+  "groups": {
+    "8": {
+      "friendly_name": "Lights  All",
+      "members": [
+        {
+          "ieee": "0xa4c13861dd842a03",
+          "ep": 1,
+          "model": null
+        },
+        {
+          "ieee": "0xa4c13805fc0dacfb",
+          "ep": 1,
+          "model": null
+        },
+        {
+          "ieee": "0xa4c138b9bda6dbcf",
+          "ep": 1,
+          "model": null
+        },
+        {
+          "ieee": "0xa4c1385c11d46ae5",
+          "ep": 1,
+          "model": null
+        },
+        {
+          "ieee": "0xa4c138d6a7100473",
+          "ep": 1,
+          "model": null
+        },
+        {
+          "ieee": "0xa4c138105a8e4207",
+          "ep": 11,
+          "model": null
+        },
+        {
+          "ieee": "0xa4c13843a9d40f85",
+          "ep": 6,
+          "model": null
+        },
+        {
+          "ieee": "0xa4c138f6936a1788",
+          "ep": 2,
+          "model": null
+        },
+        {
+          "ieee": "0xa4c138cec3e04283",
+          "ep": 1,
+          "model": null
+        },
+        {
+          "ieee": "0x8c8b48fffe685a39",
+          "ep": 1,
+          "model": null
+        }
+      ]
+    },
+    "23": {
+      "friendly_name": "LR LinearDimmerButtLeft",
+      "members": [
+        {
+          "ieee": "0xa4c1388b709b209c",
+          "ep": 11,
+          "model": null
+        },
+        {
+          "ieee": "0xa4c13843a9d40f85",
+          "ep": 4,
+          "model": null
+        }
+      ]
+    },
+    "24": {
+      "friendly_name": "LR KitchenBulbsDimmerButtMiddle",
+      "members": [
+        {
+          "ieee": "0xa4c138b9bda6dbcf",
+          "ep": 1,
+          "model": null
+        },
+        {
+          "ieee": "0xa4c1385c11d46ae5",
+          "ep": 1,
+          "model": null
+        },
+        {
+          "ieee": "0xa4c138d6a7100473",
+          "ep": 1,
+          "model": null
+        },
+        {
+          "ieee": "0xa4c13843a9d40f85",
+          "ep": 5,
+          "model": null
+        }
+      ]
+    },
+    "30": {
+      "friendly_name": "LR KitchenBulbsAndLinear",
+      "members": [
+        {
+          "ieee": "0xa4c138b9bda6dbcf",
+          "ep": 1,
+          "model": null
+        },
+        {
+          "ieee": "0xa4c1385c11d46ae5",
+          "ep": 1,
+          "model": null
+        },
+        {
+          "ieee": "0xa4c138d6a7100473",
+          "ep": 1,
+          "model": null
+        },
+        {
+          "ieee": "0xa4c1388b709b209c",
+          "ep": 11,
+          "model": null
+        },
+        {
+          "ieee": "0xa4c13843a9d40f85",
+          "ep": 4,
+          "model": null
+        },
+        {
+          "ieee": "0xa4c13843a9d40f85",
+          "ep": 5,
+          "model": null
+        }
+      ]
+    },
+    "110": {
+      "friendly_name": "LR Circle",
+      "members": [
+        {
+          "ieee": "0xa4c13843a9d40f85",
+          "ep": 6,
+          "model": null
+        },
+        {
+          "ieee": "0xa4c13850cfcdb3a4",
+          "ep": 11,
+          "model": null
+        }
+      ]
+    }
+  },
+  "group_110_config": {
+    "friendly_name": "LR Circle"
+  },
+  "recent_dimmer_log_lines": []
+}
