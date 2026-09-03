@@ -1,5 +1,21 @@
 # STATUS — gl-sd-301p
 
+## 2026-09-03 — Flash-size forensic (supervisor 5524449062): 512K confirmed
+
+- App header size field == payload size exactly; last non-0xFF byte is the
+  last file byte — **app genuinely built flush to the 512K ceiling** (316
+  bytes below the 0x34000 NV_1 boundary).
+- **512K-only addresses hardcoded**: MAC `0x76000` + factory config `0x77000`
+  (end-of-image const table, code-referenced); **zero 1M-map constants** (the
+  lone `0x80000` hit is an instruction-byte false positive, context inspected).
+- `FLASH_MAP_SELECTION_LOGIC = A (hardcoded 512K)`;
+  `FLASH_SIZE_CLASS = 512K`;
+  **`MCU_EXACT_CANDIDATE = TLSR8258F512ET32`, confidence high** for the
+  recovered 0x1416 lineage. `POWER_STAGE_CONTROL=UNKNOWN` unchanged.
+- Evidence: `evidence/mcu-id-20260903/FLASH-SIZE-ADDENDUM.md`.
+- Family question closed (TLSR8258/B85). Remaining spare purpose: 2024/2026
+  revision identity, mains-PCB power-stage path, SWS pads, stock flash backup.
+
 ## 2026-09-03 — MCU ID pass 2 (supervisor 5523981212): TLSR825x family confirmed
 
 - Telink TC32 binutils (2.20.tc32-elf-1.5, linux build under WSL2) obtained
