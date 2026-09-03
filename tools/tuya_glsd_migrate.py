@@ -651,9 +651,9 @@ def reporting_to_payload(friendly: str, report: dict[str, Any]) -> dict[str, Any
         "endpoint": TARGET_ENDPOINT,
         "cluster": cluster,
         "attribute": attr,
-        "minimum_report_interval": report.get("minimumReportInterval", report.get("minimum_report_interval", 0)),
-        "maximum_report_interval": report.get("maximumReportInterval", report.get("maximum_report_interval", 65000)),
-        "reportable_change": report.get("reportableChange", report.get("reportable_change", 1)),
+        "minimum_report_interval": report.get("minRepIntval", report.get("minimumReportInterval", report.get("minimum_report_interval", 0))),
+        "maximum_report_interval": report.get("maxRepIntval", report.get("maximumReportInterval", report.get("maximum_report_interval", 65000))),
+        "reportable_change": report.get("repChange", report.get("reportableChange", report.get("reportable_change", 1))),
     }
 
 
