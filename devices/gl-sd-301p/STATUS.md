@@ -1,5 +1,25 @@
 # STATUS — gl-sd-301p
 
+## 2026-09-03 — MCU ID pass 2 (supervisor 5523981212): TLSR825x family confirmed
+
+- Telink TC32 binutils (2.20.tc32-elf-1.5, linux build under WSL2) obtained
+  after the rgov win32 toolchain proved unusable (missing cygwin DLL).
+- Full TC32 disassembly of the hash-verified historical payload produced.
+- **Startup path matches the 2018-generation B85 `cstartup_8258.S`**:
+  0x81→0x80006f flash wake, 0xAB wake sequence, no efuse delay (the 8278
+  reset path's efuse-delay discriminator is ABSENT), identical IRQ handler,
+  identical pool constants (0x80060c/0x80063e/0x80000c/0x80058a).
+- MMIO: 64 shared-register literal hits; unique hits = stimer-block noise.
+- FCC package quantified: QFN32-class (~8 pads/side), ≈5 mm body —
+  TLSR8258-compatible; TLSR8278 (QFN48-only) incompatible.
+- Decisions: `MCU_FAMILY=Telink TC32/B85 (TLSR825x)` confidence HIGH;
+  `MCU_EXACT_CANDIDATE=TLSR8258F512ET32` (flash size open vs F1K variants),
+  exact-part confidence MEDIUM; `FLASH_SIZE_CLASS=unresolved`;
+  `POWER_STAGE_CONTROL=UNKNOWN` (module photo doesn't clear the mains PCB);
+  `SPARE_STILL_REQUIRED=yes` (marking, 2024+ revision identity, mains-PCB
+  power-stage path, SWS pads, stock flash backup).
+- Evidence: `evidence/mcu-id-20260903/`.
+
 ## 2026-09-03 — Phase 1 forensics pass executed (supervisor 5522442315)
 
 - Historical GL-C-009P Mini OTA (same imageType 0x1416) recovered from
