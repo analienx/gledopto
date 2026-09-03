@@ -63,6 +63,7 @@ if (-not $record.AccessId -or -not $record.AccessSecret) {
 
 $bstr = [IntPtr]::Zero
 $plainSecret = $null
+$exitCode = 1
 try {
     $bstr = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($record.AccessSecret)
     $plainSecret = [Runtime.InteropServices.Marshal]::PtrToStringBSTR($bstr)
