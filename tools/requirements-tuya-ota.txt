@@ -1,0 +1,2 @@
+tuya-connector-python
+PyYAML>=6.0
