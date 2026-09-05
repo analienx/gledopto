@@ -1,0 +1,7604 @@
+[
+ {
+  "file": "Bosch-t0x300e__ota_t0x300e_m0x1209_v0x02096a90.ota",
+  "ind": {
+   "bytes": 269014,
+   "headerLength": 56,
+   "imageSize_field": 269014,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x000803A6",
+   "magic_06": "0000",
+   "marker_08": "0x03000000",
+   "marker_is_544C4E4B": false,
+   "containerLen": 268952,
+   "d18": 1,
+   "d18_rel": "other:268951",
+   "stored_tail_crc": "0x2BB3B095",
+   "crc_data_minus4": "0xD44C4F6A",
+   "crc_data_minus4_matches": false,
+   "crc_whole": "0xDEBB20E3",
+   "crc_whole_matches": false
+  },
+  "v2": {
+   "verdict": "INVALID_TELINK_APP_HEADER",
+   "crc": "absent",
+   "auth": "absent"
+  }
+ },
+ {
+  "file": "DIY-z03mmc-db15__db15-0203-11003001-z03mmc.zigbee",
+  "ind": {
+   "bytes": 131362,
+   "headerLength": 56,
+   "imageSize_field": 131362,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x11003001",
+   "magic_06": "5d02",
+   "marker_08": "0x544C4E4B",
+   "marker_is_544C4E4B": true,
+   "containerLen": 131300,
+   "d18": 131300,
+   "d18_rel": "==containerLen",
+   "stored_tail_crc": "0x6FB80313",
+   "crc_data_minus4": "0x6FB80313",
+   "crc_data_minus4_matches": true,
+   "crc_whole": "0x00000000",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0x6FB80313",
+   "crc_d18_minus4_matches": true
+  },
+  "v2": {
+   "verdict": "VERIFIED_PLAIN_TELINK_OTA",
+   "crc": "PASS",
+   "auth": "NO_CONTAINER_AUTH_DETECTED"
+  }
+ },
+ {
+  "file": "Develco-EMI2LED-EFR32__EMI2LED_3.1.2.zigbee",
+  "ind": {
+   "bytes": 213826,
+   "headerLength": 56,
+   "imageSize_field": 213826,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x000803A6",
+   "magic_06": "0000",
+   "marker_08": "0x03000000",
+   "marker_is_544C4E4B": false,
+   "containerLen": 213764,
+   "d18": 213624,
+   "d18_rel": "other:140",
+   "stored_tail_crc": "0x8C7F8FCF",
+   "crc_data_minus4": "0x73807030",
+   "crc_data_minus4_matches": false,
+   "crc_whole": "0xDEBB20E3",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0x9D2187DE",
+   "crc_d18_minus4_matches": false
+  },
+  "v2": {
+   "verdict": "INVALID_TELINK_APP_HEADER",
+   "crc": "absent",
+   "auth": "absent"
+  }
+ },
+ {
+  "file": "EcoDim-HZC-Dimmer1__ZB21S3_HZC_Dimmer1_EcoDim-Zigbee_3.0_1.01_20230908.ota",
+  "ind": {
+   "bytes": 286646,
+   "headerLength": 56,
+   "imageSize_field": 286646,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x000803A6",
+   "magic_06": "0000",
+   "marker_08": "0x03000000",
+   "marker_is_544C4E4B": false,
+   "containerLen": 286584,
+   "d18": 1,
+   "d18_rel": "other:286583",
+   "stored_tail_crc": "0xFFFFB107",
+   "crc_data_minus4": "0xBE265C07",
+   "crc_data_minus4_matches": false,
+   "crc_whole": "0xF01B4CA3",
+   "crc_whole_matches": false
+  },
+  "v2": {
+   "verdict": "INVALID_TELINK_APP_HEADER",
+   "crc": "absent",
+   "auth": "absent"
+  }
+ },
+ {
+  "file": "IKEA-ota-t0x110e-signed__ota_t0x110e_m0x117c_v0x01000035.ota",
+  "ind": {
+   "bytes": 305574,
+   "headerLength": 56,
+   "imageSize_field": 305574,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x000803A6",
+   "magic_06": "0000",
+   "marker_08": "0x03000000",
+   "marker_is_544C4E4B": false,
+   "containerLen": 305512,
+   "d18": 1,
+   "d18_rel": "other:305511",
+   "stored_tail_crc": "0x343606C1",
+   "crc_data_minus4": "0xCBC9F93E",
+   "crc_data_minus4_matches": false,
+   "crc_whole": "0xDEBB20E3",
+   "crc_whole_matches": false
+  },
+  "v2": {
+   "verdict": "INVALID_TELINK_APP_HEADER",
+   "crc": "absent",
+   "auth": "absent"
+  }
+ },
+ {
+  "file": "IKEA-tradfri-bulb-ws-1000lm__tradfri-bulb-ws-1000lm_release_prod_v587814449_2b13625e-17a8-40d9-bad3-47a9a96ab002.ota",
+  "ind": {
+   "bytes": 216620,
+   "headerLength": 56,
+   "imageSize_field": 216620,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 3,
+   "tags": [
+    "0x0000",
+    "0xFFBF",
+    "0xFFBE"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x02028C00",
+   "magic_06": "e350",
+   "marker_08": "0x00400000",
+   "marker_is_544C4E4B": false,
+   "containerLen": 205312,
+   "d18": 76573,
+   "d18_rel": "other:128739",
+   "stored_tail_crc": "0xFFFFFFFF",
+   "crc_data_minus4": "0x2322E93D",
+   "crc_data_minus4_matches": false,
+   "crc_whole": "0x7F1CDCE2",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0xD18E555D",
+   "crc_d18_minus4_matches": false
+  },
+  "v2": {
+   "verdict": "INVALID_TELINK_APP_HEADER",
+   "crc": "absent",
+   "auth": "UNKNOWN_SUBELEMENT_TAGS"
+  }
+ },
+ {
+  "file": "Lumi-switch-b1nacn02__20211228121851_OTA_lumi.switch.b1nacn02_0.0.0_0065_20211223_EB5B32.ota",
+  "ind": {
+   "bytes": 187230,
+   "headerLength": 56,
+   "imageSize_field": 187230,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x22117856",
+   "magic_06": "3344",
+   "marker_08": "0x88776655",
+   "marker_is_544C4E4B": false,
+   "containerLen": 187168,
+   "d18": 0,
+   "d18_rel": "other:187168",
+   "stored_tail_crc": "0xFFFFFFFF",
+   "crc_data_minus4": "0xDF704612",
+   "crc_data_minus4_matches": false,
+   "crc_whole": "0x69EFF836",
+   "crc_whole_matches": false
+  },
+  "v2": {
+   "verdict": "INVALID_TELINK_APP_HEADER",
+   "crc": "absent",
+   "auth": "absent"
+  }
+ },
+ {
+  "file": "Namron-4512700__4512700-Firmware-35.ota",
+  "ind": {
+   "bytes": 187759,
+   "headerLength": 56,
+   "imageSize_field": 187759,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x000803A6",
+   "magic_06": "0000",
+   "marker_08": "0x03000000",
+   "marker_is_544C4E4B": false,
+   "containerLen": 187697,
+   "d18": 187621,
+   "d18_rel": "other:76",
+   "stored_tail_crc": "0xC50853C9",
+   "crc_data_minus4": "0x3AF7AC36",
+   "crc_data_minus4_matches": false,
+   "crc_whole": "0xDEBB20E3",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0xBD313B54",
+   "crc_d18_minus4_matches": false
+  },
+  "v2": {
+   "verdict": "INVALID_TELINK_APP_HEADER",
+   "crc": "absent",
+   "auth": "absent"
+  }
+ },
+ {
+  "file": "Namron-4512760__4512760-Firmware-35.ota",
+  "ind": {
+   "bytes": 195042,
+   "headerLength": 60,
+   "imageSize_field": 65537,
+   "imageSize_at": 56,
+   "size_eq_file": false,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x000803A6",
+   "magic_06": "0000",
+   "marker_08": "0x03000000",
+   "marker_is_544C4E4B": false,
+   "containerLen": 194976,
+   "d18": 194898,
+   "d18_rel": "other:78",
+   "stored_tail_crc": "0xFFFFD651",
+   "crc_data_minus4": "0xBE263B51",
+   "crc_data_minus4_matches": false,
+   "crc_whole": "0xF01B4CA3",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0x834DB6AB",
+   "crc_d18_minus4_matches": false
+  },
+  "v2": {
+   "verdict": "INVALID_TELINK_APP_HEADER",
+   "crc": "absent",
+   "auth": "absent"
+  }
+ },
+ {
+  "file": "SDevices-switch1g-152F__152F_SBDV-00196_switch1gang_r_6_48fb8e55_06000000.ota.zigbee",
+  "ind": {
+   "bytes": 224852,
+   "headerLength": 56,
+   "imageSize_field": 224844,
+   "imageSize_at": 52,
+   "size_eq_file": false,
+   "size_eq_file_minus1": false,
+   "n_subelements": 4,
+   "tags": [
+    "0x0000",
+    "0xFF01",
+    "0x0005",
+    "0xFFFF"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x000803A6",
+   "magic_06": "0000",
+   "marker_08": "0x03000000",
+   "marker_is_544C4E4B": false,
+   "containerLen": 224656,
+   "d18": 224585,
+   "d18_rel": "other:71",
+   "stored_tail_crc": "0xFFFFFFCF",
+   "crc_data_minus4": "0x00BE2622",
+   "crc_data_minus4_matches": false,
+   "crc_whole": "0x622D0693",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0x0EC34179",
+   "crc_d18_minus4_matches": false
+  },
+  "v2": {
+   "verdict": "INVALID_SIZE_MISMATCH",
+   "crc": "absent",
+   "auth": "absent"
+  }
+ },
+ {
+  "file": "SDevices-thermostat-152F__152F_SBDV-00205_thermostat_r_7_7bd95d88_07000000.ota.zigbee",
+  "ind": {
+   "bytes": 265604,
+   "headerLength": 56,
+   "imageSize_field": 265600,
+   "imageSize_at": 52,
+   "size_eq_file": false,
+   "size_eq_file_minus1": false,
+   "n_subelements": 3,
+   "tags": [
+    "0x0000",
+    "0xFF01",
+    "0x0005"
+   ],
+   "trailing_after_chain": 4,
+   "inner_ver_02": "0x000803A6",
+   "magic_06": "0000",
+   "marker_08": "0x03000000",
+   "marker_is_544C4E4B": false,
+   "containerLen": 265396,
+   "d18": 265325,
+   "d18_rel": "other:71",
+   "stored_tail_crc": "0xFFFFFF6C",
+   "crc_data_minus4": "0x00BE2681",
+   "crc_data_minus4_matches": false,
+   "crc_whole": "0x622D0693",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0x7C69ADC9",
+   "crc_d18_minus4_matches": false
+  },
+  "v2": {
+   "verdict": "INVALID_SIZE_MISMATCH",
+   "crc": "absent",
+   "auth": "absent"
+  }
+ },
+ {
+  "file": "Sprut-zb_wb_msw4__zb_wb_msw4_005.ota",
+  "ind": {
+   "bytes": 218494,
+   "headerLength": 56,
+   "imageSize_field": 218494,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x000803A6",
+   "magic_06": "0000",
+   "marker_08": "0x03000000",
+   "marker_is_544C4E4B": false,
+   "containerLen": 218432,
+   "d18": 1,
+   "d18_rel": "other:218431",
+   "stored_tail_crc": "0x152525D3",
+   "crc_data_minus4": "0xEADADA2C",
+   "crc_data_minus4_matches": false,
+   "crc_whole": "0xDEBB20E3",
+   "crc_whole_matches": false
+  },
+  "v2": {
+   "verdict": "INVALID_TELINK_APP_HEADER",
+   "crc": "absent",
+   "auth": "absent"
+  }
+ },
+ {
+  "file": "bonus__Develco__ED_-_HA_-_Smoke_Sensor_Mini-4.0.9.zigbee",
+  "ind": {
+   "bytes": 202074,
+   "headerLength": 56,
+   "imageSize_field": 202074,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 4,
+   "tags": [
+    "0xF000",
+    "0x0000",
+    "0xF001",
+    "0x0003"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0xD5190248",
+   "magic_06": "ffff",
+   "marker_08": "0xFFFFFFFF",
+   "marker_is_544C4E4B": false,
+   "containerLen": 201942,
+   "d18": 4294967295,
+   "d18_rel": ">containerLen",
+   "stored_tail_crc": "0x3A21023A",
+   "crc_data_minus4": "0x37E2AA24",
+   "crc_data_minus4_matches": false,
+   "crc_whole": "0xF9CBD444",
+   "crc_whole_matches": false
+  },
+  "v2": {
+   "verdict": "INVALID_TELINK_APP_HEADER",
+   "crc": "absent",
+   "auth": "UNKNOWN_SUBELEMENT_TAGS"
+  }
+ },
+ {
+  "file": "full\\Candeo__C-ZB-LC20v2_V30251203_20251110.ota",
+  "ind": {
+   "bytes": 203346,
+   "headerLength": 56,
+   "imageSize_field": 203346,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x32013001",
+   "magic_06": "5d02",
+   "marker_08": "0x544C4E4B",
+   "marker_is_544C4E4B": true,
+   "containerLen": 203284,
+   "d18": 203284,
+   "d18_rel": "==containerLen",
+   "stored_tail_crc": "0x3FBF184B",
+   "crc_data_minus4": "0x3FBF184B",
+   "crc_data_minus4_matches": true,
+   "crc_whole": "0x00000000",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0x3FBF184B",
+   "crc_d18_minus4_matches": true
+  },
+  "v2": {
+   "verdict": "VERIFIED_PLAIN_TELINK_OTA",
+   "crc": "PASS",
+   "auth": "NO_CONTAINER_AUTH_DETECTED"
+  }
+ },
+ {
+  "file": "full\\DIY__db15-0203-11003001-z03mmc.zigbee",
+  "ind": {
+   "bytes": 131362,
+   "headerLength": 56,
+   "imageSize_field": 131362,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x11003001",
+   "magic_06": "5d02",
+   "marker_08": "0x544C4E4B",
+   "marker_is_544C4E4B": true,
+   "containerLen": 131300,
+   "d18": 131300,
+   "d18_rel": "==containerLen",
+   "stored_tail_crc": "0x6FB80313",
+   "crc_data_minus4": "0x6FB80313",
+   "crc_data_minus4_matches": true,
+   "crc_whole": "0x00000000",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0x6FB80313",
+   "crc_d18_minus4_matches": true
+  },
+  "v2": {
+   "verdict": "VERIFIED_PLAIN_TELINK_OTA",
+   "crc": "PASS",
+   "auth": "NO_CONTAINER_AUTH_DETECTED"
+  }
+ },
+ {
+  "file": "full\\Gledopto__GL-B-007P_V20451233_20240425.ota",
+  "ind": {
+   "bytes": 209330,
+   "headerLength": 56,
+   "imageSize_field": 209330,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x24013001",
+   "magic_06": "5d02",
+   "marker_08": "0x544C4E4B",
+   "marker_is_544C4E4B": true,
+   "containerLen": 209268,
+   "d18": 209268,
+   "d18_rel": "==containerLen",
+   "stored_tail_crc": "0x1C63C139",
+   "crc_data_minus4": "0x1C63C139",
+   "crc_data_minus4_matches": true,
+   "crc_whole": "0x00000000",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0x1C63C139",
+   "crc_d18_minus4_matches": true
+  },
+  "v2": {
+   "verdict": "VERIFIED_PLAIN_TELINK_OTA",
+   "crc": "PASS",
+   "auth": "NO_CONTAINER_AUTH_DETECTED"
+  }
+ },
+ {
+  "file": "full\\Gledopto__GL-C-002P_V105_20220419_1_.ota",
+  "ind": {
+   "bytes": 212770,
+   "headerLength": 56,
+   "imageSize_field": 212770,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x15013001",
+   "magic_06": "5d02",
+   "marker_08": "0x544C4E4B",
+   "marker_is_544C4E4B": true,
+   "containerLen": 212708,
+   "d18": 212708,
+   "d18_rel": "==containerLen",
+   "stored_tail_crc": "0x47CCDEA5",
+   "crc_data_minus4": "0x47CCDEA5",
+   "crc_data_minus4_matches": true,
+   "crc_whole": "0x00000000",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0x47CCDEA5",
+   "crc_d18_minus4_matches": true
+  },
+  "v2": {
+   "verdict": "VERIFIED_PLAIN_TELINK_OTA",
+   "crc": "PASS",
+   "auth": "NO_CONTAINER_AUTH_DETECTED"
+  }
+ },
+ {
+  "file": "full\\Gledopto__GL-C-002P_V20351203_20230721.ota",
+  "ind": {
+   "bytes": 212866,
+   "headerLength": 56,
+   "imageSize_field": 212866,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x23013001",
+   "magic_06": "5d02",
+   "marker_08": "0x544C4E4B",
+   "marker_is_544C4E4B": true,
+   "containerLen": 212804,
+   "d18": 212804,
+   "d18_rel": "==containerLen",
+   "stored_tail_crc": "0x787ED38C",
+   "crc_data_minus4": "0x787ED38C",
+   "crc_data_minus4_matches": true,
+   "crc_whole": "0x00000000",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0x787ED38C",
+   "crc_d18_minus4_matches": true
+  },
+  "v2": {
+   "verdict": "VERIFIED_PLAIN_TELINK_OTA",
+   "crc": "PASS",
+   "auth": "NO_CONTAINER_AUTH_DETECTED"
+  }
+ },
+ {
+  "file": "full\\Gledopto__GL-C-002P_V20551203_20240125.ota",
+  "ind": {
+   "bytes": 202962,
+   "headerLength": 56,
+   "imageSize_field": 202962,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x25013001",
+   "magic_06": "5d02",
+   "marker_08": "0x544C4E4B",
+   "marker_is_544C4E4B": true,
+   "containerLen": 202900,
+   "d18": 202900,
+   "d18_rel": "==containerLen",
+   "stored_tail_crc": "0x24A0D0BE",
+   "crc_data_minus4": "0x24A0D0BE",
+   "crc_data_minus4_matches": true,
+   "crc_whole": "0x00000000",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0x24A0D0BE",
+   "crc_d18_minus4_matches": true
+  },
+  "v2": {
+   "verdict": "VERIFIED_PLAIN_TELINK_OTA",
+   "crc": "PASS",
+   "auth": "NO_CONTAINER_AUTH_DETECTED"
+  }
+ },
+ {
+  "file": "full\\Gledopto__GL-C-006P_V20551203_KEY_20240227.ota",
+  "ind": {
+   "bytes": 203170,
+   "headerLength": 56,
+   "imageSize_field": 203170,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x24013001",
+   "magic_06": "5d02",
+   "marker_08": "0x544C4E4B",
+   "marker_is_544C4E4B": true,
+   "containerLen": 203108,
+   "d18": 203108,
+   "d18_rel": "==containerLen",
+   "stored_tail_crc": "0x03DDFBEF",
+   "crc_data_minus4": "0x03DDFBEF",
+   "crc_data_minus4_matches": true,
+   "crc_whole": "0x00000000",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0x03DDFBEF",
+   "crc_d18_minus4_matches": true
+  },
+  "v2": {
+   "verdict": "VERIFIED_PLAIN_TELINK_OTA",
+   "crc": "PASS",
+   "auth": "NO_CONTAINER_AUTH_DETECTED"
+  }
+ },
+ {
+  "file": "full\\Gledopto__GL-D-004P_V105_20220427_1_.ota",
+  "ind": {
+   "bytes": 209138,
+   "headerLength": 56,
+   "imageSize_field": 209138,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x15013001",
+   "magic_06": "5d02",
+   "marker_08": "0x544C4E4B",
+   "marker_is_544C4E4B": true,
+   "containerLen": 209076,
+   "d18": 209076,
+   "d18_rel": "==containerLen",
+   "stored_tail_crc": "0x64C13037",
+   "crc_data_minus4": "0x64C13037",
+   "crc_data_minus4_matches": true,
+   "crc_whole": "0x00000000",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0x64C13037",
+   "crc_d18_minus4_matches": true
+  },
+  "v2": {
+   "verdict": "VERIFIED_PLAIN_TELINK_OTA",
+   "crc": "PASS",
+   "auth": "NO_CONTAINER_AUTH_DETECTED"
+  }
+ },
+ {
+  "file": "full\\Gledopto__GL-D-006P_V105_20220511.ota",
+  "ind": {
+   "bytes": 209138,
+   "headerLength": 56,
+   "imageSize_field": 209138,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x15013001",
+   "magic_06": "5d02",
+   "marker_08": "0x544C4E4B",
+   "marker_is_544C4E4B": true,
+   "containerLen": 209076,
+   "d18": 209076,
+   "d18_rel": "==containerLen",
+   "stored_tail_crc": "0xB6ADCA52",
+   "crc_data_minus4": "0xB6ADCA52",
+   "crc_data_minus4_matches": true,
+   "crc_whole": "0x00000000",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0xB6ADCA52",
+   "crc_d18_minus4_matches": true
+  },
+  "v2": {
+   "verdict": "VERIFIED_PLAIN_TELINK_OTA",
+   "crc": "PASS",
+   "auth": "NO_CONTAINER_AUTH_DETECTED"
+  }
+ },
+ {
+  "file": "full\\Gledopto__GL-D-007P.ota",
+  "ind": {
+   "bytes": 209202,
+   "headerLength": 56,
+   "imageSize_field": 209202,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x17013001",
+   "magic_06": "5d02",
+   "marker_08": "0x544C4E4B",
+   "marker_is_544C4E4B": true,
+   "containerLen": 209140,
+   "d18": 209140,
+   "d18_rel": "==containerLen",
+   "stored_tail_crc": "0x8C1D3675",
+   "crc_data_minus4": "0x8C1D3675",
+   "crc_data_minus4_matches": true,
+   "crc_whole": "0x00000000",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0x8C1D3675",
+   "crc_d18_minus4_matches": true
+  },
+  "v2": {
+   "verdict": "VERIFIED_PLAIN_TELINK_OTA",
+   "crc": "PASS",
+   "auth": "NO_CONTAINER_AUTH_DETECTED"
+  }
+ },
+ {
+  "file": "full\\Gledopto__GL-D-007P_V105_20220418_1_.ota",
+  "ind": {
+   "bytes": 209138,
+   "headerLength": 56,
+   "imageSize_field": 209138,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x15013001",
+   "magic_06": "5d02",
+   "marker_08": "0x544C4E4B",
+   "marker_is_544C4E4B": true,
+   "containerLen": 209076,
+   "d18": 209076,
+   "d18_rel": "==containerLen",
+   "stored_tail_crc": "0x135F263D",
+   "crc_data_minus4": "0x135F263D",
+   "crc_data_minus4_matches": true,
+   "crc_whole": "0x00000000",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0x135F263D",
+   "crc_d18_minus4_matches": true
+  },
+  "v2": {
+   "verdict": "VERIFIED_PLAIN_TELINK_OTA",
+   "crc": "PASS",
+   "auth": "NO_CONTAINER_AUTH_DETECTED"
+  }
+ },
+ {
+  "file": "full\\Gledopto__GL-S-006P_V107_20220906.ota",
+  "ind": {
+   "bytes": 209202,
+   "headerLength": 56,
+   "imageSize_field": 209202,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x17013001",
+   "magic_06": "5d02",
+   "marker_08": "0x544C4E4B",
+   "marker_is_544C4E4B": true,
+   "containerLen": 209140,
+   "d18": 209140,
+   "d18_rel": "==containerLen",
+   "stored_tail_crc": "0x8C6B8ED0",
+   "crc_data_minus4": "0x8C6B8ED0",
+   "crc_data_minus4_matches": true,
+   "crc_whole": "0x00000000",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0x8C6B8ED0",
+   "crc_d18_minus4_matches": true
+  },
+  "v2": {
+   "verdict": "VERIFIED_PLAIN_TELINK_OTA",
+   "crc": "PASS",
+   "auth": "NO_CONTAINER_AUTH_DETECTED"
+  }
+ },
+ {
+  "file": "full\\Innr__1166-0109-17103685-rb262-1.7.16.ota",
+  "ind": {
+   "bytes": 280658,
+   "headerLength": 56,
+   "imageSize_field": 280658,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x10013001",
+   "magic_06": "5d02",
+   "marker_08": "0x544C4E4B",
+   "marker_is_544C4E4B": true,
+   "containerLen": 280596,
+   "d18": 280596,
+   "d18_rel": "==containerLen",
+   "stored_tail_crc": "0xFFAC2BC3",
+   "crc_data_minus4": "0xFFAC2BC3",
+   "crc_data_minus4_matches": true,
+   "crc_whole": "0x00000000",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0xFFAC2BC3",
+   "crc_d18_minus4_matches": true
+  },
+  "v2": {
+   "verdict": "VERIFIED_PLAIN_TELINK_OTA",
+   "crc": "PASS",
+   "auth": "NO_CONTAINER_AUTH_DETECTED"
+  }
+ },
+ {
+  "file": "full\\Innr__1166-0109-19223685-rb262-1.9.34.ota",
+  "ind": {
+   "bytes": 280290,
+   "headerLength": 56,
+   "imageSize_field": 280290,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x10013001",
+   "magic_06": "5d02",
+   "marker_08": "0x544C4E4B",
+   "marker_is_544C4E4B": true,
+   "containerLen": 280228,
+   "d18": 280228,
+   "d18_rel": "==containerLen",
+   "stored_tail_crc": "0x5592D3AA",
+   "crc_data_minus4": "0x5592D3AA",
+   "crc_data_minus4_matches": true,
+   "crc_whole": "0x00000000",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0x5592D3AA",
+   "crc_d18_minus4_matches": true
+  },
+  "v2": {
+   "verdict": "VERIFIED_PLAIN_TELINK_OTA",
+   "crc": "PASS",
+   "auth": "NO_CONTAINER_AUTH_DETECTED"
+  }
+ },
+ {
+  "file": "full\\Innr__1166-010a-17103685-rb267-1.7.16.ota",
+  "ind": {
+   "bytes": 280658,
+   "headerLength": 56,
+   "imageSize_field": 280658,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x10013001",
+   "magic_06": "5d02",
+   "marker_08": "0x544C4E4B",
+   "marker_is_544C4E4B": true,
+   "containerLen": 280596,
+   "d18": 280596,
+   "d18_rel": "==containerLen",
+   "stored_tail_crc": "0x73C847FA",
+   "crc_data_minus4": "0x73C847FA",
+   "crc_data_minus4_matches": true,
+   "crc_whole": "0x00000000",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0x73C847FA",
+   "crc_d18_minus4_matches": true
+  },
+  "v2": {
+   "verdict": "VERIFIED_PLAIN_TELINK_OTA",
+   "crc": "PASS",
+   "auth": "NO_CONTAINER_AUTH_DETECTED"
+  }
+ },
+ {
+  "file": "full\\Innr__1166-010a-19223685-rb267-1.9.34.ota",
+  "ind": {
+   "bytes": 280290,
+   "headerLength": 56,
+   "imageSize_field": 280290,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x10013001",
+   "magic_06": "5d02",
+   "marker_08": "0x544C4E4B",
+   "marker_is_544C4E4B": true,
+   "containerLen": 280228,
+   "d18": 280228,
+   "d18_rel": "==containerLen",
+   "stored_tail_crc": "0x19606C1C",
+   "crc_data_minus4": "0x19606C1C",
+   "crc_data_minus4_matches": true,
+   "crc_whole": "0x00000000",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0x19606C1C",
+   "crc_d18_minus4_matches": true
+  },
+  "v2": {
+   "verdict": "VERIFIED_PLAIN_TELINK_OTA",
+   "crc": "PASS",
+   "auth": "NO_CONTAINER_AUTH_DETECTED"
+  }
+ },
+ {
+  "file": "full\\Innr__1166-010b-17103685-rb243-1.7.16.ota",
+  "ind": {
+   "bytes": 280658,
+   "headerLength": 56,
+   "imageSize_field": 280658,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x10013001",
+   "magic_06": "5d02",
+   "marker_08": "0x544C4E4B",
+   "marker_is_544C4E4B": true,
+   "containerLen": 280596,
+   "d18": 280596,
+   "d18_rel": "==containerLen",
+   "stored_tail_crc": "0x4E45435E",
+   "crc_data_minus4": "0x4E45435E",
+   "crc_data_minus4_matches": true,
+   "crc_whole": "0x00000000",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0x4E45435E",
+   "crc_d18_minus4_matches": true
+  },
+  "v2": {
+   "verdict": "VERIFIED_PLAIN_TELINK_OTA",
+   "crc": "PASS",
+   "auth": "NO_CONTAINER_AUTH_DETECTED"
+  }
+ },
+ {
+  "file": "full\\Innr__1166-010b-19223685-rb243-1.9.34.ota",
+  "ind": {
+   "bytes": 280290,
+   "headerLength": 56,
+   "imageSize_field": 280290,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x10013001",
+   "magic_06": "5d02",
+   "marker_08": "0x544C4E4B",
+   "marker_is_544C4E4B": true,
+   "containerLen": 280228,
+   "d18": 280228,
+   "d18_rel": "==containerLen",
+   "stored_tail_crc": "0x1174C167",
+   "crc_data_minus4": "0x1174C167",
+   "crc_data_minus4_matches": true,
+   "crc_whole": "0x00000000",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0x1174C167",
+   "crc_d18_minus4_matches": true
+  },
+  "v2": {
+   "verdict": "VERIFIED_PLAIN_TELINK_OTA",
+   "crc": "PASS",
+   "auth": "NO_CONTAINER_AUTH_DETECTED"
+  }
+ },
+ {
+  "file": "full\\Innr__1166-010d-17103685-rf262-1.7.16.ota",
+  "ind": {
+   "bytes": 280658,
+   "headerLength": 56,
+   "imageSize_field": 280658,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x10013001",
+   "magic_06": "5d02",
+   "marker_08": "0x544C4E4B",
+   "marker_is_544C4E4B": true,
+   "containerLen": 280596,
+   "d18": 280596,
+   "d18_rel": "==containerLen",
+   "stored_tail_crc": "0xEDEC54E8",
+   "crc_data_minus4": "0xEDEC54E8",
+   "crc_data_minus4_matches": true,
+   "crc_whole": "0x00000000",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0xEDEC54E8",
+   "crc_d18_minus4_matches": true
+  },
+  "v2": {
+   "verdict": "VERIFIED_PLAIN_TELINK_OTA",
+   "crc": "PASS",
+   "auth": "NO_CONTAINER_AUTH_DETECTED"
+  }
+ },
+ {
+  "file": "full\\Innr__1166-010d-19223685-rf262-1.9.34.ota",
+  "ind": {
+   "bytes": 280306,
+   "headerLength": 56,
+   "imageSize_field": 280306,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x10013001",
+   "magic_06": "5d02",
+   "marker_08": "0x544C4E4B",
+   "marker_is_544C4E4B": true,
+   "containerLen": 280244,
+   "d18": 280244,
+   "d18_rel": "==containerLen",
+   "stored_tail_crc": "0xF62690A0",
+   "crc_data_minus4": "0xF62690A0",
+   "crc_data_minus4_matches": true,
+   "crc_whole": "0x00000000",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0xF62690A0",
+   "crc_d18_minus4_matches": true
+  },
+  "v2": {
+   "verdict": "VERIFIED_PLAIN_TELINK_OTA",
+   "crc": "PASS",
+   "auth": "NO_CONTAINER_AUTH_DETECTED"
+  }
+ },
+ {
+  "file": "full\\Innr__1166-0132-19223685-rb272t-1.9.34.ota",
+  "ind": {
+   "bytes": 283810,
+   "headerLength": 56,
+   "imageSize_field": 283810,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x10013001",
+   "magic_06": "5d02",
+   "marker_08": "0x544C4E4B",
+   "marker_is_544C4E4B": true,
+   "containerLen": 283748,
+   "d18": 283748,
+   "d18_rel": "==containerLen",
+   "stored_tail_crc": "0x50D38275",
+   "crc_data_minus4": "0x50D38275",
+   "crc_data_minus4_matches": true,
+   "crc_whole": "0x00000000",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0x50D38275",
+   "crc_d18_minus4_matches": true
+  },
+  "v2": {
+   "verdict": "VERIFIED_PLAIN_TELINK_OTA",
+   "crc": "PASS",
+   "auth": "NO_CONTAINER_AUTH_DETECTED"
+  }
+ },
+ {
+  "file": "full\\Innr__1166-0132-19243685-rb272t-1.9.36.ota",
+  "ind": {
+   "bytes": 284642,
+   "headerLength": 56,
+   "imageSize_field": 284642,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x10013001",
+   "magic_06": "5d02",
+   "marker_08": "0x544C4E4B",
+   "marker_is_544C4E4B": true,
+   "containerLen": 284580,
+   "d18": 284580,
+   "d18_rel": "==containerLen",
+   "stored_tail_crc": "0xFA69B083",
+   "crc_data_minus4": "0xFA69B083",
+   "crc_data_minus4_matches": true,
+   "crc_whole": "0x00000000",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0xFA69B083",
+   "crc_d18_minus4_matches": true
+  },
+  "v2": {
+   "verdict": "VERIFIED_PLAIN_TELINK_OTA",
+   "crc": "PASS",
+   "auth": "NO_CONTAINER_AUTH_DETECTED"
+  }
+ },
+ {
+  "file": "full\\Innr__1166-0133-19223685-rb247t-1.9.34.ota",
+  "ind": {
+   "bytes": 286034,
+   "headerLength": 56,
+   "imageSize_field": 286034,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x10013001",
+   "magic_06": "5d02",
+   "marker_08": "0x544C4E4B",
+   "marker_is_544C4E4B": true,
+   "containerLen": 285972,
+   "d18": 285972,
+   "d18_rel": "==containerLen",
+   "stored_tail_crc": "0x96E1594C",
+   "crc_data_minus4": "0x96E1594C",
+   "crc_data_minus4_matches": true,
+   "crc_whole": "0x00000000",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0x96E1594C",
+   "crc_d18_minus4_matches": true
+  },
+  "v2": {
+   "verdict": "VERIFIED_PLAIN_TELINK_OTA",
+   "crc": "PASS",
+   "auth": "NO_CONTAINER_AUTH_DETECTED"
+  }
+ },
+ {
+  "file": "full\\Innr__1166-0133-19243685-rb247t-1.9.36.ota",
+  "ind": {
+   "bytes": 286834,
+   "headerLength": 56,
+   "imageSize_field": 286834,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x10013001",
+   "magic_06": "5d02",
+   "marker_08": "0x544C4E4B",
+   "marker_is_544C4E4B": true,
+   "containerLen": 286772,
+   "d18": 286772,
+   "d18_rel": "==containerLen",
+   "stored_tail_crc": "0x1198B2F5",
+   "crc_data_minus4": "0x1198B2F5",
+   "crc_data_minus4_matches": true,
+   "crc_whole": "0x00000000",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0x1198B2F5",
+   "crc_d18_minus4_matches": true
+  },
+  "v2": {
+   "verdict": "VERIFIED_PLAIN_TELINK_OTA",
+   "crc": "PASS",
+   "auth": "NO_CONTAINER_AUTH_DETECTED"
+  }
+ },
+ {
+  "file": "full\\Innr__1166-0134-19223685-rf273t-1.9.34.ota",
+  "ind": {
+   "bytes": 283826,
+   "headerLength": 56,
+   "imageSize_field": 283826,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x10013001",
+   "magic_06": "5d02",
+   "marker_08": "0x544C4E4B",
+   "marker_is_544C4E4B": true,
+   "containerLen": 283764,
+   "d18": 283764,
+   "d18_rel": "==containerLen",
+   "stored_tail_crc": "0x6353474B",
+   "crc_data_minus4": "0x6353474B",
+   "crc_data_minus4_matches": true,
+   "crc_whole": "0x00000000",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0x6353474B",
+   "crc_d18_minus4_matches": true
+  },
+  "v2": {
+   "verdict": "VERIFIED_PLAIN_TELINK_OTA",
+   "crc": "PASS",
+   "auth": "NO_CONTAINER_AUTH_DETECTED"
+  }
+ },
+ {
+  "file": "full\\Innr__1166-0134-19243685-rf273t-1.9.36.ota",
+  "ind": {
+   "bytes": 284642,
+   "headerLength": 56,
+   "imageSize_field": 284642,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x10013001",
+   "magic_06": "5d02",
+   "marker_08": "0x544C4E4B",
+   "marker_is_544C4E4B": true,
+   "containerLen": 284580,
+   "d18": 284580,
+   "d18_rel": "==containerLen",
+   "stored_tail_crc": "0xC358ECD6",
+   "crc_data_minus4": "0xC358ECD6",
+   "crc_data_minus4_matches": true,
+   "crc_whole": "0x00000000",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0xC358ECD6",
+   "crc_d18_minus4_matches": true
+  },
+  "v2": {
+   "verdict": "VERIFIED_PLAIN_TELINK_OTA",
+   "crc": "PASS",
+   "auth": "NO_CONTAINER_AUTH_DETECTED"
+  }
+ },
+ {
+  "file": "full\\Innr__1166-0135-19223685-rf274t-1.9.34.ota",
+  "ind": {
+   "bytes": 283826,
+   "headerLength": 56,
+   "imageSize_field": 283826,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x10013001",
+   "magic_06": "5d02",
+   "marker_08": "0x544C4E4B",
+   "marker_is_544C4E4B": true,
+   "containerLen": 283764,
+   "d18": 283764,
+   "d18_rel": "==containerLen",
+   "stored_tail_crc": "0x6CCB8F83",
+   "crc_data_minus4": "0x6CCB8F83",
+   "crc_data_minus4_matches": true,
+   "crc_whole": "0x00000000",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0x6CCB8F83",
+   "crc_d18_minus4_matches": true
+  },
+  "v2": {
+   "verdict": "VERIFIED_PLAIN_TELINK_OTA",
+   "crc": "PASS",
+   "auth": "NO_CONTAINER_AUTH_DETECTED"
+  }
+ },
+ {
+  "file": "full\\Innr__1166-0135-19243685-rf274t-1.9.36.ota",
+  "ind": {
+   "bytes": 284642,
+   "headerLength": 56,
+   "imageSize_field": 284642,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x10013001",
+   "magic_06": "5d02",
+   "marker_08": "0x544C4E4B",
+   "marker_is_544C4E4B": true,
+   "containerLen": 284580,
+   "d18": 284580,
+   "d18_rel": "==containerLen",
+   "stored_tail_crc": "0x4312C6B4",
+   "crc_data_minus4": "0x4312C6B4",
+   "crc_data_minus4_matches": true,
+   "crc_whole": "0x00000000",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0x4312C6B4",
+   "crc_d18_minus4_matches": true
+  },
+  "v2": {
+   "verdict": "VERIFIED_PLAIN_TELINK_OTA",
+   "crc": "PASS",
+   "auth": "NO_CONTAINER_AUTH_DETECTED"
+  }
+ },
+ {
+  "file": "full\\Innr__1166-0136-19223685-rf271t-1.9.34.ota",
+  "ind": {
+   "bytes": 283826,
+   "headerLength": 56,
+   "imageSize_field": 283826,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x10013001",
+   "magic_06": "5d02",
+   "marker_08": "0x544C4E4B",
+   "marker_is_544C4E4B": true,
+   "containerLen": 283764,
+   "d18": 283764,
+   "d18_rel": "==containerLen",
+   "stored_tail_crc": "0x0ECF0AC8",
+   "crc_data_minus4": "0x0ECF0AC8",
+   "crc_data_minus4_matches": true,
+   "crc_whole": "0x00000000",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0x0ECF0AC8",
+   "crc_d18_minus4_matches": true
+  },
+  "v2": {
+   "verdict": "VERIFIED_PLAIN_TELINK_OTA",
+   "crc": "PASS",
+   "auth": "NO_CONTAINER_AUTH_DETECTED"
+  }
+ },
+ {
+  "file": "full\\Innr__1166-0136-19243685-rf271t-1.9.36.ota",
+  "ind": {
+   "bytes": 284642,
+   "headerLength": 56,
+   "imageSize_field": 284642,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x10013001",
+   "magic_06": "5d02",
+   "marker_08": "0x544C4E4B",
+   "marker_is_544C4E4B": true,
+   "containerLen": 284580,
+   "d18": 284580,
+   "d18_rel": "==containerLen",
+   "stored_tail_crc": "0x9F5D90EC",
+   "crc_data_minus4": "0x9F5D90EC",
+   "crc_data_minus4_matches": true,
+   "crc_whole": "0x00000000",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0x9F5D90EC",
+   "crc_d18_minus4_matches": true
+  },
+  "v2": {
+   "verdict": "VERIFIED_PLAIN_TELINK_OTA",
+   "crc": "PASS",
+   "auth": "NO_CONTAINER_AUTH_DETECTED"
+  }
+ },
+ {
+  "file": "full\\Innr__1166-0209-17103685-bb262-1.7.16.ota",
+  "ind": {
+   "bytes": 280658,
+   "headerLength": 56,
+   "imageSize_field": 280658,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x10013001",
+   "magic_06": "5d02",
+   "marker_08": "0x544C4E4B",
+   "marker_is_544C4E4B": true,
+   "containerLen": 280596,
+   "d18": 280596,
+   "d18_rel": "==containerLen",
+   "stored_tail_crc": "0x1D746394",
+   "crc_data_minus4": "0x1D746394",
+   "crc_data_minus4_matches": true,
+   "crc_whole": "0x00000000",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0x1D746394",
+   "crc_d18_minus4_matches": true
+  },
+  "v2": {
+   "verdict": "VERIFIED_PLAIN_TELINK_OTA",
+   "crc": "PASS",
+   "auth": "NO_CONTAINER_AUTH_DETECTED"
+  }
+ },
+ {
+  "file": "full\\Innr__1166-0209-19223685-bb262-1.9.34.ota",
+  "ind": {
+   "bytes": 280290,
+   "headerLength": 56,
+   "imageSize_field": 280290,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x10013001",
+   "magic_06": "5d02",
+   "marker_08": "0x544C4E4B",
+   "marker_is_544C4E4B": true,
+   "containerLen": 280228,
+   "d18": 280228,
+   "d18_rel": "==containerLen",
+   "stored_tail_crc": "0xFBC795AE",
+   "crc_data_minus4": "0xFBC795AE",
+   "crc_data_minus4_matches": true,
+   "crc_whole": "0x00000000",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0xFBC795AE",
+   "crc_d18_minus4_matches": true
+  },
+  "v2": {
+   "verdict": "VERIFIED_PLAIN_TELINK_OTA",
+   "crc": "PASS",
+   "auth": "NO_CONTAINER_AUTH_DETECTED"
+  }
+ },
+ {
+  "file": "full\\Innr__1166-0331-191b3685-sp240-1.9.27.ota",
+  "ind": {
+   "bytes": 284930,
+   "headerLength": 56,
+   "imageSize_field": 284930,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x10013001",
+   "magic_06": "5d02",
+   "marker_08": "0x544C4E4B",
+   "marker_is_544C4E4B": true,
+   "containerLen": 284868,
+   "d18": 284868,
+   "d18_rel": "==containerLen",
+   "stored_tail_crc": "0x3320E0CD",
+   "crc_data_minus4": "0x3320E0CD",
+   "crc_data_minus4_matches": true,
+   "crc_whole": "0x00000000",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0x3320E0CD",
+   "crc_d18_minus4_matches": true
+  },
+  "v2": {
+   "verdict": "VERIFIED_PLAIN_TELINK_OTA",
+   "crc": "PASS",
+   "auth": "NO_CONTAINER_AUTH_DETECTED"
+  }
+ },
+ {
+  "file": "full\\Innr__1166-0331-191d3685-sp240-1.9.29.ota",
+  "ind": {
+   "bytes": 285058,
+   "headerLength": 56,
+   "imageSize_field": 285058,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x10013001",
+   "magic_06": "5d02",
+   "marker_08": "0x544C4E4B",
+   "marker_is_544C4E4B": true,
+   "containerLen": 284996,
+   "d18": 284996,
+   "d18_rel": "==containerLen",
+   "stored_tail_crc": "0xC13C4125",
+   "crc_data_minus4": "0xC13C4125",
+   "crc_data_minus4_matches": true,
+   "crc_whole": "0x00000000",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0xC13C4125",
+   "crc_d18_minus4_matches": true
+  },
+  "v2": {
+   "verdict": "VERIFIED_PLAIN_TELINK_OTA",
+   "crc": "PASS",
+   "auth": "NO_CONTAINER_AUTH_DETECTED"
+  }
+ },
+ {
+  "file": "full\\Innr__1166-0332-191b3685-sp242-1.9.27.ota",
+  "ind": {
+   "bytes": 284930,
+   "headerLength": 56,
+   "imageSize_field": 284930,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x10013001",
+   "magic_06": "5d02",
+   "marker_08": "0x544C4E4B",
+   "marker_is_544C4E4B": true,
+   "containerLen": 284868,
+   "d18": 284868,
+   "d18_rel": "==containerLen",
+   "stored_tail_crc": "0xCA565A25",
+   "crc_data_minus4": "0xCA565A25",
+   "crc_data_minus4_matches": true,
+   "crc_whole": "0x00000000",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0xCA565A25",
+   "crc_d18_minus4_matches": true
+  },
+  "v2": {
+   "verdict": "VERIFIED_PLAIN_TELINK_OTA",
+   "crc": "PASS",
+   "auth": "NO_CONTAINER_AUTH_DETECTED"
+  }
+ },
+ {
+  "file": "full\\Innr__1166-0332-191d3685-sp242-1.9.29.ota",
+  "ind": {
+   "bytes": 285058,
+   "headerLength": 56,
+   "imageSize_field": 285058,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x10013001",
+   "magic_06": "5d02",
+   "marker_08": "0x544C4E4B",
+   "marker_is_544C4E4B": true,
+   "containerLen": 284996,
+   "d18": 284996,
+   "d18_rel": "==containerLen",
+   "stored_tail_crc": "0x81326895",
+   "crc_data_minus4": "0x81326895",
+   "crc_data_minus4_matches": true,
+   "crc_whole": "0x00000000",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0x81326895",
+   "crc_d18_minus4_matches": true
+  },
+  "v2": {
+   "verdict": "VERIFIED_PLAIN_TELINK_OTA",
+   "crc": "PASS",
+   "auth": "NO_CONTAINER_AUTH_DETECTED"
+  }
+ },
+ {
+  "file": "full\\Innr__1166-0333-191b3685-sp244-1.9.27.ota",
+  "ind": {
+   "bytes": 284914,
+   "headerLength": 56,
+   "imageSize_field": 284914,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x10013001",
+   "magic_06": "5d02",
+   "marker_08": "0x544C4E4B",
+   "marker_is_544C4E4B": true,
+   "containerLen": 284852,
+   "d18": 284852,
+   "d18_rel": "==containerLen",
+   "stored_tail_crc": "0x7610401C",
+   "crc_data_minus4": "0x7610401C",
+   "crc_data_minus4_matches": true,
+   "crc_whole": "0x00000000",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0x7610401C",
+   "crc_d18_minus4_matches": true
+  },
+  "v2": {
+   "verdict": "VERIFIED_PLAIN_TELINK_OTA",
+   "crc": "PASS",
+   "auth": "NO_CONTAINER_AUTH_DETECTED"
+  }
+ },
+ {
+  "file": "full\\Innr__1166-0333-191d3685-sp244-1.9.29.ota",
+  "ind": {
+   "bytes": 285058,
+   "headerLength": 56,
+   "imageSize_field": 285058,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x10013001",
+   "magic_06": "5d02",
+   "marker_08": "0x544C4E4B",
+   "marker_is_544C4E4B": true,
+   "containerLen": 284996,
+   "d18": 284996,
+   "d18_rel": "==containerLen",
+   "stored_tail_crc": "0xBBA8464C",
+   "crc_data_minus4": "0xBBA8464C",
+   "crc_data_minus4_matches": true,
+   "crc_whole": "0x00000000",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0xBBA8464C",
+   "crc_d18_minus4_matches": true
+  },
+  "v2": {
+   "verdict": "VERIFIED_PLAIN_TELINK_OTA",
+   "crc": "PASS",
+   "auth": "NO_CONTAINER_AUTH_DETECTED"
+  }
+ },
+ {
+  "file": "full\\Innr__1166-0334-191c3685-sp240v2-1.9.28.ota",
+  "ind": {
+   "bytes": 284930,
+   "headerLength": 56,
+   "imageSize_field": 284930,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x10013001",
+   "magic_06": "5d02",
+   "marker_08": "0x544C4E4B",
+   "marker_is_544C4E4B": true,
+   "containerLen": 284868,
+   "d18": 284868,
+   "d18_rel": "==containerLen",
+   "stored_tail_crc": "0xD56BD071",
+   "crc_data_minus4": "0xD56BD071",
+   "crc_data_minus4_matches": true,
+   "crc_whole": "0x00000000",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0xD56BD071",
+   "crc_d18_minus4_matches": true
+  },
+  "v2": {
+   "verdict": "VERIFIED_PLAIN_TELINK_OTA",
+   "crc": "PASS",
+   "auth": "NO_CONTAINER_AUTH_DETECTED"
+  }
+ },
+ {
+  "file": "full\\Innr__1166-0334-191e3685-sp240v2-1.9.30.ota",
+  "ind": {
+   "bytes": 285042,
+   "headerLength": 56,
+   "imageSize_field": 285042,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x10013001",
+   "magic_06": "5d02",
+   "marker_08": "0x544C4E4B",
+   "marker_is_544C4E4B": true,
+   "containerLen": 284980,
+   "d18": 284980,
+   "d18_rel": "==containerLen",
+   "stored_tail_crc": "0x65A72EAF",
+   "crc_data_minus4": "0x65A72EAF",
+   "crc_data_minus4_matches": true,
+   "crc_whole": "0x00000000",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0x65A72EAF",
+   "crc_d18_minus4_matches": true
+  },
+  "v2": {
+   "verdict": "VERIFIED_PLAIN_TELINK_OTA",
+   "crc": "PASS",
+   "auth": "NO_CONTAINER_AUTH_DETECTED"
+  }
+ },
+ {
+  "file": "full\\Innr__1166-0335-191c3685-sp242v2-1.9.28.ota",
+  "ind": {
+   "bytes": 284930,
+   "headerLength": 56,
+   "imageSize_field": 284930,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x10013001",
+   "magic_06": "5d02",
+   "marker_08": "0x544C4E4B",
+   "marker_is_544C4E4B": true,
+   "containerLen": 284868,
+   "d18": 284868,
+   "d18_rel": "==containerLen",
+   "stored_tail_crc": "0x4AE920BF",
+   "crc_data_minus4": "0x4AE920BF",
+   "crc_data_minus4_matches": true,
+   "crc_whole": "0x00000000",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0x4AE920BF",
+   "crc_d18_minus4_matches": true
+  },
+  "v2": {
+   "verdict": "VERIFIED_PLAIN_TELINK_OTA",
+   "crc": "PASS",
+   "auth": "NO_CONTAINER_AUTH_DETECTED"
+  }
+ },
+ {
+  "file": "full\\Innr__1166-0335-191e3685-sp242v2-1.9.30.ota",
+  "ind": {
+   "bytes": 285042,
+   "headerLength": 56,
+   "imageSize_field": 285042,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x10013001",
+   "magic_06": "5d02",
+   "marker_08": "0x544C4E4B",
+   "marker_is_544C4E4B": true,
+   "containerLen": 284980,
+   "d18": 284980,
+   "d18_rel": "==containerLen",
+   "stored_tail_crc": "0x435D4D39",
+   "crc_data_minus4": "0x435D4D39",
+   "crc_data_minus4_matches": true,
+   "crc_whole": "0x00000000",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0x435D4D39",
+   "crc_d18_minus4_matches": true
+  },
+  "v2": {
+   "verdict": "VERIFIED_PLAIN_TELINK_OTA",
+   "crc": "PASS",
+   "auth": "NO_CONTAINER_AUTH_DETECTED"
+  }
+ },
+ {
+  "file": "full\\Innr__1166-0336-191c3685-sp244v2-1.9.28.ota",
+  "ind": {
+   "bytes": 284914,
+   "headerLength": 56,
+   "imageSize_field": 284914,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x10013001",
+   "magic_06": "5d02",
+   "marker_08": "0x544C4E4B",
+   "marker_is_544C4E4B": true,
+   "containerLen": 284852,
+   "d18": 284852,
+   "d18_rel": "==containerLen",
+   "stored_tail_crc": "0xF0EC493F",
+   "crc_data_minus4": "0xF0EC493F",
+   "crc_data_minus4_matches": true,
+   "crc_whole": "0x00000000",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0xF0EC493F",
+   "crc_d18_minus4_matches": true
+  },
+  "v2": {
+   "verdict": "VERIFIED_PLAIN_TELINK_OTA",
+   "crc": "PASS",
+   "auth": "NO_CONTAINER_AUTH_DETECTED"
+  }
+ },
+ {
+  "file": "full\\Innr__1166-0336-191e3685-sp244v2-1.9.30.ota",
+  "ind": {
+   "bytes": 285042,
+   "headerLength": 56,
+   "imageSize_field": 285042,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x10013001",
+   "magic_06": "5d02",
+   "marker_08": "0x544C4E4B",
+   "marker_is_544C4E4B": true,
+   "containerLen": 284980,
+   "d18": 284980,
+   "d18_rel": "==containerLen",
+   "stored_tail_crc": "0x4EC0B87B",
+   "crc_data_minus4": "0x4EC0B87B",
+   "crc_data_minus4_matches": true,
+   "crc_whole": "0x00000000",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0x4EC0B87B",
+   "crc_d18_minus4_matches": true
+  },
+  "v2": {
+   "verdict": "VERIFIED_PLAIN_TELINK_OTA",
+   "crc": "PASS",
+   "auth": "NO_CONTAINER_AUTH_DETECTED"
+  }
+ },
+ {
+  "file": "full\\Innr__1166-0401-17103685-ae262-1.7.16.ota",
+  "ind": {
+   "bytes": 280658,
+   "headerLength": 56,
+   "imageSize_field": 280658,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x10013001",
+   "magic_06": "5d02",
+   "marker_08": "0x544C4E4B",
+   "marker_is_544C4E4B": true,
+   "containerLen": 280596,
+   "d18": 280596,
+   "d18_rel": "==containerLen",
+   "stored_tail_crc": "0xB92D3678",
+   "crc_data_minus4": "0xB92D3678",
+   "crc_data_minus4_matches": true,
+   "crc_whole": "0x00000000",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0xB92D3678",
+   "crc_d18_minus4_matches": true
+  },
+  "v2": {
+   "verdict": "VERIFIED_PLAIN_TELINK_OTA",
+   "crc": "PASS",
+   "auth": "NO_CONTAINER_AUTH_DETECTED"
+  }
+ },
+ {
+  "file": "full\\Innr__1166-0401-19223685-ae262-1.9.34.ota",
+  "ind": {
+   "bytes": 280290,
+   "headerLength": 56,
+   "imageSize_field": 280290,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x10013001",
+   "magic_06": "5d02",
+   "marker_08": "0x544C4E4B",
+   "marker_is_544C4E4B": true,
+   "containerLen": 280228,
+   "d18": 280228,
+   "d18_rel": "==containerLen",
+   "stored_tail_crc": "0x8A6238C6",
+   "crc_data_minus4": "0x8A6238C6",
+   "crc_data_minus4_matches": true,
+   "crc_whole": "0x00000000",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0x8A6238C6",
+   "crc_d18_minus4_matches": true
+  },
+  "v2": {
+   "verdict": "VERIFIED_PLAIN_TELINK_OTA",
+   "crc": "PASS",
+   "auth": "NO_CONTAINER_AUTH_DETECTED"
+  }
+ },
+ {
+  "file": "full\\Innr__1166-0402-17103685-ae264-1.7.16.ota",
+  "ind": {
+   "bytes": 280658,
+   "headerLength": 56,
+   "imageSize_field": 280658,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x10013001",
+   "magic_06": "5d02",
+   "marker_08": "0x544C4E4B",
+   "marker_is_544C4E4B": true,
+   "containerLen": 280596,
+   "d18": 280596,
+   "d18_rel": "==containerLen",
+   "stored_tail_crc": "0x942EC980",
+   "crc_data_minus4": "0x942EC980",
+   "crc_data_minus4_matches": true,
+   "crc_whole": "0x00000000",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0x942EC980",
+   "crc_d18_minus4_matches": true
+  },
+  "v2": {
+   "verdict": "VERIFIED_PLAIN_TELINK_OTA",
+   "crc": "PASS",
+   "auth": "NO_CONTAINER_AUTH_DETECTED"
+  }
+ },
+ {
+  "file": "full\\Innr__1166-0402-19223685-ae264-1.9.34.ota",
+  "ind": {
+   "bytes": 280290,
+   "headerLength": 56,
+   "imageSize_field": 280290,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x10013001",
+   "magic_06": "5d02",
+   "marker_08": "0x544C4E4B",
+   "marker_is_544C4E4B": true,
+   "containerLen": 280228,
+   "d18": 280228,
+   "d18_rel": "==containerLen",
+   "stored_tail_crc": "0xF42DA81A",
+   "crc_data_minus4": "0xF42DA81A",
+   "crc_data_minus4_matches": true,
+   "crc_whole": "0x00000000",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0xF42DA81A",
+   "crc_d18_minus4_matches": true
+  },
+  "v2": {
+   "verdict": "VERIFIED_PLAIN_TELINK_OTA",
+   "crc": "PASS",
+   "auth": "NO_CONTAINER_AUTH_DETECTED"
+  }
+ },
+ {
+  "file": "full\\Innr__1166-0430-19223685-ae270t-1.9.34.ota",
+  "ind": {
+   "bytes": 283810,
+   "headerLength": 56,
+   "imageSize_field": 283810,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x10013001",
+   "magic_06": "5d02",
+   "marker_08": "0x544C4E4B",
+   "marker_is_544C4E4B": true,
+   "containerLen": 283748,
+   "d18": 283748,
+   "d18_rel": "==containerLen",
+   "stored_tail_crc": "0x607615EE",
+   "crc_data_minus4": "0x607615EE",
+   "crc_data_minus4_matches": true,
+   "crc_whole": "0x00000000",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0x607615EE",
+   "crc_d18_minus4_matches": true
+  },
+  "v2": {
+   "verdict": "VERIFIED_PLAIN_TELINK_OTA",
+   "crc": "PASS",
+   "auth": "NO_CONTAINER_AUTH_DETECTED"
+  }
+ },
+ {
+  "file": "full\\Innr__1166-0430-19243685-ae270t-1.9.36.ota",
+  "ind": {
+   "bytes": 284642,
+   "headerLength": 56,
+   "imageSize_field": 284642,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x10013001",
+   "magic_06": "5d02",
+   "marker_08": "0x544C4E4B",
+   "marker_is_544C4E4B": true,
+   "containerLen": 284580,
+   "d18": 284580,
+   "d18_rel": "==containerLen",
+   "stored_tail_crc": "0x59495B8A",
+   "crc_data_minus4": "0x59495B8A",
+   "crc_data_minus4_matches": true,
+   "crc_whole": "0x00000000",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0x59495B8A",
+   "crc_d18_minus4_matches": true
+  },
+  "v2": {
+   "verdict": "VERIFIED_PLAIN_TELINK_OTA",
+   "crc": "PASS",
+   "auth": "NO_CONTAINER_AUTH_DETECTED"
+  }
+ },
+ {
+  "file": "full\\Innr__1166-0500-19223685-rs240-1.9.34.ota",
+  "ind": {
+   "bytes": 280290,
+   "headerLength": 56,
+   "imageSize_field": 280290,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x10013001",
+   "magic_06": "5d02",
+   "marker_08": "0x544C4E4B",
+   "marker_is_544C4E4B": true,
+   "containerLen": 280228,
+   "d18": 280228,
+   "d18_rel": "==containerLen",
+   "stored_tail_crc": "0x64E05F9A",
+   "crc_data_minus4": "0x64E05F9A",
+   "crc_data_minus4_matches": true,
+   "crc_whole": "0x00000000",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0x64E05F9A",
+   "crc_d18_minus4_matches": true
+  },
+  "v2": {
+   "verdict": "VERIFIED_PLAIN_TELINK_OTA",
+   "crc": "PASS",
+   "auth": "NO_CONTAINER_AUTH_DETECTED"
+  }
+ },
+ {
+  "file": "full\\Innr__1166-0530-19223685-rs241t-1.9.34.ota",
+  "ind": {
+   "bytes": 283810,
+   "headerLength": 56,
+   "imageSize_field": 283810,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x10013001",
+   "magic_06": "5d02",
+   "marker_08": "0x544C4E4B",
+   "marker_is_544C4E4B": true,
+   "containerLen": 283748,
+   "d18": 283748,
+   "d18_rel": "==containerLen",
+   "stored_tail_crc": "0x86C3D1BE",
+   "crc_data_minus4": "0x86C3D1BE",
+   "crc_data_minus4_matches": true,
+   "crc_whole": "0x00000000",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0x86C3D1BE",
+   "crc_d18_minus4_matches": true
+  },
+  "v2": {
+   "verdict": "VERIFIED_PLAIN_TELINK_OTA",
+   "crc": "PASS",
+   "auth": "NO_CONTAINER_AUTH_DETECTED"
+  }
+ },
+ {
+  "file": "full\\Innr__1166-0530-19243685-rs241t-1.9.36.ota",
+  "ind": {
+   "bytes": 284642,
+   "headerLength": 56,
+   "imageSize_field": 284642,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x10013001",
+   "magic_06": "5d02",
+   "marker_08": "0x544C4E4B",
+   "marker_is_544C4E4B": true,
+   "containerLen": 284580,
+   "d18": 284580,
+   "d18_rel": "==containerLen",
+   "stored_tail_crc": "0x6C48148F",
+   "crc_data_minus4": "0x6C48148F",
+   "crc_data_minus4_matches": true,
+   "crc_whole": "0x00000000",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0x6C48148F",
+   "crc_d18_minus4_matches": true
+  },
+  "v2": {
+   "verdict": "VERIFIED_PLAIN_TELINK_OTA",
+   "crc": "PASS",
+   "auth": "NO_CONTAINER_AUTH_DETECTED"
+  }
+ },
+ {
+  "file": "full\\Innr__1166-0730-19223685-rcl232c-1.9.34.ota",
+  "ind": {
+   "bytes": 298962,
+   "headerLength": 56,
+   "imageSize_field": 298962,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x10013001",
+   "magic_06": "5d02",
+   "marker_08": "0x544C4E4B",
+   "marker_is_544C4E4B": true,
+   "containerLen": 298900,
+   "d18": 298900,
+   "d18_rel": "==containerLen",
+   "stored_tail_crc": "0x2AB8B4BA",
+   "crc_data_minus4": "0x2AB8B4BA",
+   "crc_data_minus4_matches": true,
+   "crc_whole": "0x00000000",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0x2AB8B4BA",
+   "crc_d18_minus4_matches": true
+  },
+  "v2": {
+   "verdict": "VERIFIED_PLAIN_TELINK_OTA",
+   "crc": "PASS",
+   "auth": "NO_CONTAINER_AUTH_DETECTED"
+  }
+ },
+ {
+  "file": "full\\Innr__1166-0809-19223685-ols210-1.9.34.ota",
+  "ind": {
+   "bytes": 283938,
+   "headerLength": 56,
+   "imageSize_field": 283938,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x10013001",
+   "magic_06": "5d02",
+   "marker_08": "0x544C4E4B",
+   "marker_is_544C4E4B": true,
+   "containerLen": 283876,
+   "d18": 283876,
+   "d18_rel": "==containerLen",
+   "stored_tail_crc": "0xA06BCD22",
+   "crc_data_minus4": "0xA06BCD22",
+   "crc_data_minus4_matches": true,
+   "crc_whole": "0x00000000",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0xA06BCD22",
+   "crc_d18_minus4_matches": true
+  },
+  "v2": {
+   "verdict": "VERIFIED_PLAIN_TELINK_OTA",
+   "crc": "PASS",
+   "auth": "NO_CONTAINER_AUTH_DETECTED"
+  }
+ },
+ {
+  "file": "full\\Innr__1166-0902-19223685-rcl231t-1.9.34.ota",
+  "ind": {
+   "bytes": 283458,
+   "headerLength": 56,
+   "imageSize_field": 283458,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x10013001",
+   "magic_06": "5d02",
+   "marker_08": "0x544C4E4B",
+   "marker_is_544C4E4B": true,
+   "containerLen": 283396,
+   "d18": 283396,
+   "d18_rel": "==containerLen",
+   "stored_tail_crc": "0xAD9562CF",
+   "crc_data_minus4": "0xAD9562CF",
+   "crc_data_minus4_matches": true,
+   "crc_whole": "0x00000000",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0xAD9562CF",
+   "crc_d18_minus4_matches": true
+  },
+  "v2": {
+   "verdict": "VERIFIED_PLAIN_TELINK_OTA",
+   "crc": "PASS",
+   "auth": "NO_CONTAINER_AUTH_DETECTED"
+  }
+ },
+ {
+  "file": "full\\Innr__app_innr-sp240-1.7.20.ota",
+  "ind": {
+   "bytes": 286818,
+   "headerLength": 56,
+   "imageSize_field": 286818,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x10013001",
+   "magic_06": "5d02",
+   "marker_08": "0x544C4E4B",
+   "marker_is_544C4E4B": true,
+   "containerLen": 286756,
+   "d18": 286756,
+   "d18_rel": "==containerLen",
+   "stored_tail_crc": "0xAC6AB850",
+   "crc_data_minus4": "0xAC6AB850",
+   "crc_data_minus4_matches": true,
+   "crc_whole": "0x00000000",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0xAC6AB850",
+   "crc_d18_minus4_matches": true
+  },
+  "v2": {
+   "verdict": "VERIFIED_PLAIN_TELINK_OTA",
+   "crc": "PASS",
+   "auth": "NO_CONTAINER_AUTH_DETECTED"
+  }
+ },
+ {
+  "file": "full\\Innr__app_innr-sp240-1.7.22_UG.ota",
+  "ind": {
+   "bytes": 286978,
+   "headerLength": 56,
+   "imageSize_field": 286978,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x10013001",
+   "magic_06": "5d02",
+   "marker_08": "0x544C4E4B",
+   "marker_is_544C4E4B": true,
+   "containerLen": 286916,
+   "d18": 286916,
+   "d18_rel": "==containerLen",
+   "stored_tail_crc": "0xDC26A45F",
+   "crc_data_minus4": "0xDC26A45F",
+   "crc_data_minus4_matches": true,
+   "crc_whole": "0x00000000",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0xDC26A45F",
+   "crc_d18_minus4_matches": true
+  },
+  "v2": {
+   "verdict": "VERIFIED_PLAIN_TELINK_OTA",
+   "crc": "PASS",
+   "auth": "NO_CONTAINER_AUTH_DETECTED"
+  }
+ },
+ {
+  "file": "full\\Innr__app_innr-sp240v2-1.7.20.ota",
+  "ind": {
+   "bytes": 286802,
+   "headerLength": 56,
+   "imageSize_field": 286802,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x10013001",
+   "magic_06": "5d02",
+   "marker_08": "0x544C4E4B",
+   "marker_is_544C4E4B": true,
+   "containerLen": 286740,
+   "d18": 286740,
+   "d18_rel": "==containerLen",
+   "stored_tail_crc": "0x99DDCBF6",
+   "crc_data_minus4": "0x99DDCBF6",
+   "crc_data_minus4_matches": true,
+   "crc_whole": "0x00000000",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0x99DDCBF6",
+   "crc_d18_minus4_matches": true
+  },
+  "v2": {
+   "verdict": "VERIFIED_PLAIN_TELINK_OTA",
+   "crc": "PASS",
+   "auth": "NO_CONTAINER_AUTH_DETECTED"
+  }
+ },
+ {
+  "file": "full\\Innr__app_innr-sp240v2-1.7.22_UG.ota",
+  "ind": {
+   "bytes": 286978,
+   "headerLength": 56,
+   "imageSize_field": 286978,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x10013001",
+   "magic_06": "5d02",
+   "marker_08": "0x544C4E4B",
+   "marker_is_544C4E4B": true,
+   "containerLen": 286916,
+   "d18": 286916,
+   "d18_rel": "==containerLen",
+   "stored_tail_crc": "0x531EBDA5",
+   "crc_data_minus4": "0x531EBDA5",
+   "crc_data_minus4_matches": true,
+   "crc_whole": "0x00000000",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0x531EBDA5",
+   "crc_d18_minus4_matches": true
+  },
+  "v2": {
+   "verdict": "VERIFIED_PLAIN_TELINK_OTA",
+   "crc": "PASS",
+   "auth": "NO_CONTAINER_AUTH_DETECTED"
+  }
+ },
+ {
+  "file": "full\\Innr__app_innr-sp242-1.7.20.ota",
+  "ind": {
+   "bytes": 286818,
+   "headerLength": 56,
+   "imageSize_field": 286818,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x10013001",
+   "magic_06": "5d02",
+   "marker_08": "0x544C4E4B",
+   "marker_is_544C4E4B": true,
+   "containerLen": 286756,
+   "d18": 286756,
+   "d18_rel": "==containerLen",
+   "stored_tail_crc": "0x3326EC28",
+   "crc_data_minus4": "0x3326EC28",
+   "crc_data_minus4_matches": true,
+   "crc_whole": "0x00000000",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0x3326EC28",
+   "crc_d18_minus4_matches": true
+  },
+  "v2": {
+   "verdict": "VERIFIED_PLAIN_TELINK_OTA",
+   "crc": "PASS",
+   "auth": "NO_CONTAINER_AUTH_DETECTED"
+  }
+ },
+ {
+  "file": "full\\Innr__app_innr-sp242-1.7.22_UG.ota",
+  "ind": {
+   "bytes": 286978,
+   "headerLength": 56,
+   "imageSize_field": 286978,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x10013001",
+   "magic_06": "5d02",
+   "marker_08": "0x544C4E4B",
+   "marker_is_544C4E4B": true,
+   "containerLen": 286916,
+   "d18": 286916,
+   "d18_rel": "==containerLen",
+   "stored_tail_crc": "0xCDF43859",
+   "crc_data_minus4": "0xCDF43859",
+   "crc_data_minus4_matches": true,
+   "crc_whole": "0x00000000",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0xCDF43859",
+   "crc_d18_minus4_matches": true
+  },
+  "v2": {
+   "verdict": "VERIFIED_PLAIN_TELINK_OTA",
+   "crc": "PASS",
+   "auth": "NO_CONTAINER_AUTH_DETECTED"
+  }
+ },
+ {
+  "file": "full\\Innr__app_innr-sp242v2-1.7.20.ota",
+  "ind": {
+   "bytes": 286802,
+   "headerLength": 56,
+   "imageSize_field": 286802,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x10013001",
+   "magic_06": "5d02",
+   "marker_08": "0x544C4E4B",
+   "marker_is_544C4E4B": true,
+   "containerLen": 286740,
+   "d18": 286740,
+   "d18_rel": "==containerLen",
+   "stored_tail_crc": "0x2D250990",
+   "crc_data_minus4": "0x2D250990",
+   "crc_data_minus4_matches": true,
+   "crc_whole": "0x00000000",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0x2D250990",
+   "crc_d18_minus4_matches": true
+  },
+  "v2": {
+   "verdict": "VERIFIED_PLAIN_TELINK_OTA",
+   "crc": "PASS",
+   "auth": "NO_CONTAINER_AUTH_DETECTED"
+  }
+ },
+ {
+  "file": "full\\Innr__app_innr-sp242v2-1.7.22_UG.ota",
+  "ind": {
+   "bytes": 286978,
+   "headerLength": 56,
+   "imageSize_field": 286978,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x10013001",
+   "magic_06": "5d02",
+   "marker_08": "0x544C4E4B",
+   "marker_is_544C4E4B": true,
+   "containerLen": 286916,
+   "d18": 286916,
+   "d18_rel": "==containerLen",
+   "stored_tail_crc": "0x9EEC2F13",
+   "crc_data_minus4": "0x9EEC2F13",
+   "crc_data_minus4_matches": true,
+   "crc_whole": "0x00000000",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0x9EEC2F13",
+   "crc_d18_minus4_matches": true
+  },
+  "v2": {
+   "verdict": "VERIFIED_PLAIN_TELINK_OTA",
+   "crc": "PASS",
+   "auth": "NO_CONTAINER_AUTH_DETECTED"
+  }
+ },
+ {
+  "file": "full\\Innr__app_innr-sp244-1.7.20.ota",
+  "ind": {
+   "bytes": 286818,
+   "headerLength": 56,
+   "imageSize_field": 286818,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x10013001",
+   "magic_06": "5d02",
+   "marker_08": "0x544C4E4B",
+   "marker_is_544C4E4B": true,
+   "containerLen": 286756,
+   "d18": 286756,
+   "d18_rel": "==containerLen",
+   "stored_tail_crc": "0x20D0179B",
+   "crc_data_minus4": "0x20D0179B",
+   "crc_data_minus4_matches": true,
+   "crc_whole": "0x00000000",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0x20D0179B",
+   "crc_d18_minus4_matches": true
+  },
+  "v2": {
+   "verdict": "VERIFIED_PLAIN_TELINK_OTA",
+   "crc": "PASS",
+   "auth": "NO_CONTAINER_AUTH_DETECTED"
+  }
+ },
+ {
+  "file": "full\\Innr__app_innr-sp244-1.7.22_UG.ota",
+  "ind": {
+   "bytes": 286978,
+   "headerLength": 56,
+   "imageSize_field": 286978,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x10013001",
+   "magic_06": "5d02",
+   "marker_08": "0x544C4E4B",
+   "marker_is_544C4E4B": true,
+   "containerLen": 286916,
+   "d18": 286916,
+   "d18_rel": "==containerLen",
+   "stored_tail_crc": "0x1719A758",
+   "crc_data_minus4": "0x1719A758",
+   "crc_data_minus4_matches": true,
+   "crc_whole": "0x00000000",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0x1719A758",
+   "crc_d18_minus4_matches": true
+  },
+  "v2": {
+   "verdict": "VERIFIED_PLAIN_TELINK_OTA",
+   "crc": "PASS",
+   "auth": "NO_CONTAINER_AUTH_DETECTED"
+  }
+ },
+ {
+  "file": "full\\Innr__app_innr-sp244v2-1.7.20.ota",
+  "ind": {
+   "bytes": 286802,
+   "headerLength": 56,
+   "imageSize_field": 286802,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x10013001",
+   "magic_06": "5d02",
+   "marker_08": "0x544C4E4B",
+   "marker_is_544C4E4B": true,
+   "containerLen": 286740,
+   "d18": 286740,
+   "d18_rel": "==containerLen",
+   "stored_tail_crc": "0x90C916A4",
+   "crc_data_minus4": "0x90C916A4",
+   "crc_data_minus4_matches": true,
+   "crc_whole": "0x00000000",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0x90C916A4",
+   "crc_d18_minus4_matches": true
+  },
+  "v2": {
+   "verdict": "VERIFIED_PLAIN_TELINK_OTA",
+   "crc": "PASS",
+   "auth": "NO_CONTAINER_AUTH_DETECTED"
+  }
+ },
+ {
+  "file": "full\\Innr__app_innr-sp244v2-1.7.22_UG.ota",
+  "ind": {
+   "bytes": 286978,
+   "headerLength": 56,
+   "imageSize_field": 286978,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x10013001",
+   "magic_06": "5d02",
+   "marker_08": "0x544C4E4B",
+   "marker_is_544C4E4B": true,
+   "containerLen": 286916,
+   "d18": 286916,
+   "d18_rel": "==containerLen",
+   "stored_tail_crc": "0xF894D876",
+   "crc_data_minus4": "0xF894D876",
+   "crc_data_minus4_matches": true,
+   "crc_whole": "0x00000000",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0xF894D876",
+   "crc_d18_minus4_matches": true
+  },
+  "v2": {
+   "verdict": "VERIFIED_PLAIN_TELINK_OTA",
+   "crc": "PASS",
+   "auth": "NO_CONTAINER_AUTH_DETECTED"
+  }
+ },
+ {
+  "file": "full\\Innr__innr_controlleddevice-sp240-1.6.22.ota",
+  "ind": {
+   "bytes": 284962,
+   "headerLength": 56,
+   "imageSize_field": 284962,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x10013001",
+   "magic_06": "5d02",
+   "marker_08": "0x544C4E4B",
+   "marker_is_544C4E4B": true,
+   "containerLen": 284900,
+   "d18": 284900,
+   "d18_rel": "==containerLen",
+   "stored_tail_crc": "0x53F77CCD",
+   "crc_data_minus4": "0x53F77CCD",
+   "crc_data_minus4_matches": true,
+   "crc_whole": "0x00000000",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0x53F77CCD",
+   "crc_d18_minus4_matches": true
+  },
+  "v2": {
+   "verdict": "VERIFIED_PLAIN_TELINK_OTA",
+   "crc": "PASS",
+   "auth": "NO_CONTAINER_AUTH_DETECTED"
+  }
+ },
+ {
+  "file": "full\\Innr__innr_controlleddevice-sp242-1.6.22.ota",
+  "ind": {
+   "bytes": 284962,
+   "headerLength": 56,
+   "imageSize_field": 284962,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x10013001",
+   "magic_06": "5d02",
+   "marker_08": "0x544C4E4B",
+   "marker_is_544C4E4B": true,
+   "containerLen": 284900,
+   "d18": 284900,
+   "d18_rel": "==containerLen",
+   "stored_tail_crc": "0x98C74944",
+   "crc_data_minus4": "0x98C74944",
+   "crc_data_minus4_matches": true,
+   "crc_whole": "0x00000000",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0x98C74944",
+   "crc_d18_minus4_matches": true
+  },
+  "v2": {
+   "verdict": "VERIFIED_PLAIN_TELINK_OTA",
+   "crc": "PASS",
+   "auth": "NO_CONTAINER_AUTH_DETECTED"
+  }
+ },
+ {
+  "file": "full\\Innr__innr_controlleddevice-sp244-1.6.22.ota",
+  "ind": {
+   "bytes": 284962,
+   "headerLength": 56,
+   "imageSize_field": 284962,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x10013001",
+   "magic_06": "5d02",
+   "marker_08": "0x544C4E4B",
+   "marker_is_544C4E4B": true,
+   "containerLen": 284900,
+   "d18": 284900,
+   "d18_rel": "==containerLen",
+   "stored_tail_crc": "0x56A97221",
+   "crc_data_minus4": "0x56A97221",
+   "crc_data_minus4_matches": true,
+   "crc_whole": "0x00000000",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0x56A97221",
+   "crc_d18_minus4_matches": true
+  },
+  "v2": {
+   "verdict": "VERIFIED_PLAIN_TELINK_OTA",
+   "crc": "PASS",
+   "auth": "NO_CONTAINER_AUTH_DETECTED"
+  }
+ },
+ {
+  "file": "full\\SlackyDiy__6565-0204-20043001-watermeter_zed.zigbee",
+  "ind": {
+   "bytes": 151458,
+   "headerLength": 56,
+   "imageSize_field": 151458,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x20043001",
+   "magic_06": "5d02",
+   "marker_08": "0x544C4E4B",
+   "marker_is_544C4E4B": true,
+   "containerLen": 151396,
+   "d18": 151396,
+   "d18_rel": "==containerLen",
+   "stored_tail_crc": "0x168CC2E2",
+   "crc_data_minus4": "0x168CC2E2",
+   "crc_data_minus4_matches": true,
+   "crc_whole": "0x00000000",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0x168CC2E2",
+   "crc_d18_minus4_matches": true
+  },
+  "v2": {
+   "verdict": "VERIFIED_PLAIN_TELINK_OTA",
+   "crc": "PASS",
+   "auth": "NO_CONTAINER_AUTH_DETECTED"
+  }
+ },
+ {
+  "file": "full\\SlackyDiy__6565-0215-10053001-ts0201_tz3000_zed.zigbee",
+  "ind": {
+   "bytes": 148850,
+   "headerLength": 56,
+   "imageSize_field": 148850,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x10053001",
+   "magic_06": "5d02",
+   "marker_08": "0x544C4E4B",
+   "marker_is_544C4E4B": true,
+   "containerLen": 148788,
+   "d18": 148788,
+   "d18_rel": "==containerLen",
+   "stored_tail_crc": "0x6FB67100",
+   "crc_data_minus4": "0x6FB67100",
+   "crc_data_minus4_matches": true,
+   "crc_whole": "0x00000000",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0x6FB67100",
+   "crc_d18_minus4_matches": true
+  },
+  "v2": {
+   "verdict": "VERIFIED_PLAIN_TELINK_OTA",
+   "crc": "PASS",
+   "auth": "NO_CONTAINER_AUTH_DETECTED"
+  }
+ },
+ {
+  "file": "full\\SlackyDiy__6565-0215-10083001-ts0201_tz3000_0x15_zed.zigbee",
+  "ind": {
+   "bytes": 151714,
+   "headerLength": 56,
+   "imageSize_field": 151714,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x10083001",
+   "magic_06": "5d02",
+   "marker_08": "0x544C4E4B",
+   "marker_is_544C4E4B": true,
+   "containerLen": 151652,
+   "d18": 151652,
+   "d18_rel": "==containerLen",
+   "stored_tail_crc": "0x466B53CD",
+   "crc_data_minus4": "0x466B53CD",
+   "crc_data_minus4_matches": true,
+   "crc_whole": "0x00000000",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0x466B53CD",
+   "crc_d18_minus4_matches": true
+  },
+  "v2": {
+   "verdict": "VERIFIED_PLAIN_TELINK_OTA",
+   "crc": "PASS",
+   "auth": "NO_CONTAINER_AUTH_DETECTED"
+  }
+ },
+ {
+  "file": "full\\SlackyDiy__6565-0217-10053001-zg_227za_0x17_zed.zigbee",
+  "ind": {
+   "bytes": 151682,
+   "headerLength": 56,
+   "imageSize_field": 151682,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x10053001",
+   "magic_06": "5d02",
+   "marker_08": "0x544C4E4B",
+   "marker_is_544C4E4B": true,
+   "containerLen": 151620,
+   "d18": 151620,
+   "d18_rel": "==containerLen",
+   "stored_tail_crc": "0x5EF072EC",
+   "crc_data_minus4": "0x5EF072EC",
+   "crc_data_minus4_matches": true,
+   "crc_whole": "0x00000000",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0x5EF072EC",
+   "crc_d18_minus4_matches": true
+  },
+  "v2": {
+   "verdict": "VERIFIED_PLAIN_TELINK_OTA",
+   "crc": "PASS",
+   "auth": "NO_CONTAINER_AUTH_DETECTED"
+  }
+ },
+ {
+  "file": "full\\SlackyDiy__6565-0218-10043001-ZG_222Z.zigbee",
+  "ind": {
+   "bytes": 153554,
+   "headerLength": 56,
+   "imageSize_field": 153554,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x10043001",
+   "magic_06": "5d02",
+   "marker_08": "0x544C4E4B",
+   "marker_is_544C4E4B": true,
+   "containerLen": 153492,
+   "d18": 153492,
+   "d18_rel": "==containerLen",
+   "stored_tail_crc": "0x4B4C7FFF",
+   "crc_data_minus4": "0x4B4C7FFF",
+   "crc_data_minus4_matches": true,
+   "crc_whole": "0x00000000",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0x4B4C7FFF",
+   "crc_d18_minus4_matches": true
+  },
+  "v2": {
+   "verdict": "VERIFIED_PLAIN_TELINK_OTA",
+   "crc": "PASS",
+   "auth": "NO_CONTAINER_AUTH_DETECTED"
+  }
+ },
+ {
+  "file": "full\\SlackyDiy__6565-0218-10053001-zg_227z_0x18_zed.zigbee",
+  "ind": {
+   "bytes": 151698,
+   "headerLength": 56,
+   "imageSize_field": 151698,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x10053001",
+   "magic_06": "5d02",
+   "marker_08": "0x544C4E4B",
+   "marker_is_544C4E4B": true,
+   "containerLen": 151636,
+   "d18": 151636,
+   "d18_rel": "==containerLen",
+   "stored_tail_crc": "0x3EDCF0F3",
+   "crc_data_minus4": "0x3EDCF0F3",
+   "crc_data_minus4_matches": true,
+   "crc_whole": "0x00000000",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0x3EDCF0F3",
+   "crc_d18_minus4_matches": true
+  },
+  "v2": {
+   "verdict": "VERIFIED_PLAIN_TELINK_OTA",
+   "crc": "PASS",
+   "auth": "NO_CONTAINER_AUTH_DETECTED"
+  }
+ },
+ {
+  "file": "full\\SlackyDiy__6565-0219-10043001-SNZB_05.zigbee",
+  "ind": {
+   "bytes": 153538,
+   "headerLength": 56,
+   "imageSize_field": 153538,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x10043001",
+   "magic_06": "5d02",
+   "marker_08": "0x544C4E4B",
+   "marker_is_544C4E4B": true,
+   "containerLen": 153476,
+   "d18": 153476,
+   "d18_rel": "==containerLen",
+   "stored_tail_crc": "0x18745A17",
+   "crc_data_minus4": "0x18745A17",
+   "crc_data_minus4_matches": true,
+   "crc_whole": "0x00000000",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0x18745A17",
+   "crc_d18_minus4_matches": true
+  },
+  "v2": {
+   "verdict": "VERIFIED_PLAIN_TELINK_OTA",
+   "crc": "PASS",
+   "auth": "NO_CONTAINER_AUTH_DETECTED"
+  }
+ },
+ {
+  "file": "full\\SlackyDiy__6565-0219-10053001-snzb_05_0x19_zed.zigbee",
+  "ind": {
+   "bytes": 151682,
+   "headerLength": 56,
+   "imageSize_field": 151682,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x10053001",
+   "magic_06": "5d02",
+   "marker_08": "0x544C4E4B",
+   "marker_is_544C4E4B": true,
+   "containerLen": 151620,
+   "d18": 151620,
+   "d18_rel": "==containerLen",
+   "stored_tail_crc": "0xE7E5B6AA",
+   "crc_data_minus4": "0xE7E5B6AA",
+   "crc_data_minus4_matches": true,
+   "crc_whole": "0x00000000",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0xE7E5B6AA",
+   "crc_d18_minus4_matches": true
+  },
+  "v2": {
+   "verdict": "VERIFIED_PLAIN_TELINK_OTA",
+   "crc": "PASS",
+   "auth": "NO_CONTAINER_AUTH_DETECTED"
+  }
+ },
+ {
+  "file": "full\\SlackyDiy__6565-021d-10103001-qs_zigbee_sec02_zrd.zigbee",
+  "ind": {
+   "bytes": 205634,
+   "headerLength": 56,
+   "imageSize_field": 205634,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x10103001",
+   "magic_06": "5d02",
+   "marker_08": "0x544C4E4B",
+   "marker_is_544C4E4B": true,
+   "containerLen": 205572,
+   "d18": 205572,
+   "d18_rel": "==containerLen",
+   "stored_tail_crc": "0xDB0278F8",
+   "crc_data_minus4": "0xDB0278F8",
+   "crc_data_minus4_matches": true,
+   "crc_whole": "0x00000000",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0xDB0278F8",
+   "crc_d18_minus4_matches": true
+  },
+  "v2": {
+   "verdict": "VERIFIED_PLAIN_TELINK_OTA",
+   "crc": "PASS",
+   "auth": "NO_CONTAINER_AUTH_DETECTED"
+  }
+ },
+ {
+  "file": "full\\SlackyDiy__6565-021d-10113001-qs_zigbee_sec02_zrd.zigbee",
+  "ind": {
+   "bytes": 208578,
+   "headerLength": 56,
+   "imageSize_field": 208578,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x10113001",
+   "magic_06": "5d02",
+   "marker_08": "0x544C4E4B",
+   "marker_is_544C4E4B": true,
+   "containerLen": 208516,
+   "d18": 208516,
+   "d18_rel": "==containerLen",
+   "stored_tail_crc": "0xF8679F8C",
+   "crc_data_minus4": "0xF8679F8C",
+   "crc_data_minus4_matches": true,
+   "crc_whole": "0x00000000",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0xF8679F8C",
+   "crc_d18_minus4_matches": true
+  },
+  "v2": {
+   "verdict": "VERIFIED_PLAIN_TELINK_OTA",
+   "crc": "PASS",
+   "auth": "NO_CONTAINER_AUTH_DETECTED"
+  }
+ },
+ {
+  "file": "full\\SlackyDiy__6565-021e-10063001-qs_zigbee_sec01_zrd.zigbee",
+  "ind": {
+   "bytes": 203922,
+   "headerLength": 56,
+   "imageSize_field": 203922,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x10063001",
+   "magic_06": "5d02",
+   "marker_08": "0x544C4E4B",
+   "marker_is_544C4E4B": true,
+   "containerLen": 203860,
+   "d18": 203860,
+   "d18_rel": "==containerLen",
+   "stored_tail_crc": "0xD8119A91",
+   "crc_data_minus4": "0xD8119A91",
+   "crc_data_minus4_matches": true,
+   "crc_whole": "0x00000000",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0xD8119A91",
+   "crc_d18_minus4_matches": true
+  },
+  "v2": {
+   "verdict": "VERIFIED_PLAIN_TELINK_OTA",
+   "crc": "PASS",
+   "auth": "NO_CONTAINER_AUTH_DETECTED"
+  }
+ },
+ {
+  "file": "full\\SlackyDiy__6565-021e-10073001-qs_zigbee_sec01_zrd.zigbee",
+  "ind": {
+   "bytes": 206370,
+   "headerLength": 56,
+   "imageSize_field": 206370,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x10073001",
+   "magic_06": "5d02",
+   "marker_08": "0x544C4E4B",
+   "marker_is_544C4E4B": true,
+   "containerLen": 206308,
+   "d18": 206308,
+   "d18_rel": "==containerLen",
+   "stored_tail_crc": "0x42753366",
+   "crc_data_minus4": "0x42753366",
+   "crc_data_minus4_matches": true,
+   "crc_whole": "0x00000000",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0x42753366",
+   "crc_d18_minus4_matches": true
+  },
+  "v2": {
+   "verdict": "VERIFIED_PLAIN_TELINK_OTA",
+   "crc": "PASS",
+   "auth": "NO_CONTAINER_AUTH_DETECTED"
+  }
+ },
+ {
+  "file": "full\\SlackyDiy__6565-0221-10083001-ts0201_tz3000_0x21_zed.zigbee",
+  "ind": {
+   "bytes": 151794,
+   "headerLength": 56,
+   "imageSize_field": 151794,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x10083001",
+   "magic_06": "5d02",
+   "marker_08": "0x544C4E4B",
+   "marker_is_544C4E4B": true,
+   "containerLen": 151732,
+   "d18": 151732,
+   "d18_rel": "==containerLen",
+   "stored_tail_crc": "0x231877B2",
+   "crc_data_minus4": "0x231877B2",
+   "crc_data_minus4_matches": true,
+   "crc_whole": "0x00000000",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0x231877B2",
+   "crc_d18_minus4_matches": true
+  },
+  "v2": {
+   "verdict": "VERIFIED_PLAIN_TELINK_OTA",
+   "crc": "PASS",
+   "auth": "NO_CONTAINER_AUTH_DETECTED"
+  }
+ },
+ {
+  "file": "full\\SlackyDiy__6565-0222-10083001-ts0201_tz3000_0x22_zed.zigbee",
+  "ind": {
+   "bytes": 151474,
+   "headerLength": 56,
+   "imageSize_field": 151474,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x10083001",
+   "magic_06": "5d02",
+   "marker_08": "0x544C4E4B",
+   "marker_is_544C4E4B": true,
+   "containerLen": 151412,
+   "d18": 151412,
+   "d18_rel": "==containerLen",
+   "stored_tail_crc": "0x18E3169A",
+   "crc_data_minus4": "0x18E3169A",
+   "crc_data_minus4_matches": true,
+   "crc_whole": "0x00000000",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0x18E3169A",
+   "crc_d18_minus4_matches": true
+  },
+  "v2": {
+   "verdict": "VERIFIED_PLAIN_TELINK_OTA",
+   "crc": "PASS",
+   "auth": "NO_CONTAINER_AUTH_DETECTED"
+  }
+ },
+ {
+  "file": "full\\SlackyDiy__6565-031f-10053001-tuya_plug_ts011f_zrd.zigbee",
+  "ind": {
+   "bytes": 205250,
+   "headerLength": 56,
+   "imageSize_field": 205250,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x10053001",
+   "magic_06": "5d02",
+   "marker_08": "0x544C4E4B",
+   "marker_is_544C4E4B": true,
+   "containerLen": 205188,
+   "d18": 205188,
+   "d18_rel": "==containerLen",
+   "stored_tail_crc": "0xA4846698",
+   "crc_data_minus4": "0xA4846698",
+   "crc_data_minus4_matches": true,
+   "crc_whole": "0x00000000",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0xA4846698",
+   "crc_d18_minus4_matches": true
+  },
+  "v2": {
+   "verdict": "VERIFIED_PLAIN_TELINK_OTA",
+   "crc": "PASS",
+   "auth": "NO_CONTAINER_AUTH_DETECTED"
+  }
+ },
+ {
+  "file": "full\\SlackyDiy__6565-031f-10063001-tuya_plug_ts011f_zrd.zigbee",
+  "ind": {
+   "bytes": 207522,
+   "headerLength": 56,
+   "imageSize_field": 207522,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x10063001",
+   "magic_06": "5d02",
+   "marker_08": "0x544C4E4B",
+   "marker_is_544C4E4B": true,
+   "containerLen": 207460,
+   "d18": 207460,
+   "d18_rel": "==containerLen",
+   "stored_tail_crc": "0xA4EFFBFC",
+   "crc_data_minus4": "0xA4EFFBFC",
+   "crc_data_minus4_matches": true,
+   "crc_whole": "0x00000000",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0xA4EFFBFC",
+   "crc_d18_minus4_matches": true
+  },
+  "v2": {
+   "verdict": "VERIFIED_PLAIN_TELINK_OTA",
+   "crc": "PASS",
+   "auth": "NO_CONTAINER_AUTH_DETECTED"
+  }
+ },
+ {
+  "file": "full\\SlackyDiy__6565-032a-10043001-socket_ekf_stockholm_zrd.zigbee",
+  "ind": {
+   "bytes": 195090,
+   "headerLength": 56,
+   "imageSize_field": 195090,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x10043001",
+   "magic_06": "5d02",
+   "marker_08": "0x544C4E4B",
+   "marker_is_544C4E4B": true,
+   "containerLen": 195028,
+   "d18": 195028,
+   "d18_rel": "==containerLen",
+   "stored_tail_crc": "0x2C4039C2",
+   "crc_data_minus4": "0x2C4039C2",
+   "crc_data_minus4_matches": true,
+   "crc_whole": "0x00000000",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0x2C4039C2",
+   "crc_d18_minus4_matches": true
+  },
+  "v2": {
+   "verdict": "VERIFIED_PLAIN_TELINK_OTA",
+   "crc": "PASS",
+   "auth": "NO_CONTAINER_AUTH_DETECTED"
+  }
+ },
+ {
+  "file": "full\\SlackyDiy__6565-0387-30043001-electricity_meter_zrd.zigbee",
+  "ind": {
+   "bytes": 221714,
+   "headerLength": 56,
+   "imageSize_field": 221714,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x30043001",
+   "magic_06": "5d02",
+   "marker_08": "0x544C4E4B",
+   "marker_is_544C4E4B": true,
+   "containerLen": 221652,
+   "d18": 221652,
+   "d18_rel": "==containerLen",
+   "stored_tail_crc": "0x1B52C4C0",
+   "crc_data_minus4": "0x1B52C4C0",
+   "crc_data_minus4_matches": true,
+   "crc_whole": "0x00000000",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0x1B52C4C0",
+   "crc_d18_minus4_matches": true
+  },
+  "v2": {
+   "verdict": "VERIFIED_PLAIN_TELINK_OTA",
+   "crc": "PASS",
+   "auth": "NO_CONTAINER_AUTH_DETECTED"
+  }
+ },
+ {
+  "file": "full\\SlackyDiy__6565-0391-10203001-tuya_thermostat_zrd.zigbee",
+  "ind": {
+   "bytes": 259570,
+   "headerLength": 56,
+   "imageSize_field": 259570,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x10203001",
+   "magic_06": "5d02",
+   "marker_08": "0x544C4E4B",
+   "marker_is_544C4E4B": true,
+   "containerLen": 259508,
+   "d18": 259508,
+   "d18_rel": "==containerLen",
+   "stored_tail_crc": "0x1ED97E3C",
+   "crc_data_minus4": "0x1ED97E3C",
+   "crc_data_minus4_matches": true,
+   "crc_whole": "0x00000000",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0x1ED97E3C",
+   "crc_d18_minus4_matches": true
+  },
+  "v2": {
+   "verdict": "VERIFIED_PLAIN_TELINK_OTA",
+   "crc": "PASS",
+   "auth": "NO_CONTAINER_AUTH_DETECTED"
+  }
+ },
+ {
+  "file": "full\\SlackyDiy__6565-0391-10213001-tuya_thermostat_zrd.zigbee",
+  "ind": {
+   "bytes": 259570,
+   "headerLength": 56,
+   "imageSize_field": 259570,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x10213001",
+   "magic_06": "5d02",
+   "marker_08": "0x544C4E4B",
+   "marker_is_544C4E4B": true,
+   "containerLen": 259508,
+   "d18": 259508,
+   "d18_rel": "==containerLen",
+   "stored_tail_crc": "0x095891B3",
+   "crc_data_minus4": "0x095891B3",
+   "crc_data_minus4_matches": true,
+   "crc_whole": "0x00000000",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0x095891B3",
+   "crc_d18_minus4_matches": true
+  },
+  "v2": {
+   "verdict": "VERIFIED_PLAIN_TELINK_OTA",
+   "crc": "PASS",
+   "auth": "NO_CONTAINER_AUTH_DETECTED"
+  }
+ },
+ {
+  "file": "full\\SlackyDiy__6565-0393-10023001-tuya_co2sensor_zrd.zigbee",
+  "ind": {
+   "bytes": 198050,
+   "headerLength": 56,
+   "imageSize_field": 198050,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x10023001",
+   "magic_06": "5d02",
+   "marker_08": "0x544C4E4B",
+   "marker_is_544C4E4B": true,
+   "containerLen": 197988,
+   "d18": 197988,
+   "d18_rel": "==containerLen",
+   "stored_tail_crc": "0x1CD0DA55",
+   "crc_data_minus4": "0x1CD0DA55",
+   "crc_data_minus4_matches": true,
+   "crc_whole": "0x00000000",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0x1CD0DA55",
+   "crc_d18_minus4_matches": true
+  },
+  "v2": {
+   "verdict": "VERIFIED_PLAIN_TELINK_OTA",
+   "crc": "PASS",
+   "auth": "NO_CONTAINER_AUTH_DETECTED"
+  }
+ },
+ {
+  "file": "full\\SlackyDiy__6565-0393-10043001-tuya_co2sensor_zrd.zigbee",
+  "ind": {
+   "bytes": 200882,
+   "headerLength": 56,
+   "imageSize_field": 200882,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x10043001",
+   "magic_06": "5d02",
+   "marker_08": "0x544C4E4B",
+   "marker_is_544C4E4B": true,
+   "containerLen": 200820,
+   "d18": 200820,
+   "d18_rel": "==containerLen",
+   "stored_tail_crc": "0xFF1CB930",
+   "crc_data_minus4": "0xFF1CB930",
+   "crc_data_minus4_matches": true,
+   "crc_whole": "0x00000000",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0xFF1CB930",
+   "crc_d18_minus4_matches": true
+  },
+  "v2": {
+   "verdict": "VERIFIED_PLAIN_TELINK_OTA",
+   "crc": "PASS",
+   "auth": "NO_CONTAINER_AUTH_DETECTED"
+  }
+ },
+ {
+  "file": "full\\SlackyDiy__6565-0394-10053001-air_quality_monitor_zrd.zigbee",
+  "ind": {
+   "bytes": 303378,
+   "headerLength": 56,
+   "imageSize_field": 303378,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x10053001",
+   "magic_06": "5d02",
+   "marker_08": "0x544C4E4B",
+   "marker_is_544C4E4B": true,
+   "containerLen": 303316,
+   "d18": 303316,
+   "d18_rel": "==containerLen",
+   "stored_tail_crc": "0x32BD0EE5",
+   "crc_data_minus4": "0x32BD0EE5",
+   "crc_data_minus4_matches": true,
+   "crc_whole": "0x00000000",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0x32BD0EE5",
+   "crc_d18_minus4_matches": true
+  },
+  "v2": {
+   "verdict": "VERIFIED_PLAIN_TELINK_OTA",
+   "crc": "PASS",
+   "auth": "NO_CONTAINER_AUTH_DETECTED"
+  }
+ },
+ {
+  "file": "full\\SlackyDiy__6565-0394-10063001-air_quality_monitor_zrd.zigbee",
+  "ind": {
+   "bytes": 303106,
+   "headerLength": 56,
+   "imageSize_field": 303106,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x10063001",
+   "magic_06": "5d02",
+   "marker_08": "0x544C4E4B",
+   "marker_is_544C4E4B": true,
+   "containerLen": 303044,
+   "d18": 303044,
+   "d18_rel": "==containerLen",
+   "stored_tail_crc": "0x1F6DECA1",
+   "crc_data_minus4": "0x1F6DECA1",
+   "crc_data_minus4_matches": true,
+   "crc_whole": "0x00000000",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0x1F6DECA1",
+   "crc_d18_minus4_matches": true
+  },
+  "v2": {
+   "verdict": "VERIFIED_PLAIN_TELINK_OTA",
+   "crc": "PASS",
+   "auth": "NO_CONTAINER_AUTH_DETECTED"
+  }
+ },
+ {
+  "file": "full\\SlackyDiy__6565-0395-10033001-ts0201_tz3000_zed.zigbee",
+  "ind": {
+   "bytes": 147138,
+   "headerLength": 56,
+   "imageSize_field": 147138,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x10033001",
+   "magic_06": "5d02",
+   "marker_08": "0x544C4E4B",
+   "marker_is_544C4E4B": true,
+   "containerLen": 147076,
+   "d18": 147076,
+   "d18_rel": "==containerLen",
+   "stored_tail_crc": "0x152EEB95",
+   "crc_data_minus4": "0x152EEB95",
+   "crc_data_minus4_matches": true,
+   "crc_whole": "0x00000000",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0x152EEB95",
+   "crc_d18_minus4_matches": true
+  },
+  "v2": {
+   "verdict": "VERIFIED_PLAIN_TELINK_OTA",
+   "crc": "PASS",
+   "auth": "NO_CONTAINER_AUTH_DETECTED"
+  }
+ },
+ {
+  "file": "full\\SlackyDiy__6565-0395-10043001-ts0201_tz3000_zed.zigbee",
+  "ind": {
+   "bytes": 148466,
+   "headerLength": 56,
+   "imageSize_field": 148466,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x10043001",
+   "magic_06": "5d02",
+   "marker_08": "0x544C4E4B",
+   "marker_is_544C4E4B": true,
+   "containerLen": 148404,
+   "d18": 148404,
+   "d18_rel": "==containerLen",
+   "stored_tail_crc": "0x662CB7A8",
+   "crc_data_minus4": "0x662CB7A8",
+   "crc_data_minus4_matches": true,
+   "crc_whole": "0x00000000",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0x662CB7A8",
+   "crc_d18_minus4_matches": true
+  },
+  "v2": {
+   "verdict": "VERIFIED_PLAIN_TELINK_OTA",
+   "crc": "PASS",
+   "auth": "NO_CONTAINER_AUTH_DETECTED"
+  }
+ },
+ {
+  "file": "full\\SlackyDiy__6565-0397-10043001-ZG_222ZA.zigbee",
+  "ind": {
+   "bytes": 152962,
+   "headerLength": 56,
+   "imageSize_field": 152962,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x10043001",
+   "magic_06": "5d02",
+   "marker_08": "0x544C4E4B",
+   "marker_is_544C4E4B": true,
+   "containerLen": 152900,
+   "d18": 152900,
+   "d18_rel": "==containerLen",
+   "stored_tail_crc": "0x5430F9D2",
+   "crc_data_minus4": "0x5430F9D2",
+   "crc_data_minus4_matches": true,
+   "crc_whole": "0x00000000",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0x5430F9D2",
+   "crc_d18_minus4_matches": true
+  },
+  "v2": {
+   "verdict": "VERIFIED_PLAIN_TELINK_OTA",
+   "crc": "PASS",
+   "auth": "NO_CONTAINER_AUTH_DETECTED"
+  }
+ },
+ {
+  "file": "full\\SlackyDiy__6565-0397-10053001-zg_227za_0x17_zed.zigbee",
+  "ind": {
+   "bytes": 151682,
+   "headerLength": 56,
+   "imageSize_field": 151682,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x10053001",
+   "magic_06": "5d02",
+   "marker_08": "0x544C4E4B",
+   "marker_is_544C4E4B": true,
+   "containerLen": 151620,
+   "d18": 151620,
+   "d18_rel": "==containerLen",
+   "stored_tail_crc": "0x5EF072EC",
+   "crc_data_minus4": "0x5EF072EC",
+   "crc_data_minus4_matches": true,
+   "crc_whole": "0x00000000",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0x5EF072EC",
+   "crc_d18_minus4_matches": true
+  },
+  "v2": {
+   "verdict": "VERIFIED_PLAIN_TELINK_OTA",
+   "crc": "PASS",
+   "auth": "NO_CONTAINER_AUTH_DETECTED"
+  }
+ },
+ {
+  "file": "full\\SlackyDiy__6565-039a-10033001-electricity_meter_abc_zrd.zigbee",
+  "ind": {
+   "bytes": 202738,
+   "headerLength": 56,
+   "imageSize_field": 202738,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x10033001",
+   "magic_06": "5d02",
+   "marker_08": "0x544C4E4B",
+   "marker_is_544C4E4B": true,
+   "containerLen": 202676,
+   "d18": 202676,
+   "d18_rel": "==containerLen",
+   "stored_tail_crc": "0xD9CB3CFD",
+   "crc_data_minus4": "0xD9CB3CFD",
+   "crc_data_minus4_matches": true,
+   "crc_whole": "0x00000000",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0xD9CB3CFD",
+   "crc_d18_minus4_matches": true
+  },
+  "v2": {
+   "verdict": "VERIFIED_PLAIN_TELINK_OTA",
+   "crc": "PASS",
+   "auth": "NO_CONTAINER_AUTH_DETECTED"
+  }
+ },
+ {
+  "file": "full\\Telink__1141-0203-10023001-z03mmc.zigbee",
+  "ind": {
+   "bytes": 129378,
+   "headerLength": 56,
+   "imageSize_field": 129378,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x10023001",
+   "magic_06": "5d02",
+   "marker_08": "0x544C4E4B",
+   "marker_is_544C4E4B": true,
+   "containerLen": 129316,
+   "d18": 129316,
+   "d18_rel": "==containerLen",
+   "stored_tail_crc": "0x246039EE",
+   "crc_data_minus4": "0x246039EE",
+   "crc_data_minus4_matches": true,
+   "crc_whole": "0x00000000",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0x246039EE",
+   "crc_d18_minus4_matches": true
+  },
+  "v2": {
+   "verdict": "VERIFIED_PLAIN_TELINK_OTA",
+   "crc": "PASS",
+   "auth": "NO_CONTAINER_AUTH_DETECTED"
+  }
+ },
+ {
+  "file": "full\\Telink__1141-0203-10043001-z03mmc.zigbee",
+  "ind": {
+   "bytes": 129378,
+   "headerLength": 56,
+   "imageSize_field": 129378,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x10043001",
+   "magic_06": "5d02",
+   "marker_08": "0x544C4E4B",
+   "marker_is_544C4E4B": true,
+   "containerLen": 129316,
+   "d18": 129316,
+   "d18_rel": "==containerLen",
+   "stored_tail_crc": "0x7B2838A8",
+   "crc_data_minus4": "0x7B2838A8",
+   "crc_data_minus4_matches": true,
+   "crc_whole": "0x00000000",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0x7B2838A8",
+   "crc_d18_minus4_matches": true
+  },
+  "v2": {
+   "verdict": "VERIFIED_PLAIN_TELINK_OTA",
+   "crc": "PASS",
+   "auth": "NO_CONTAINER_AUTH_DETECTED"
+  }
+ },
+ {
+  "file": "full\\Telink__1141-0203-10053001-z03mmc.zigbee",
+  "ind": {
+   "bytes": 129298,
+   "headerLength": 56,
+   "imageSize_field": 129298,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x10053001",
+   "magic_06": "5d02",
+   "marker_08": "0x544C4E4B",
+   "marker_is_544C4E4B": true,
+   "containerLen": 129236,
+   "d18": 129236,
+   "d18_rel": "==containerLen",
+   "stored_tail_crc": "0x845A387F",
+   "crc_data_minus4": "0x845A387F",
+   "crc_data_minus4_matches": true,
+   "crc_whole": "0x00000000",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0x845A387F",
+   "crc_d18_minus4_matches": true
+  },
+  "v2": {
+   "verdict": "VERIFIED_PLAIN_TELINK_OTA",
+   "crc": "PASS",
+   "auth": "NO_CONTAINER_AUTH_DETECTED"
+  }
+ },
+ {
+  "file": "full\\Telink__1141-0203-10063001-z03mmc.zigbee",
+  "ind": {
+   "bytes": 130066,
+   "headerLength": 56,
+   "imageSize_field": 130066,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x10063001",
+   "magic_06": "5d02",
+   "marker_08": "0x544C4E4B",
+   "marker_is_544C4E4B": true,
+   "containerLen": 130004,
+   "d18": 130004,
+   "d18_rel": "==containerLen",
+   "stored_tail_crc": "0x2E3CCA29",
+   "crc_data_minus4": "0x2E3CCA29",
+   "crc_data_minus4_matches": true,
+   "crc_whole": "0x00000000",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0x2E3CCA29",
+   "crc_d18_minus4_matches": true
+  },
+  "v2": {
+   "verdict": "VERIFIED_PLAIN_TELINK_OTA",
+   "crc": "PASS",
+   "auth": "NO_CONTAINER_AUTH_DETECTED"
+  }
+ },
+ {
+  "file": "full\\Telink__1654157434-oem_zg_tl8258_plug_OTA_1.0.13.bin",
+  "ind": {
+   "bytes": 307682,
+   "headerLength": 56,
+   "imageSize_field": 307682,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x00000000",
+   "magic_06": "5d02",
+   "marker_08": "0x544C4E4B",
+   "marker_is_544C4E4B": true,
+   "containerLen": 307620,
+   "d18": 307620,
+   "d18_rel": "==containerLen",
+   "stored_tail_crc": "0xAC6D0744",
+   "crc_data_minus4": "0xAC6D0744",
+   "crc_data_minus4_matches": true,
+   "crc_whole": "0x00000000",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0xAC6D0744",
+   "crc_d18_minus4_matches": true
+  },
+  "v2": {
+   "verdict": "VERIFIED_PLAIN_TELINK_OTA",
+   "crc": "PASS",
+   "auth": "NO_CONTAINER_AUTH_DETECTED"
+  }
+ },
+ {
+  "file": "full\\Telink__nas_wr01b_plug_OTA_1.0.10.bin",
+  "ind": {
+   "bytes": 305986,
+   "headerLength": 56,
+   "imageSize_field": 305986,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x00000000",
+   "magic_06": "5d02",
+   "marker_08": "0x544C4E4B",
+   "marker_is_544C4E4B": true,
+   "containerLen": 305924,
+   "d18": 305924,
+   "d18_rel": "==containerLen",
+   "stored_tail_crc": "0x7FBFB1C0",
+   "crc_data_minus4": "0x7FBFB1C0",
+   "crc_data_minus4_matches": true,
+   "crc_whole": "0x00000000",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0x7FBFB1C0",
+   "crc_d18_minus4_matches": true
+  },
+  "v2": {
+   "verdict": "VERIFIED_PLAIN_TELINK_OTA",
+   "crc": "PASS",
+   "auth": "NO_CONTAINER_AUTH_DETECTED"
+  }
+ },
+ {
+  "file": "full\\ThirdReality__Button_PROD_OTA_V35_v1.00.35.ota",
+  "ind": {
+   "bytes": 129698,
+   "headerLength": 56,
+   "imageSize_field": 129698,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x0023D3A8",
+   "magic_06": "5d02",
+   "marker_08": "0x544C4E4B",
+   "marker_is_544C4E4B": true,
+   "containerLen": 129636,
+   "d18": 129636,
+   "d18_rel": "==containerLen",
+   "stored_tail_crc": "0x631EE1E3",
+   "crc_data_minus4": "0x631EE1E3",
+   "crc_data_minus4_matches": true,
+   "crc_whole": "0x00000000",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0x631EE1E3",
+   "crc_d18_minus4_matches": true
+  },
+  "v2": {
+   "verdict": "VERIFIED_PLAIN_TELINK_OTA",
+   "crc": "PASS",
+   "auth": "NO_CONTAINER_AUTH_DETECTED"
+  }
+ },
+ {
+  "file": "full\\ThirdReality__Button_PROD_OTA_V47_v1.00.47.ota",
+  "ind": {
+   "bytes": 145986,
+   "headerLength": 56,
+   "imageSize_field": 145986,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x002FD3A8",
+   "magic_06": "5d02",
+   "marker_08": "0x544C4E4B",
+   "marker_is_544C4E4B": true,
+   "containerLen": 145924,
+   "d18": 145924,
+   "d18_rel": "==containerLen",
+   "stored_tail_crc": "0x96053D19",
+   "crc_data_minus4": "0x96053D19",
+   "crc_data_minus4_matches": true,
+   "crc_whole": "0x00000000",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0x96053D19",
+   "crc_d18_minus4_matches": true
+  },
+  "v2": {
+   "verdict": "VERIFIED_PLAIN_TELINK_OTA",
+   "crc": "PASS",
+   "auth": "NO_CONTAINER_AUTH_DETECTED"
+  }
+ },
+ {
+  "file": "full\\ThirdReality__Door_Sensor_PROD_OTA_V68_1.00.68.ota",
+  "ind": {
+   "bytes": 150098,
+   "headerLength": 56,
+   "imageSize_field": 150098,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x00440000",
+   "magic_06": "5d02",
+   "marker_08": "0x544C4E4B",
+   "marker_is_544C4E4B": true,
+   "containerLen": 150036,
+   "d18": 150036,
+   "d18_rel": "==containerLen",
+   "stored_tail_crc": "0xBD773FED",
+   "crc_data_minus4": "0xBD773FED",
+   "crc_data_minus4_matches": true,
+   "crc_whole": "0x00000000",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0xBD773FED",
+   "crc_d18_minus4_matches": true
+  },
+  "v2": {
+   "verdict": "VERIFIED_PLAIN_TELINK_OTA",
+   "crc": "PASS",
+   "auth": "NO_CONTAINER_AUTH_DETECTED"
+  }
+ },
+ {
+  "file": "full\\ThirdReality__Door_Sensor_PROD_OTA_V69_1.00.69.ota",
+  "ind": {
+   "bytes": 148834,
+   "headerLength": 56,
+   "imageSize_field": 148834,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x00450000",
+   "magic_06": "5d02",
+   "marker_08": "0x544C4E4B",
+   "marker_is_544C4E4B": true,
+   "containerLen": 148772,
+   "d18": 148772,
+   "d18_rel": "==containerLen",
+   "stored_tail_crc": "0xA93744D1",
+   "crc_data_minus4": "0xA93744D1",
+   "crc_data_minus4_matches": true,
+   "crc_whole": "0x00000000",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0xA93744D1",
+   "crc_d18_minus4_matches": true
+  },
+  "v2": {
+   "verdict": "VERIFIED_PLAIN_TELINK_OTA",
+   "crc": "PASS",
+   "auth": "NO_CONTAINER_AUTH_DETECTED"
+  }
+ },
+ {
+  "file": "full\\ThirdReality__GarageDoorSensor_PROD_OTA_V34_v1.00.34.ota",
+  "ind": {
+   "bytes": 137746,
+   "headerLength": 56,
+   "imageSize_field": 137746,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x0022D3B1",
+   "magic_06": "5d02",
+   "marker_08": "0x544C4E4B",
+   "marker_is_544C4E4B": true,
+   "containerLen": 137684,
+   "d18": 137684,
+   "d18_rel": "==containerLen",
+   "stored_tail_crc": "0xAD58EF95",
+   "crc_data_minus4": "0xAD58EF95",
+   "crc_data_minus4_matches": true,
+   "crc_whole": "0x00000000",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0xAD58EF95",
+   "crc_d18_minus4_matches": true
+  },
+  "v2": {
+   "verdict": "VERIFIED_PLAIN_TELINK_OTA",
+   "crc": "PASS",
+   "auth": "NO_CONTAINER_AUTH_DETECTED"
+  }
+ },
+ {
+  "file": "full\\ThirdReality__GarageDoorSensor_PROD_OTA_V36_v1.00.36.ota",
+  "ind": {
+   "bytes": 137698,
+   "headerLength": 56,
+   "imageSize_field": 137698,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x0024D3B1",
+   "magic_06": "5d02",
+   "marker_08": "0x544C4E4B",
+   "marker_is_544C4E4B": true,
+   "containerLen": 137636,
+   "d18": 137636,
+   "d18_rel": "==containerLen",
+   "stored_tail_crc": "0x3F217FAA",
+   "crc_data_minus4": "0x3F217FAA",
+   "crc_data_minus4_matches": true,
+   "crc_whole": "0x00000000",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0x3F217FAA",
+   "crc_d18_minus4_matches": true
+  },
+  "v2": {
+   "verdict": "VERIFIED_PLAIN_TELINK_OTA",
+   "crc": "PASS",
+   "auth": "NO_CONTAINER_AUTH_DETECTED"
+  }
+ },
+ {
+  "file": "full\\ThirdReality__Motion_Sensor_PROD_OTA_V79_v1.00.79.ota",
+  "ind": {
+   "bytes": 132610,
+   "headerLength": 56,
+   "imageSize_field": 132610,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x004FD3A1",
+   "magic_06": "5d02",
+   "marker_08": "0x544C4E4B",
+   "marker_is_544C4E4B": true,
+   "containerLen": 132548,
+   "d18": 132548,
+   "d18_rel": "==containerLen",
+   "stored_tail_crc": "0x5CA92C82",
+   "crc_data_minus4": "0x5CA92C82",
+   "crc_data_minus4_matches": true,
+   "crc_whole": "0x00000000",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0x5CA92C82",
+   "crc_d18_minus4_matches": true
+  },
+  "v2": {
+   "verdict": "VERIFIED_PLAIN_TELINK_OTA",
+   "crc": "PASS",
+   "auth": "NO_CONTAINER_AUTH_DETECTED"
+  }
+ },
+ {
+  "file": "full\\ThirdReality__Radar_PROD_OTA_V14_v1.00.14.ota",
+  "ind": {
+   "bytes": 136594,
+   "headerLength": 56,
+   "imageSize_field": 136594,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x000ED3B2",
+   "magic_06": "5d02",
+   "marker_08": "0x544C4E4B",
+   "marker_is_544C4E4B": true,
+   "containerLen": 136532,
+   "d18": 136532,
+   "d18_rel": "==containerLen",
+   "stored_tail_crc": "0x5B298C38",
+   "crc_data_minus4": "0x5B298C38",
+   "crc_data_minus4_matches": true,
+   "crc_whole": "0x00000000",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0x5B298C38",
+   "crc_d18_minus4_matches": true
+  },
+  "v2": {
+   "verdict": "VERIFIED_PLAIN_TELINK_OTA",
+   "crc": "PASS",
+   "auth": "NO_CONTAINER_AUTH_DETECTED"
+  }
+ },
+ {
+  "file": "full\\ThirdReality__Radar_PROD_OTA_V16_v1.00.16.ota",
+  "ind": {
+   "bytes": 139858,
+   "headerLength": 56,
+   "imageSize_field": 139858,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x0010D3B2",
+   "magic_06": "5d02",
+   "marker_08": "0x544C4E4B",
+   "marker_is_544C4E4B": true,
+   "containerLen": 139796,
+   "d18": 139796,
+   "d18_rel": "==containerLen",
+   "stored_tail_crc": "0xF9C6FB1A",
+   "crc_data_minus4": "0xF9C6FB1A",
+   "crc_data_minus4_matches": true,
+   "crc_whole": "0x00000000",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0xF9C6FB1A",
+   "crc_d18_minus4_matches": true
+  },
+  "v2": {
+   "verdict": "VERIFIED_PLAIN_TELINK_OTA",
+   "crc": "PASS",
+   "auth": "NO_CONTAINER_AUTH_DETECTED"
+  }
+ },
+ {
+  "file": "full\\ThirdReality__SmartCurtainModule_Zigbee_PROD_OTA_V53_v1.00.53.ota",
+  "ind": {
+   "bytes": 171938,
+   "headerLength": 56,
+   "imageSize_field": 171938,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x0035D3AA",
+   "magic_06": "5d02",
+   "marker_08": "0x544C4E4B",
+   "marker_is_544C4E4B": true,
+   "containerLen": 171876,
+   "d18": 171876,
+   "d18_rel": "==containerLen",
+   "stored_tail_crc": "0xC7A26F9E",
+   "crc_data_minus4": "0xC7A26F9E",
+   "crc_data_minus4_matches": true,
+   "crc_whole": "0x00000000",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0xC7A26F9E",
+   "crc_d18_minus4_matches": true
+  },
+  "v2": {
+   "verdict": "VERIFIED_PLAIN_TELINK_OTA",
+   "crc": "PASS",
+   "auth": "NO_CONTAINER_AUTH_DETECTED"
+  }
+ },
+ {
+  "file": "full\\ThirdReality__SmartCurtainModule_Zigbee_PROD_OTA_V55_v1.00.55.ota",
+  "ind": {
+   "bytes": 173522,
+   "headerLength": 56,
+   "imageSize_field": 173522,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x0037D3AA",
+   "magic_06": "5d02",
+   "marker_08": "0x544C4E4B",
+   "marker_is_544C4E4B": true,
+   "containerLen": 173460,
+   "d18": 173460,
+   "d18_rel": "==containerLen",
+   "stored_tail_crc": "0x0BD97BC2",
+   "crc_data_minus4": "0x0BD97BC2",
+   "crc_data_minus4_matches": true,
+   "crc_whole": "0x00000000",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0x0BD97BC2",
+   "crc_d18_minus4_matches": true
+  },
+  "v2": {
+   "verdict": "VERIFIED_PLAIN_TELINK_OTA",
+   "crc": "PASS",
+   "auth": "NO_CONTAINER_AUTH_DETECTED"
+  }
+ },
+ {
+  "file": "full\\ThirdReality__SmartCurtain_PROD_OTA_V76_v1.00.76.ota",
+  "ind": {
+   "bytes": 136738,
+   "headerLength": 56,
+   "imageSize_field": 136738,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x004CD3A7",
+   "magic_06": "5d02",
+   "marker_08": "0x544C4E4B",
+   "marker_is_544C4E4B": true,
+   "containerLen": 136676,
+   "d18": 136676,
+   "d18_rel": "==containerLen",
+   "stored_tail_crc": "0xE41FD394",
+   "crc_data_minus4": "0xE41FD394",
+   "crc_data_minus4_matches": true,
+   "crc_whole": "0x00000000",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0xE41FD394",
+   "crc_d18_minus4_matches": true
+  },
+  "v2": {
+   "verdict": "VERIFIED_PLAIN_TELINK_OTA",
+   "crc": "PASS",
+   "auth": "NO_CONTAINER_AUTH_DETECTED"
+  }
+ },
+ {
+  "file": "full\\ThirdReality__SmartCurtain_PROD_OTA_V84_v1.00.84.ota",
+  "ind": {
+   "bytes": 157106,
+   "headerLength": 56,
+   "imageSize_field": 157106,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x0054D3A7",
+   "magic_06": "5d02",
+   "marker_08": "0x544C4E4B",
+   "marker_is_544C4E4B": true,
+   "containerLen": 157044,
+   "d18": 157044,
+   "d18_rel": "==containerLen",
+   "stored_tail_crc": "0x354D3AB9",
+   "crc_data_minus4": "0x354D3AB9",
+   "crc_data_minus4_matches": true,
+   "crc_whole": "0x00000000",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0x354D3AB9",
+   "crc_d18_minus4_matches": true
+  },
+  "v2": {
+   "verdict": "VERIFIED_PLAIN_TELINK_OTA",
+   "crc": "PASS",
+   "auth": "NO_CONTAINER_AUTH_DETECTED"
+  }
+ },
+ {
+  "file": "full\\ThirdReality__SmartPlug_Zigbee_PROD_OTA_V101_1.01.01.ota",
+  "ind": {
+   "bytes": 198146,
+   "headerLength": 56,
+   "imageSize_field": 198146,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x0065D3A6",
+   "magic_06": "5d02",
+   "marker_08": "0x544C4E4B",
+   "marker_is_544C4E4B": true,
+   "containerLen": 198084,
+   "d18": 198084,
+   "d18_rel": "==containerLen",
+   "stored_tail_crc": "0xC7C7D731",
+   "crc_data_minus4": "0xC7C7D731",
+   "crc_data_minus4_matches": true,
+   "crc_whole": "0x00000000",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0xC7C7D731",
+   "crc_d18_minus4_matches": true
+  },
+  "v2": {
+   "verdict": "VERIFIED_PLAIN_TELINK_OTA",
+   "crc": "PASS",
+   "auth": "NO_CONTAINER_AUTH_DETECTED"
+  }
+ },
+ {
+  "file": "full\\ThirdReality__SmartPlug_Zigbee_PROD_OTA_V98_v1.00.98.ota",
+  "ind": {
+   "bytes": 195586,
+   "headerLength": 56,
+   "imageSize_field": 195586,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x0062D3A6",
+   "magic_06": "5d02",
+   "marker_08": "0x544C4E4B",
+   "marker_is_544C4E4B": true,
+   "containerLen": 195524,
+   "d18": 195524,
+   "d18_rel": "==containerLen",
+   "stored_tail_crc": "0xB6F8B46A",
+   "crc_data_minus4": "0xB6F8B46A",
+   "crc_data_minus4_matches": true,
+   "crc_whole": "0x00000000",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0xB6F8B46A",
+   "crc_d18_minus4_matches": true
+  },
+  "v2": {
+   "verdict": "VERIFIED_PLAIN_TELINK_OTA",
+   "crc": "PASS",
+   "auth": "NO_CONTAINER_AUTH_DETECTED"
+  }
+ },
+ {
+  "file": "full\\ThirdReality__SmartSwitchGen3_PROD_OTA_V30_v1.00.30.ota",
+  "ind": {
+   "bytes": 135218,
+   "headerLength": 56,
+   "imageSize_field": 135218,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x001ED3A5",
+   "magic_06": "5d02",
+   "marker_08": "0x544C4E4B",
+   "marker_is_544C4E4B": true,
+   "containerLen": 135156,
+   "d18": 135156,
+   "d18_rel": "==containerLen",
+   "stored_tail_crc": "0xAF128229",
+   "crc_data_minus4": "0xAF128229",
+   "crc_data_minus4_matches": true,
+   "crc_whole": "0x00000000",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0xAF128229",
+   "crc_d18_minus4_matches": true
+  },
+  "v2": {
+   "verdict": "VERIFIED_PLAIN_TELINK_OTA",
+   "crc": "PASS",
+   "auth": "NO_CONTAINER_AUTH_DETECTED"
+  }
+ },
+ {
+  "file": "full\\ThirdReality__SmartSwitch_PROD_OTA_V36_v1.00.36.ota",
+  "ind": {
+   "bytes": 153570,
+   "headerLength": 56,
+   "imageSize_field": 153570,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x0024D3A5",
+   "magic_06": "5d02",
+   "marker_08": "0x544C4E4B",
+   "marker_is_544C4E4B": true,
+   "containerLen": 153508,
+   "d18": 153508,
+   "d18_rel": "==containerLen",
+   "stored_tail_crc": "0x5DA679B8",
+   "crc_data_minus4": "0x5DA679B8",
+   "crc_data_minus4_matches": true,
+   "crc_whole": "0x00000000",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0x5DA679B8",
+   "crc_d18_minus4_matches": true
+  },
+  "v2": {
+   "verdict": "VERIFIED_PLAIN_TELINK_OTA",
+   "crc": "PASS",
+   "auth": "NO_CONTAINER_AUTH_DETECTED"
+  }
+ },
+ {
+  "file": "full\\ThirdReality__Smart_Watering_Kit_PROD_OTA_V40_v1.00.40.ota",
+  "ind": {
+   "bytes": 140818,
+   "headerLength": 56,
+   "imageSize_field": 140818,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x0028D3B0",
+   "magic_06": "5d02",
+   "marker_08": "0x544C4E4B",
+   "marker_is_544C4E4B": true,
+   "containerLen": 140756,
+   "d18": 140756,
+   "d18_rel": "==containerLen",
+   "stored_tail_crc": "0x3B4DBC65",
+   "crc_data_minus4": "0x3B4DBC65",
+   "crc_data_minus4_matches": true,
+   "crc_whole": "0x00000000",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0x3B4DBC65",
+   "crc_d18_minus4_matches": true
+  },
+  "v2": {
+   "verdict": "VERIFIED_PLAIN_TELINK_OTA",
+   "crc": "PASS",
+   "auth": "NO_CONTAINER_AUTH_DETECTED"
+  }
+ },
+ {
+  "file": "full\\ThirdReality__Smart_Watering_Kit_PROD_OTA_V45_v1.00.45.ota",
+  "ind": {
+   "bytes": 151762,
+   "headerLength": 56,
+   "imageSize_field": 151762,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x002DD3B0",
+   "magic_06": "5d02",
+   "marker_08": "0x544C4E4B",
+   "marker_is_544C4E4B": true,
+   "containerLen": 151700,
+   "d18": 151700,
+   "d18_rel": "==containerLen",
+   "stored_tail_crc": "0xDE1C5632",
+   "crc_data_minus4": "0xDE1C5632",
+   "crc_data_minus4_matches": true,
+   "crc_whole": "0x00000000",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0xDE1C5632",
+   "crc_d18_minus4_matches": true
+  },
+  "v2": {
+   "verdict": "VERIFIED_PLAIN_TELINK_OTA",
+   "crc": "PASS",
+   "auth": "NO_CONTAINER_AUTH_DETECTED"
+  }
+ },
+ {
+  "file": "full\\ThirdReality__Soil_Moisture_Sensor_PROD_OTA_V46_v1.00.46.ota",
+  "ind": {
+   "bytes": 141922,
+   "headerLength": 56,
+   "imageSize_field": 141922,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x002ED3AF",
+   "magic_06": "5d02",
+   "marker_08": "0x544C4E4B",
+   "marker_is_544C4E4B": true,
+   "containerLen": 141860,
+   "d18": 141860,
+   "d18_rel": "==containerLen",
+   "stored_tail_crc": "0x375D3841",
+   "crc_data_minus4": "0x375D3841",
+   "crc_data_minus4_matches": true,
+   "crc_whole": "0x00000000",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0x375D3841",
+   "crc_d18_minus4_matches": true
+  },
+  "v2": {
+   "verdict": "VERIFIED_PLAIN_TELINK_OTA",
+   "crc": "PASS",
+   "auth": "NO_CONTAINER_AUTH_DETECTED"
+  }
+ },
+ {
+  "file": "full\\ThirdReality__Soil_Moisture_Sensor_PROD_OTA_V51_v1.00.51.ota",
+  "ind": {
+   "bytes": 144258,
+   "headerLength": 56,
+   "imageSize_field": 144258,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x0033D3AF",
+   "magic_06": "5d02",
+   "marker_08": "0x544C4E4B",
+   "marker_is_544C4E4B": true,
+   "containerLen": 144196,
+   "d18": 144196,
+   "d18_rel": "==containerLen",
+   "stored_tail_crc": "0xC6A74A2D",
+   "crc_data_minus4": "0xC6A74A2D",
+   "crc_data_minus4_matches": true,
+   "crc_whole": "0x00000000",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0xC6A74A2D",
+   "crc_d18_minus4_matches": true
+  },
+  "v2": {
+   "verdict": "VERIFIED_PLAIN_TELINK_OTA",
+   "crc": "PASS",
+   "auth": "NO_CONTAINER_AUTH_DETECTED"
+  }
+ },
+ {
+  "file": "full\\ThirdReality__TRTL_ThermalSensor_PROD_OTA_V37_v1.00.37.ota",
+  "ind": {
+   "bytes": 129090,
+   "headerLength": 56,
+   "imageSize_field": 129090,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x0025D3A9",
+   "magic_06": "5d02",
+   "marker_08": "0x544C4E4B",
+   "marker_is_544C4E4B": true,
+   "containerLen": 129028,
+   "d18": 129028,
+   "d18_rel": "==containerLen",
+   "stored_tail_crc": "0x89962A30",
+   "crc_data_minus4": "0x89962A30",
+   "crc_data_minus4_matches": true,
+   "crc_whole": "0x00000000",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0x89962A30",
+   "crc_d18_minus4_matches": true
+  },
+  "v2": {
+   "verdict": "VERIFIED_PLAIN_TELINK_OTA",
+   "crc": "PASS",
+   "auth": "NO_CONTAINER_AUTH_DETECTED"
+  }
+ },
+ {
+  "file": "full\\ThirdReality__TRTL_ThermalSensor_PROD_OTA_V40_v1.00.40.ota",
+  "ind": {
+   "bytes": 129538,
+   "headerLength": 56,
+   "imageSize_field": 129538,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x0028D3A9",
+   "magic_06": "5d02",
+   "marker_08": "0x544C4E4B",
+   "marker_is_544C4E4B": true,
+   "containerLen": 129476,
+   "d18": 129476,
+   "d18_rel": "==containerLen",
+   "stored_tail_crc": "0xCA8E1EA9",
+   "crc_data_minus4": "0xCA8E1EA9",
+   "crc_data_minus4_matches": true,
+   "crc_whole": "0x00000000",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0xCA8E1EA9",
+   "crc_d18_minus4_matches": true
+  },
+  "v2": {
+   "verdict": "VERIFIED_PLAIN_TELINK_OTA",
+   "crc": "PASS",
+   "auth": "NO_CONTAINER_AUTH_DETECTED"
+  }
+ },
+ {
+  "file": "full\\ThirdReality__Vibrate_Sensor_PROD_OTA_V54_v1.00.54.ota",
+  "ind": {
+   "bytes": 132178,
+   "headerLength": 56,
+   "imageSize_field": 132178,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x0036D3AB",
+   "magic_06": "5d02",
+   "marker_08": "0x544C4E4B",
+   "marker_is_544C4E4B": true,
+   "containerLen": 132116,
+   "d18": 132116,
+   "d18_rel": "==containerLen",
+   "stored_tail_crc": "0x65A2C3B2",
+   "crc_data_minus4": "0x65A2C3B2",
+   "crc_data_minus4_matches": true,
+   "crc_whole": "0x00000000",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0x65A2C3B2",
+   "crc_d18_minus4_matches": true
+  },
+  "v2": {
+   "verdict": "VERIFIED_PLAIN_TELINK_OTA",
+   "crc": "PASS",
+   "auth": "NO_CONTAINER_AUTH_DETECTED"
+  }
+ },
+ {
+  "file": "full\\ThirdReality__Vibrate_Sensor_PROD_OTA_V55_v1.00.55.ota",
+  "ind": {
+   "bytes": 132610,
+   "headerLength": 56,
+   "imageSize_field": 132610,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x0037D3AB",
+   "magic_06": "5d02",
+   "marker_08": "0x544C4E4B",
+   "marker_is_544C4E4B": true,
+   "containerLen": 132548,
+   "d18": 132548,
+   "d18_rel": "==containerLen",
+   "stored_tail_crc": "0x9137E0FC",
+   "crc_data_minus4": "0x9137E0FC",
+   "crc_data_minus4_matches": true,
+   "crc_whole": "0x00000000",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0x9137E0FC",
+   "crc_d18_minus4_matches": true
+  },
+  "v2": {
+   "verdict": "VERIFIED_PLAIN_TELINK_OTA",
+   "crc": "PASS",
+   "auth": "NO_CONTAINER_AUTH_DETECTED"
+  }
+ },
+ {
+  "file": "full\\ThirdReality__Water_Leak_Sensor_PROD_OTA_V66_v1.00.66.ota",
+  "ind": {
+   "bytes": 133234,
+   "headerLength": 56,
+   "imageSize_field": 133234,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x0042D3A3",
+   "magic_06": "5d02",
+   "marker_08": "0x544C4E4B",
+   "marker_is_544C4E4B": true,
+   "containerLen": 133172,
+   "d18": 133172,
+   "d18_rel": "==containerLen",
+   "stored_tail_crc": "0xCBC753E0",
+   "crc_data_minus4": "0xCBC753E0",
+   "crc_data_minus4_matches": true,
+   "crc_whole": "0x00000000",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0xCBC753E0",
+   "crc_d18_minus4_matches": true
+  },
+  "v2": {
+   "verdict": "VERIFIED_PLAIN_TELINK_OTA",
+   "crc": "PASS",
+   "auth": "NO_CONTAINER_AUTH_DETECTED"
+  }
+ },
+ {
+  "file": "full\\ThirdReality__Water_Leak_Sensor_PROD_OTA_V73_v1.00.73.ota",
+  "ind": {
+   "bytes": 145586,
+   "headerLength": 56,
+   "imageSize_field": 145586,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x0049D3A3",
+   "magic_06": "5d02",
+   "marker_08": "0x544C4E4B",
+   "marker_is_544C4E4B": true,
+   "containerLen": 145524,
+   "d18": 145524,
+   "d18_rel": "==containerLen",
+   "stored_tail_crc": "0x7A701136",
+   "crc_data_minus4": "0x7A701136",
+   "crc_data_minus4_matches": true,
+   "crc_whole": "0x00000000",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0x7A701136",
+   "crc_d18_minus4_matches": true
+  },
+  "v2": {
+   "verdict": "VERIFIED_PLAIN_TELINK_OTA",
+   "crc": "PASS",
+   "auth": "NO_CONTAINER_AUTH_DETECTED"
+  }
+ },
+ {
+  "file": "full\\ThirdReality__scale_v1.00.09.ota",
+  "ind": {
+   "bytes": 136182,
+   "headerLength": 60,
+   "imageSize_field": 4293918720,
+   "imageSize_at": 56,
+   "size_eq_file": false,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x0001D3D1",
+   "magic_06": "5d02",
+   "marker_08": "0x544C4E4B",
+   "marker_is_544C4E4B": true,
+   "containerLen": 136116,
+   "d18": 136116,
+   "d18_rel": "==containerLen",
+   "stored_tail_crc": "0xF0855A02",
+   "crc_data_minus4": "0xF0855A02",
+   "crc_data_minus4_matches": true,
+   "crc_whole": "0x00000000",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0xF0855A02",
+   "crc_d18_minus4_matches": true
+  },
+  "v2": {
+   "verdict": "VERIFIED_PLAIN_TELINK_OTA",
+   "crc": "PASS",
+   "auth": "NO_CONTAINER_AUTH_DETECTED"
+  }
+ },
+ {
+  "file": "full\\Tuya__1662545193-oem_zg_tl8258_plug_OTA_3.0.0.bin",
+  "ind": {
+   "bytes": 307682,
+   "headerLength": 56,
+   "imageSize_field": 307682,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x00000000",
+   "magic_06": "5d02",
+   "marker_08": "0x544C4E4B",
+   "marker_is_544C4E4B": true,
+   "containerLen": 307620,
+   "d18": 307620,
+   "d18_rel": "==containerLen",
+   "stored_tail_crc": "0x419D20D0",
+   "crc_data_minus4": "0x419D20D0",
+   "crc_data_minus4_matches": true,
+   "crc_whole": "0x00000000",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0x419D20D0",
+   "crc_d18_minus4_matches": true
+  },
+  "v2": {
+   "verdict": "VERIFIED_PLAIN_TELINK_OTA",
+   "crc": "PASS",
+   "auth": "NO_CONTAINER_AUTH_DETECTED"
+  }
+ },
+ {
+  "file": "full\\Tuya__1663234985-oem_ztu_dimmer1_klt_OTA_1.0.6.bin",
+  "ind": {
+   "bytes": 256770,
+   "headerLength": 56,
+   "imageSize_field": 256770,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x00000000",
+   "magic_06": "5d02",
+   "marker_08": "0x544C4E4B",
+   "marker_is_544C4E4B": true,
+   "containerLen": 256708,
+   "d18": 256708,
+   "d18_rel": "==containerLen",
+   "stored_tail_crc": "0x89BC0E12",
+   "crc_data_minus4": "0x89BC0E12",
+   "crc_data_minus4_matches": true,
+   "crc_whole": "0x00000000",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0x89BC0E12",
+   "crc_d18_minus4_matches": true
+  },
+  "v2": {
+   "verdict": "VERIFIED_PLAIN_TELINK_OTA",
+   "crc": "PASS",
+   "auth": "NO_CONTAINER_AUTH_DETECTED"
+  }
+ },
+ {
+  "file": "full\\Tuya__1686137326-oem_zg_tl8258_plug_OTA_1.0.14.bin",
+  "ind": {
+   "bytes": 309954,
+   "headerLength": 56,
+   "imageSize_field": 309954,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x00000000",
+   "magic_06": "5d02",
+   "marker_08": "0x544C4E4B",
+   "marker_is_544C4E4B": true,
+   "containerLen": 309892,
+   "d18": 309892,
+   "d18_rel": "==containerLen",
+   "stored_tail_crc": "0xE064528B",
+   "crc_data_minus4": "0xE064528B",
+   "crc_data_minus4_matches": true,
+   "crc_whole": "0x00000000",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0xE064528B",
+   "crc_d18_minus4_matches": true
+  },
+  "v2": {
+   "verdict": "VERIFIED_PLAIN_TELINK_OTA",
+   "crc": "PASS",
+   "auth": "NO_CONTAINER_AUTH_DETECTED"
+  }
+ },
+ {
+  "file": "full\\Tuya__1718263020-oem_zg_tl8258_plug_OTA_1.1.0.bin",
+  "ind": {
+   "bytes": 310402,
+   "headerLength": 56,
+   "imageSize_field": 310402,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x00000000",
+   "magic_06": "5d02",
+   "marker_08": "0x544C4E4B",
+   "marker_is_544C4E4B": true,
+   "containerLen": 310340,
+   "d18": 310340,
+   "d18_rel": "==containerLen",
+   "stored_tail_crc": "0xD6314000",
+   "crc_data_minus4": "0xD6314000",
+   "crc_data_minus4_matches": true,
+   "crc_whole": "0x00000000",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0xD6314000",
+   "crc_d18_minus4_matches": true
+  },
+  "v2": {
+   "verdict": "VERIFIED_PLAIN_TELINK_OTA",
+   "crc": "PASS",
+   "auth": "NO_CONTAINER_AUTH_DETECTED"
+  }
+ },
+ {
+  "file": "full\\Tuya__1730081189-oem_zg_tl8258_plug_OTA_1.1.2.bin",
+  "ind": {
+   "bytes": 311026,
+   "headerLength": 56,
+   "imageSize_field": 311026,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x00000000",
+   "magic_06": "5d02",
+   "marker_08": "0x544C4E4B",
+   "marker_is_544C4E4B": true,
+   "containerLen": 310964,
+   "d18": 310964,
+   "d18_rel": "==containerLen",
+   "stored_tail_crc": "0xCE929C6E",
+   "crc_data_minus4": "0xCE929C6E",
+   "crc_data_minus4_matches": true,
+   "crc_whole": "0x00000000",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0xCE929C6E",
+   "crc_d18_minus4_matches": true
+  },
+  "v2": {
+   "verdict": "VERIFIED_PLAIN_TELINK_OTA",
+   "crc": "PASS",
+   "auth": "NO_CONTAINER_AUTH_DETECTED"
+  }
+ },
+ {
+  "file": "full\\Tuya__oem_tl8258_zg_breaker_OTA_1.0.10.bin",
+  "ind": {
+   "bytes": 315986,
+   "headerLength": 56,
+   "imageSize_field": 315986,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x00000000",
+   "magic_06": "5d02",
+   "marker_08": "0x544C4E4B",
+   "marker_is_544C4E4B": true,
+   "containerLen": 315924,
+   "d18": 315924,
+   "d18_rel": "==containerLen",
+   "stored_tail_crc": "0x02E12037",
+   "crc_data_minus4": "0x02E12037",
+   "crc_data_minus4_matches": true,
+   "crc_whole": "0x00000000",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0x02E12037",
+   "crc_d18_minus4_matches": true
+  },
+  "v2": {
+   "verdict": "VERIFIED_PLAIN_TELINK_OTA",
+   "crc": "PASS",
+   "auth": "NO_CONTAINER_AUTH_DETECTED"
+  }
+ },
+ {
+  "file": "full\\Yandex__132f-0212-0000000d-YNDX-00530.zigbee",
+  "ind": {
+   "bytes": 226562,
+   "headerLength": 56,
+   "imageSize_field": 226562,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x0000000D",
+   "magic_06": "5d02",
+   "marker_08": "0x544C4E4B",
+   "marker_is_544C4E4B": true,
+   "containerLen": 226500,
+   "d18": 226500,
+   "d18_rel": "==containerLen",
+   "stored_tail_crc": "0x03CB9E5F",
+   "crc_data_minus4": "0x03CB9E5F",
+   "crc_data_minus4_matches": true,
+   "crc_whole": "0x00000000",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0x03CB9E5F",
+   "crc_d18_minus4_matches": true
+  },
+  "v2": {
+   "verdict": "VERIFIED_PLAIN_TELINK_OTA",
+   "crc": "PASS",
+   "auth": "NO_CONTAINER_AUTH_DETECTED"
+  }
+ },
+ {
+  "file": "full\\Yandex__132f-0213-00000018-YNDX-00531.zigbee",
+  "ind": {
+   "bytes": 166914,
+   "headerLength": 56,
+   "imageSize_field": 166914,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x00000018",
+   "magic_06": "5d02",
+   "marker_08": "0x544C4E4B",
+   "marker_is_544C4E4B": true,
+   "containerLen": 166852,
+   "d18": 166852,
+   "d18_rel": "==containerLen",
+   "stored_tail_crc": "0x0AA34ACC",
+   "crc_data_minus4": "0x268D8C43",
+   "crc_data_minus4_matches": false,
+   "crc_whole": "0x19C72950",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0x268D8C43",
+   "crc_d18_minus4_matches": false
+  },
+  "v2": {
+   "verdict": "INVALID_TELINK_CRC",
+   "crc": "FAIL",
+   "auth": "absent"
+  }
+ },
+ {
+  "file": "full\\Yandex__132f-0214-00000018-YNDX-00532.zigbee",
+  "ind": {
+   "bytes": 166914,
+   "headerLength": 56,
+   "imageSize_field": 166914,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x00000018",
+   "magic_06": "5d02",
+   "marker_08": "0x544C4E4B",
+   "marker_is_544C4E4B": true,
+   "containerLen": 166852,
+   "d18": 166852,
+   "d18_rel": "==containerLen",
+   "stored_tail_crc": "0x17FF4DAE",
+   "crc_data_minus4": "0x17FF4DAE",
+   "crc_data_minus4_matches": true,
+   "crc_whole": "0x00000000",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0x17FF4DAE",
+   "crc_d18_minus4_matches": true
+  },
+  "v2": {
+   "verdict": "VERIFIED_PLAIN_TELINK_OTA",
+   "crc": "PASS",
+   "auth": "NO_CONTAINER_AUTH_DETECTED"
+  }
+ },
+ {
+  "file": "full\\Yandex__132f-0216-00000011-YNDX-00534.zigbee",
+  "ind": {
+   "bytes": 157298,
+   "headerLength": 56,
+   "imageSize_field": 157298,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x00000011",
+   "magic_06": "5d02",
+   "marker_08": "0x544C4E4B",
+   "marker_is_544C4E4B": true,
+   "containerLen": 157236,
+   "d18": 157236,
+   "d18_rel": "==containerLen",
+   "stored_tail_crc": "0x2673AE67",
+   "crc_data_minus4": "0x2673AE67",
+   "crc_data_minus4_matches": true,
+   "crc_whole": "0x00000000",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0x2673AE67",
+   "crc_d18_minus4_matches": true
+  },
+  "v2": {
+   "verdict": "VERIFIED_PLAIN_TELINK_OTA",
+   "crc": "PASS",
+   "auth": "NO_CONTAINER_AUTH_DETECTED"
+  }
+ },
+ {
+  "file": "full\\Yandex__132f-0217-00000011-YNDX-00535.zigbee",
+  "ind": {
+   "bytes": 157298,
+   "headerLength": 56,
+   "imageSize_field": 157298,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x00000011",
+   "magic_06": "5d02",
+   "marker_08": "0x544C4E4B",
+   "marker_is_544C4E4B": true,
+   "containerLen": 157236,
+   "d18": 157236,
+   "d18_rel": "==containerLen",
+   "stored_tail_crc": "0xD45706D5",
+   "crc_data_minus4": "0xD45706D5",
+   "crc_data_minus4_matches": true,
+   "crc_whole": "0x00000000",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0xD45706D5",
+   "crc_d18_minus4_matches": true
+  },
+  "v2": {
+   "verdict": "VERIFIED_PLAIN_TELINK_OTA",
+   "crc": "PASS",
+   "auth": "NO_CONTAINER_AUTH_DETECTED"
+  }
+ },
+ {
+  "file": "full\\Yandex__132f-021a-00000016-YNDX-00538.zigbee",
+  "ind": {
+   "bytes": 167058,
+   "headerLength": 56,
+   "imageSize_field": 167058,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x00000016",
+   "magic_06": "5d02",
+   "marker_08": "0x544C4E4B",
+   "marker_is_544C4E4B": true,
+   "containerLen": 166996,
+   "d18": 166996,
+   "d18_rel": "==containerLen",
+   "stored_tail_crc": "0x64D02436",
+   "crc_data_minus4": "0x64D02436",
+   "crc_data_minus4_matches": true,
+   "crc_whole": "0x00000000",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0x64D02436",
+   "crc_d18_minus4_matches": true
+  },
+  "v2": {
+   "verdict": "VERIFIED_PLAIN_TELINK_OTA",
+   "crc": "PASS",
+   "auth": "NO_CONTAINER_AUTH_DETECTED"
+  }
+ },
+ {
+  "file": "full\\pvvx__1141-0201-01383001-ZMHOC401.zigbee",
+  "ind": {
+   "bytes": 134514,
+   "headerLength": 56,
+   "imageSize_field": 134514,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x01383001",
+   "magic_06": "5d02",
+   "marker_08": "0x544C4E4B",
+   "marker_is_544C4E4B": true,
+   "containerLen": 134452,
+   "d18": 134452,
+   "d18_rel": "==containerLen",
+   "stored_tail_crc": "0x5B6BC84F",
+   "crc_data_minus4": "0x5B6BC84F",
+   "crc_data_minus4_matches": true,
+   "crc_whole": "0x00000000",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0x5B6BC84F",
+   "crc_d18_minus4_matches": true
+  },
+  "v2": {
+   "verdict": "VERIFIED_PLAIN_TELINK_OTA",
+   "crc": "PASS",
+   "auth": "NO_CONTAINER_AUTH_DETECTED"
+  }
+ },
+ {
+  "file": "full\\pvvx__1141-0201-01393001-ZMHOC401.zigbee",
+  "ind": {
+   "bytes": 134146,
+   "headerLength": 56,
+   "imageSize_field": 134146,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x01393001",
+   "magic_06": "5d02",
+   "marker_08": "0x544C4E4B",
+   "marker_is_544C4E4B": true,
+   "containerLen": 134084,
+   "d18": 134084,
+   "d18_rel": "==containerLen",
+   "stored_tail_crc": "0xB2407964",
+   "crc_data_minus4": "0xB2407964",
+   "crc_data_minus4_matches": true,
+   "crc_whole": "0x00000000",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0xB2407964",
+   "crc_d18_minus4_matches": true
+  },
+  "v2": {
+   "verdict": "VERIFIED_PLAIN_TELINK_OTA",
+   "crc": "PASS",
+   "auth": "NO_CONTAINER_AUTH_DETECTED"
+  }
+ },
+ {
+  "file": "full\\pvvx__1141-0202-01383001-ZCGG1.zigbee",
+  "ind": {
+   "bytes": 134850,
+   "headerLength": 56,
+   "imageSize_field": 134850,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x01383001",
+   "magic_06": "5d02",
+   "marker_08": "0x544C4E4B",
+   "marker_is_544C4E4B": true,
+   "containerLen": 134788,
+   "d18": 134788,
+   "d18_rel": "==containerLen",
+   "stored_tail_crc": "0xA3BE45F7",
+   "crc_data_minus4": "0xA3BE45F7",
+   "crc_data_minus4_matches": true,
+   "crc_whole": "0x00000000",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0xA3BE45F7",
+   "crc_d18_minus4_matches": true
+  },
+  "v2": {
+   "verdict": "VERIFIED_PLAIN_TELINK_OTA",
+   "crc": "PASS",
+   "auth": "NO_CONTAINER_AUTH_DETECTED"
+  }
+ },
+ {
+  "file": "full\\pvvx__1141-0202-01393001-ZCGG1.zigbee",
+  "ind": {
+   "bytes": 134498,
+   "headerLength": 56,
+   "imageSize_field": 134498,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x01393001",
+   "magic_06": "5d02",
+   "marker_08": "0x544C4E4B",
+   "marker_is_544C4E4B": true,
+   "containerLen": 134436,
+   "d18": 134436,
+   "d18_rel": "==containerLen",
+   "stored_tail_crc": "0x1C384DF4",
+   "crc_data_minus4": "0x1C384DF4",
+   "crc_data_minus4_matches": true,
+   "crc_whole": "0x00000000",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0x1C384DF4",
+   "crc_d18_minus4_matches": true
+  },
+  "v2": {
+   "verdict": "VERIFIED_PLAIN_TELINK_OTA",
+   "crc": "PASS",
+   "auth": "NO_CONTAINER_AUTH_DETECTED"
+  }
+ },
+ {
+  "file": "full\\pvvx__1141-0206-01383001-ZCGDK2.zigbee",
+  "ind": {
+   "bytes": 133810,
+   "headerLength": 56,
+   "imageSize_field": 133810,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x01383001",
+   "magic_06": "5d02",
+   "marker_08": "0x544C4E4B",
+   "marker_is_544C4E4B": true,
+   "containerLen": 133748,
+   "d18": 133748,
+   "d18_rel": "==containerLen",
+   "stored_tail_crc": "0x2E76C588",
+   "crc_data_minus4": "0x2E76C588",
+   "crc_data_minus4_matches": true,
+   "crc_whole": "0x00000000",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0x2E76C588",
+   "crc_d18_minus4_matches": true
+  },
+  "v2": {
+   "verdict": "VERIFIED_PLAIN_TELINK_OTA",
+   "crc": "PASS",
+   "auth": "NO_CONTAINER_AUTH_DETECTED"
+  }
+ },
+ {
+  "file": "full\\pvvx__1141-0206-01393001-ZCGDK2.zigbee",
+  "ind": {
+   "bytes": 133474,
+   "headerLength": 56,
+   "imageSize_field": 133474,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x01393001",
+   "magic_06": "5d02",
+   "marker_08": "0x544C4E4B",
+   "marker_is_544C4E4B": true,
+   "containerLen": 133412,
+   "d18": 133412,
+   "d18_rel": "==containerLen",
+   "stored_tail_crc": "0xD927295D",
+   "crc_data_minus4": "0xD927295D",
+   "crc_data_minus4_matches": true,
+   "crc_whole": "0x00000000",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0xD927295D",
+   "crc_d18_minus4_matches": true
+  },
+  "v2": {
+   "verdict": "VERIFIED_PLAIN_TELINK_OTA",
+   "crc": "PASS",
+   "auth": "NO_CONTAINER_AUTH_DETECTED"
+  }
+ },
+ {
+  "file": "full\\pvvx__1141-0207-01383001-ZCGG1N.zigbee",
+  "ind": {
+   "bytes": 134306,
+   "headerLength": 56,
+   "imageSize_field": 134306,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x01383001",
+   "magic_06": "5d02",
+   "marker_08": "0x544C4E4B",
+   "marker_is_544C4E4B": true,
+   "containerLen": 134244,
+   "d18": 134244,
+   "d18_rel": "==containerLen",
+   "stored_tail_crc": "0x888943FE",
+   "crc_data_minus4": "0x888943FE",
+   "crc_data_minus4_matches": true,
+   "crc_whole": "0x00000000",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0x888943FE",
+   "crc_d18_minus4_matches": true
+  },
+  "v2": {
+   "verdict": "VERIFIED_PLAIN_TELINK_OTA",
+   "crc": "PASS",
+   "auth": "NO_CONTAINER_AUTH_DETECTED"
+  }
+ },
+ {
+  "file": "full\\pvvx__1141-0207-01393001-ZCGG1N.zigbee",
+  "ind": {
+   "bytes": 133938,
+   "headerLength": 56,
+   "imageSize_field": 133938,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x01393001",
+   "magic_06": "5d02",
+   "marker_08": "0x544C4E4B",
+   "marker_is_544C4E4B": true,
+   "containerLen": 133876,
+   "d18": 133876,
+   "d18_rel": "==containerLen",
+   "stored_tail_crc": "0x12F1ECD7",
+   "crc_data_minus4": "0x12F1ECD7",
+   "crc_data_minus4_matches": true,
+   "crc_whole": "0x00000000",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0x12F1ECD7",
+   "crc_d18_minus4_matches": true
+  },
+  "v2": {
+   "verdict": "VERIFIED_PLAIN_TELINK_OTA",
+   "crc": "PASS",
+   "auth": "NO_CONTAINER_AUTH_DETECTED"
+  }
+ },
+ {
+  "file": "full\\pvvx__1141-0208-01383001-ZMHOC401N.zigbee",
+  "ind": {
+   "bytes": 133954,
+   "headerLength": 56,
+   "imageSize_field": 133954,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x01383001",
+   "magic_06": "5d02",
+   "marker_08": "0x544C4E4B",
+   "marker_is_544C4E4B": true,
+   "containerLen": 133892,
+   "d18": 133892,
+   "d18_rel": "==containerLen",
+   "stored_tail_crc": "0xAE9F1E1B",
+   "crc_data_minus4": "0xAE9F1E1B",
+   "crc_data_minus4_matches": true,
+   "crc_whole": "0x00000000",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0xAE9F1E1B",
+   "crc_d18_minus4_matches": true
+  },
+  "v2": {
+   "verdict": "VERIFIED_PLAIN_TELINK_OTA",
+   "crc": "PASS",
+   "auth": "NO_CONTAINER_AUTH_DETECTED"
+  }
+ },
+ {
+  "file": "full\\pvvx__1141-0208-01393001-ZMHOC401N.zigbee",
+  "ind": {
+   "bytes": 133586,
+   "headerLength": 56,
+   "imageSize_field": 133586,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x01393001",
+   "magic_06": "5d02",
+   "marker_08": "0x544C4E4B",
+   "marker_is_544C4E4B": true,
+   "containerLen": 133524,
+   "d18": 133524,
+   "d18_rel": "==containerLen",
+   "stored_tail_crc": "0x0EB82C89",
+   "crc_data_minus4": "0x0EB82C89",
+   "crc_data_minus4_matches": true,
+   "crc_whole": "0x00000000",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0x0EB82C89",
+   "crc_d18_minus4_matches": true
+  },
+  "v2": {
+   "verdict": "VERIFIED_PLAIN_TELINK_OTA",
+   "crc": "PASS",
+   "auth": "NO_CONTAINER_AUTH_DETECTED"
+  }
+ },
+ {
+  "file": "full\\pvvx__1141-020a-01383001-Z03MMC.zigbee",
+  "ind": {
+   "bytes": 134210,
+   "headerLength": 56,
+   "imageSize_field": 134210,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x01383001",
+   "magic_06": "5d02",
+   "marker_08": "0x544C4E4B",
+   "marker_is_544C4E4B": true,
+   "containerLen": 134148,
+   "d18": 134148,
+   "d18_rel": "==containerLen",
+   "stored_tail_crc": "0xF24130E2",
+   "crc_data_minus4": "0xF24130E2",
+   "crc_data_minus4_matches": true,
+   "crc_whole": "0x00000000",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0xF24130E2",
+   "crc_d18_minus4_matches": true
+  },
+  "v2": {
+   "verdict": "VERIFIED_PLAIN_TELINK_OTA",
+   "crc": "PASS",
+   "auth": "NO_CONTAINER_AUTH_DETECTED"
+  }
+ },
+ {
+  "file": "full\\pvvx__1141-020a-01393001-Z03MMC.zigbee",
+  "ind": {
+   "bytes": 133858,
+   "headerLength": 56,
+   "imageSize_field": 133858,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x01393001",
+   "magic_06": "5d02",
+   "marker_08": "0x544C4E4B",
+   "marker_is_544C4E4B": true,
+   "containerLen": 133796,
+   "d18": 133796,
+   "d18_rel": "==containerLen",
+   "stored_tail_crc": "0x067CB5B2",
+   "crc_data_minus4": "0x067CB5B2",
+   "crc_data_minus4_matches": true,
+   "crc_whole": "0x00000000",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0x067CB5B2",
+   "crc_d18_minus4_matches": true
+  },
+  "v2": {
+   "verdict": "VERIFIED_PLAIN_TELINK_OTA",
+   "crc": "PASS",
+   "auth": "NO_CONTAINER_AUTH_DETECTED"
+  }
+ },
+ {
+  "file": "full\\pvvx__1141-020b-01383001-ZMHOC122.zigbee",
+  "ind": {
+   "bytes": 133170,
+   "headerLength": 56,
+   "imageSize_field": 133170,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x01383001",
+   "magic_06": "5d02",
+   "marker_08": "0x544C4E4B",
+   "marker_is_544C4E4B": true,
+   "containerLen": 133108,
+   "d18": 133108,
+   "d18_rel": "==containerLen",
+   "stored_tail_crc": "0xB102AC7D",
+   "crc_data_minus4": "0xB102AC7D",
+   "crc_data_minus4_matches": true,
+   "crc_whole": "0x00000000",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0xB102AC7D",
+   "crc_d18_minus4_matches": true
+  },
+  "v2": {
+   "verdict": "VERIFIED_PLAIN_TELINK_OTA",
+   "crc": "PASS",
+   "auth": "NO_CONTAINER_AUTH_DETECTED"
+  }
+ },
+ {
+  "file": "full\\pvvx__1141-020b-01393001-ZMHOC122.zigbee",
+  "ind": {
+   "bytes": 132802,
+   "headerLength": 56,
+   "imageSize_field": 132802,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x01393001",
+   "magic_06": "5d02",
+   "marker_08": "0x544C4E4B",
+   "marker_is_544C4E4B": true,
+   "containerLen": 132740,
+   "d18": 132740,
+   "d18_rel": "==containerLen",
+   "stored_tail_crc": "0x11DCC70B",
+   "crc_data_minus4": "0x11DCC70B",
+   "crc_data_minus4_matches": true,
+   "crc_whole": "0x00000000",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0x11DCC70B",
+   "crc_d18_minus4_matches": true
+  },
+  "v2": {
+   "verdict": "VERIFIED_PLAIN_TELINK_OTA",
+   "crc": "PASS",
+   "auth": "NO_CONTAINER_AUTH_DETECTED"
+  }
+ },
+ {
+  "file": "full\\pvvx__1141-020d-01383001-Z06MMC.zigbee",
+  "ind": {
+   "bytes": 132418,
+   "headerLength": 56,
+   "imageSize_field": 132418,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x01383001",
+   "magic_06": "5d02",
+   "marker_08": "0x544C4E4B",
+   "marker_is_544C4E4B": true,
+   "containerLen": 132356,
+   "d18": 132356,
+   "d18_rel": "==containerLen",
+   "stored_tail_crc": "0x47B06199",
+   "crc_data_minus4": "0x47B06199",
+   "crc_data_minus4_matches": true,
+   "crc_whole": "0x00000000",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0x47B06199",
+   "crc_d18_minus4_matches": true
+  },
+  "v2": {
+   "verdict": "VERIFIED_PLAIN_TELINK_OTA",
+   "crc": "PASS",
+   "auth": "NO_CONTAINER_AUTH_DETECTED"
+  }
+ },
+ {
+  "file": "full\\pvvx__1141-020d-01393001-Z06MMC.zigbee",
+  "ind": {
+   "bytes": 132034,
+   "headerLength": 56,
+   "imageSize_field": 132034,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x01393001",
+   "magic_06": "5d02",
+   "marker_08": "0x544C4E4B",
+   "marker_is_544C4E4B": true,
+   "containerLen": 131972,
+   "d18": 131972,
+   "d18_rel": "==containerLen",
+   "stored_tail_crc": "0xC142EBC8",
+   "crc_data_minus4": "0xC142EBC8",
+   "crc_data_minus4_matches": true,
+   "crc_whole": "0x00000000",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0xC142EBC8",
+   "crc_d18_minus4_matches": true
+  },
+  "v2": {
+   "verdict": "VERIFIED_PLAIN_TELINK_OTA",
+   "crc": "PASS",
+   "auth": "NO_CONTAINER_AUTH_DETECTED"
+  }
+ },
+ {
+  "file": "full\\pvvx__1141-0211-01383001-ZTS0201Z3000.zigbee",
+  "ind": {
+   "bytes": 132850,
+   "headerLength": 56,
+   "imageSize_field": 132850,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x01383001",
+   "magic_06": "5d02",
+   "marker_08": "0x544C4E4B",
+   "marker_is_544C4E4B": true,
+   "containerLen": 132788,
+   "d18": 132788,
+   "d18_rel": "==containerLen",
+   "stored_tail_crc": "0x7C05ACE1",
+   "crc_data_minus4": "0x7C05ACE1",
+   "crc_data_minus4_matches": true,
+   "crc_whole": "0x00000000",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0x7C05ACE1",
+   "crc_d18_minus4_matches": true
+  },
+  "v2": {
+   "verdict": "VERIFIED_PLAIN_TELINK_OTA",
+   "crc": "PASS",
+   "auth": "NO_CONTAINER_AUTH_DETECTED"
+  }
+ },
+ {
+  "file": "full\\pvvx__1141-0211-01393001-ZTS0201Z3000.zigbee",
+  "ind": {
+   "bytes": 132530,
+   "headerLength": 56,
+   "imageSize_field": 132530,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x01393001",
+   "magic_06": "5d02",
+   "marker_08": "0x544C4E4B",
+   "marker_is_544C4E4B": true,
+   "containerLen": 132468,
+   "d18": 132468,
+   "d18_rel": "==containerLen",
+   "stored_tail_crc": "0xA9F2EDF2",
+   "crc_data_minus4": "0xA9F2EDF2",
+   "crc_data_minus4_matches": true,
+   "crc_whole": "0x00000000",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0xA9F2EDF2",
+   "crc_d18_minus4_matches": true
+  },
+  "v2": {
+   "verdict": "VERIFIED_PLAIN_TELINK_OTA",
+   "crc": "PASS",
+   "auth": "NO_CONTAINER_AUTH_DETECTED"
+  }
+ },
+ {
+  "file": "full\\pvvx__1141-0216-01383001-ZTH03Z.zigbee",
+  "ind": {
+   "bytes": 131986,
+   "headerLength": 56,
+   "imageSize_field": 131986,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x01383001",
+   "magic_06": "5d02",
+   "marker_08": "0x544C4E4B",
+   "marker_is_544C4E4B": true,
+   "containerLen": 131924,
+   "d18": 131924,
+   "d18_rel": "==containerLen",
+   "stored_tail_crc": "0x3B8A0381",
+   "crc_data_minus4": "0x3B8A0381",
+   "crc_data_minus4_matches": true,
+   "crc_whole": "0x00000000",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0x3B8A0381",
+   "crc_d18_minus4_matches": true
+  },
+  "v2": {
+   "verdict": "VERIFIED_PLAIN_TELINK_OTA",
+   "crc": "PASS",
+   "auth": "NO_CONTAINER_AUTH_DETECTED"
+  }
+ },
+ {
+  "file": "full\\pvvx__1141-0216-01393001-ZTH03Z.zigbee",
+  "ind": {
+   "bytes": 131666,
+   "headerLength": 56,
+   "imageSize_field": 131666,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x01393001",
+   "magic_06": "5d02",
+   "marker_08": "0x544C4E4B",
+   "marker_is_544C4E4B": true,
+   "containerLen": 131604,
+   "d18": 131604,
+   "d18_rel": "==containerLen",
+   "stored_tail_crc": "0xC0B1998D",
+   "crc_data_minus4": "0xC0B1998D",
+   "crc_data_minus4_matches": true,
+   "crc_whole": "0x00000000",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0xC0B1998D",
+   "crc_d18_minus4_matches": true
+  },
+  "v2": {
+   "verdict": "VERIFIED_PLAIN_TELINK_OTA",
+   "crc": "PASS",
+   "auth": "NO_CONTAINER_AUTH_DETECTED"
+  }
+ },
+ {
+  "file": "full\\pvvx__1141-021b-01383001-ZTH01Z.zigbee",
+  "ind": {
+   "bytes": 132530,
+   "headerLength": 56,
+   "imageSize_field": 132530,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x01383001",
+   "magic_06": "5d02",
+   "marker_08": "0x544C4E4B",
+   "marker_is_544C4E4B": true,
+   "containerLen": 132468,
+   "d18": 132468,
+   "d18_rel": "==containerLen",
+   "stored_tail_crc": "0x1F5ED349",
+   "crc_data_minus4": "0x1F5ED349",
+   "crc_data_minus4_matches": true,
+   "crc_whole": "0x00000000",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0x1F5ED349",
+   "crc_d18_minus4_matches": true
+  },
+  "v2": {
+   "verdict": "VERIFIED_PLAIN_TELINK_OTA",
+   "crc": "PASS",
+   "auth": "NO_CONTAINER_AUTH_DETECTED"
+  }
+ },
+ {
+  "file": "full\\pvvx__1141-021b-01393001-ZTH01Z.zigbee",
+  "ind": {
+   "bytes": 132210,
+   "headerLength": 56,
+   "imageSize_field": 132210,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x01393001",
+   "magic_06": "5d02",
+   "marker_08": "0x544C4E4B",
+   "marker_is_544C4E4B": true,
+   "containerLen": 132148,
+   "d18": 132148,
+   "d18_rel": "==containerLen",
+   "stored_tail_crc": "0x2E9E0BD4",
+   "crc_data_minus4": "0x2E9E0BD4",
+   "crc_data_minus4_matches": true,
+   "crc_whole": "0x00000000",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0x2E9E0BD4",
+   "crc_d18_minus4_matches": true
+  },
+  "v2": {
+   "verdict": "VERIFIED_PLAIN_TELINK_OTA",
+   "crc": "PASS",
+   "auth": "NO_CONTAINER_AUTH_DETECTED"
+  }
+ },
+ {
+  "file": "full\\pvvx__1141-021c-01383001-ZTH02Z.zigbee",
+  "ind": {
+   "bytes": 132530,
+   "headerLength": 56,
+   "imageSize_field": 132530,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x01383001",
+   "magic_06": "5d02",
+   "marker_08": "0x544C4E4B",
+   "marker_is_544C4E4B": true,
+   "containerLen": 132468,
+   "d18": 132468,
+   "d18_rel": "==containerLen",
+   "stored_tail_crc": "0x4EDD63EF",
+   "crc_data_minus4": "0x4EDD63EF",
+   "crc_data_minus4_matches": true,
+   "crc_whole": "0x00000000",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0x4EDD63EF",
+   "crc_d18_minus4_matches": true
+  },
+  "v2": {
+   "verdict": "VERIFIED_PLAIN_TELINK_OTA",
+   "crc": "PASS",
+   "auth": "NO_CONTAINER_AUTH_DETECTED"
+  }
+ },
+ {
+  "file": "full\\pvvx__1141-021c-01393001-ZTH02Z.zigbee",
+  "ind": {
+   "bytes": 132210,
+   "headerLength": 56,
+   "imageSize_field": 132210,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x01393001",
+   "magic_06": "5d02",
+   "marker_08": "0x544C4E4B",
+   "marker_is_544C4E4B": true,
+   "containerLen": 132148,
+   "d18": 132148,
+   "d18_rel": "==containerLen",
+   "stored_tail_crc": "0x9E4E0310",
+   "crc_data_minus4": "0x9E4E0310",
+   "crc_data_minus4_matches": true,
+   "crc_whole": "0x00000000",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0x9E4E0310",
+   "crc_d18_minus4_matches": true
+  },
+  "v2": {
+   "verdict": "VERIFIED_PLAIN_TELINK_OTA",
+   "crc": "PASS",
+   "auth": "NO_CONTAINER_AUTH_DETECTED"
+  }
+ },
+ {
+  "file": "full\\pvvx__1141-021e-01383001-TH03Z.zigbee",
+  "ind": {
+   "bytes": 135330,
+   "headerLength": 56,
+   "imageSize_field": 135330,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x01383001",
+   "magic_06": "5d02",
+   "marker_08": "0x544C4E4B",
+   "marker_is_544C4E4B": true,
+   "containerLen": 135268,
+   "d18": 135268,
+   "d18_rel": "==containerLen",
+   "stored_tail_crc": "0x0C7B3271",
+   "crc_data_minus4": "0x0C7B3271",
+   "crc_data_minus4_matches": true,
+   "crc_whole": "0x00000000",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0x0C7B3271",
+   "crc_d18_minus4_matches": true
+  },
+  "v2": {
+   "verdict": "VERIFIED_PLAIN_TELINK_OTA",
+   "crc": "PASS",
+   "auth": "NO_CONTAINER_AUTH_DETECTED"
+  }
+ },
+ {
+  "file": "full\\pvvx__1141-021e-01393001-TH03Z.zigbee",
+  "ind": {
+   "bytes": 134962,
+   "headerLength": 56,
+   "imageSize_field": 134962,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x01393001",
+   "magic_06": "5d02",
+   "marker_08": "0x544C4E4B",
+   "marker_is_544C4E4B": true,
+   "containerLen": 134900,
+   "d18": 134900,
+   "d18_rel": "==containerLen",
+   "stored_tail_crc": "0x44DAF814",
+   "crc_data_minus4": "0x44DAF814",
+   "crc_data_minus4_matches": true,
+   "crc_whole": "0x00000000",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0x44DAF814",
+   "crc_d18_minus4_matches": true
+  },
+  "v2": {
+   "verdict": "VERIFIED_PLAIN_TELINK_OTA",
+   "crc": "PASS",
+   "auth": "NO_CONTAINER_AUTH_DETECTED"
+  }
+ },
+ {
+  "file": "full\\pvvx__1141-021f-01383001-LKTMZL02Z.zigbee",
+  "ind": {
+   "bytes": 133090,
+   "headerLength": 56,
+   "imageSize_field": 133090,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x01383001",
+   "magic_06": "5d02",
+   "marker_08": "0x544C4E4B",
+   "marker_is_544C4E4B": true,
+   "containerLen": 133028,
+   "d18": 133028,
+   "d18_rel": "==containerLen",
+   "stored_tail_crc": "0x6CD16B6E",
+   "crc_data_minus4": "0x6CD16B6E",
+   "crc_data_minus4_matches": true,
+   "crc_whole": "0x00000000",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0x6CD16B6E",
+   "crc_d18_minus4_matches": true
+  },
+  "v2": {
+   "verdict": "VERIFIED_PLAIN_TELINK_OTA",
+   "crc": "PASS",
+   "auth": "NO_CONTAINER_AUTH_DETECTED"
+  }
+ },
+ {
+  "file": "full\\pvvx__1141-021f-01393001-LKTMZL02Z.zigbee",
+  "ind": {
+   "bytes": 132754,
+   "headerLength": 56,
+   "imageSize_field": 132754,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x01393001",
+   "magic_06": "5d02",
+   "marker_08": "0x544C4E4B",
+   "marker_is_544C4E4B": true,
+   "containerLen": 132692,
+   "d18": 132692,
+   "d18_rel": "==containerLen",
+   "stored_tail_crc": "0xD420C9DF",
+   "crc_data_minus4": "0xD420C9DF",
+   "crc_data_minus4_matches": true,
+   "crc_whole": "0x00000000",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0xD420C9DF",
+   "crc_d18_minus4_matches": true
+  },
+  "v2": {
+   "verdict": "VERIFIED_PLAIN_TELINK_OTA",
+   "crc": "PASS",
+   "auth": "NO_CONTAINER_AUTH_DETECTED"
+  }
+ },
+ {
+  "file": "full\\pvvx__1141-0221-01383001-ZTH05.zigbee",
+  "ind": {
+   "bytes": 134882,
+   "headerLength": 56,
+   "imageSize_field": 134882,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x01383001",
+   "magic_06": "5d02",
+   "marker_08": "0x544C4E4B",
+   "marker_is_544C4E4B": true,
+   "containerLen": 134820,
+   "d18": 134820,
+   "d18_rel": "==containerLen",
+   "stored_tail_crc": "0x81B2E39A",
+   "crc_data_minus4": "0x81B2E39A",
+   "crc_data_minus4_matches": true,
+   "crc_whole": "0x00000000",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0x81B2E39A",
+   "crc_d18_minus4_matches": true
+  },
+  "v2": {
+   "verdict": "VERIFIED_PLAIN_TELINK_OTA",
+   "crc": "PASS",
+   "auth": "NO_CONTAINER_AUTH_DETECTED"
+  }
+ },
+ {
+  "file": "full\\pvvx__1141-0221-01393001-ZTH05.zigbee",
+  "ind": {
+   "bytes": 134498,
+   "headerLength": 56,
+   "imageSize_field": 134498,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x01393001",
+   "magic_06": "5d02",
+   "marker_08": "0x544C4E4B",
+   "marker_is_544C4E4B": true,
+   "containerLen": 134436,
+   "d18": 134436,
+   "d18_rel": "==containerLen",
+   "stored_tail_crc": "0x247BD3E9",
+   "crc_data_minus4": "0x247BD3E9",
+   "crc_data_minus4_matches": true,
+   "crc_whole": "0x00000000",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0x247BD3E9",
+   "crc_d18_minus4_matches": true
+  },
+  "v2": {
+   "verdict": "VERIFIED_PLAIN_TELINK_OTA",
+   "crc": "PASS",
+   "auth": "NO_CONTAINER_AUTH_DETECTED"
+  }
+ },
+ {
+  "file": "full\\pvvx__1141-0225-01383001-ZYZTH02.zigbee",
+  "ind": {
+   "bytes": 129362,
+   "headerLength": 56,
+   "imageSize_field": 129362,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x01383001",
+   "magic_06": "5d02",
+   "marker_08": "0x544C4E4B",
+   "marker_is_544C4E4B": true,
+   "containerLen": 129300,
+   "d18": 129300,
+   "d18_rel": "==containerLen",
+   "stored_tail_crc": "0xC4E92E4B",
+   "crc_data_minus4": "0xC4E92E4B",
+   "crc_data_minus4_matches": true,
+   "crc_whole": "0x00000000",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0xC4E92E4B",
+   "crc_d18_minus4_matches": true
+  },
+  "v2": {
+   "verdict": "VERIFIED_PLAIN_TELINK_OTA",
+   "crc": "PASS",
+   "auth": "NO_CONTAINER_AUTH_DETECTED"
+  }
+ },
+ {
+  "file": "full\\pvvx__1141-0225-01393001-ZYZTH02.zigbee",
+  "ind": {
+   "bytes": 129042,
+   "headerLength": 56,
+   "imageSize_field": 129042,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x01393001",
+   "magic_06": "5d02",
+   "marker_08": "0x544C4E4B",
+   "marker_is_544C4E4B": true,
+   "containerLen": 128980,
+   "d18": 128980,
+   "d18_rel": "==containerLen",
+   "stored_tail_crc": "0x0DD47517",
+   "crc_data_minus4": "0x0DD47517",
+   "crc_data_minus4_matches": true,
+   "crc_whole": "0x00000000",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0x0DD47517",
+   "crc_d18_minus4_matches": true
+  },
+  "v2": {
+   "verdict": "VERIFIED_PLAIN_TELINK_OTA",
+   "crc": "PASS",
+   "auth": "NO_CONTAINER_AUTH_DETECTED"
+  }
+ },
+ {
+  "file": "full\\pvvx__1141-0226-01383001-ZYZTH01.zigbee",
+  "ind": {
+   "bytes": 130818,
+   "headerLength": 56,
+   "imageSize_field": 130818,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x01383001",
+   "magic_06": "5d02",
+   "marker_08": "0x544C4E4B",
+   "marker_is_544C4E4B": true,
+   "containerLen": 130756,
+   "d18": 130756,
+   "d18_rel": "==containerLen",
+   "stored_tail_crc": "0x5E22D7C9",
+   "crc_data_minus4": "0x5E22D7C9",
+   "crc_data_minus4_matches": true,
+   "crc_whole": "0x00000000",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0x5E22D7C9",
+   "crc_d18_minus4_matches": true
+  },
+  "v2": {
+   "verdict": "VERIFIED_PLAIN_TELINK_OTA",
+   "crc": "PASS",
+   "auth": "NO_CONTAINER_AUTH_DETECTED"
+  }
+ },
+ {
+  "file": "full\\pvvx__1141-0226-01393001-ZYZTH01.zigbee",
+  "ind": {
+   "bytes": 130482,
+   "headerLength": 56,
+   "imageSize_field": 130482,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x01393001",
+   "magic_06": "5d02",
+   "marker_08": "0x544C4E4B",
+   "marker_is_544C4E4B": true,
+   "containerLen": 130420,
+   "d18": 130420,
+   "d18_rel": "==containerLen",
+   "stored_tail_crc": "0xD5446D18",
+   "crc_data_minus4": "0xD5446D18",
+   "crc_data_minus4_matches": true,
+   "crc_whole": "0x00000000",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0xD5446D18",
+   "crc_d18_minus4_matches": true
+  },
+  "v2": {
+   "verdict": "VERIFIED_PLAIN_TELINK_OTA",
+   "crc": "PASS",
+   "auth": "NO_CONTAINER_AUTH_DETECTED"
+  }
+ },
+ {
+  "file": "full\\pvvx__1141-0227-01383001-ZG227Z.zigbee",
+  "ind": {
+   "bytes": 129842,
+   "headerLength": 56,
+   "imageSize_field": 129842,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x01383001",
+   "magic_06": "5d02",
+   "marker_08": "0x544C4E4B",
+   "marker_is_544C4E4B": true,
+   "containerLen": 129780,
+   "d18": 129780,
+   "d18_rel": "==containerLen",
+   "stored_tail_crc": "0x95D0EFCB",
+   "crc_data_minus4": "0x95D0EFCB",
+   "crc_data_minus4_matches": true,
+   "crc_whole": "0x00000000",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0x95D0EFCB",
+   "crc_d18_minus4_matches": true
+  },
+  "v2": {
+   "verdict": "VERIFIED_PLAIN_TELINK_OTA",
+   "crc": "PASS",
+   "auth": "NO_CONTAINER_AUTH_DETECTED"
+  }
+ },
+ {
+  "file": "full\\pvvx__1141-0227-01393001-ZG227Z.zigbee",
+  "ind": {
+   "bytes": 129522,
+   "headerLength": 56,
+   "imageSize_field": 129522,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x01393001",
+   "magic_06": "5d02",
+   "marker_08": "0x544C4E4B",
+   "marker_is_544C4E4B": true,
+   "containerLen": 129460,
+   "d18": 129460,
+   "d18_rel": "==containerLen",
+   "stored_tail_crc": "0xDE095D43",
+   "crc_data_minus4": "0xDE095D43",
+   "crc_data_minus4_matches": true,
+   "crc_whole": "0x00000000",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0xDE095D43",
+   "crc_d18_minus4_matches": true
+  },
+  "v2": {
+   "verdict": "VERIFIED_PLAIN_TELINK_OTA",
+   "crc": "PASS",
+   "auth": "NO_CONTAINER_AUTH_DETECTED"
+  }
+ },
+ {
+  "file": "full\\pvvx__1141-0228-01383001-TS202PIR1.zigbee",
+  "ind": {
+   "bytes": 127730,
+   "headerLength": 56,
+   "imageSize_field": 127730,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x01383001",
+   "magic_06": "5d02",
+   "marker_08": "0x544C4E4B",
+   "marker_is_544C4E4B": true,
+   "containerLen": 127668,
+   "d18": 127668,
+   "d18_rel": "==containerLen",
+   "stored_tail_crc": "0x41614D20",
+   "crc_data_minus4": "0x41614D20",
+   "crc_data_minus4_matches": true,
+   "crc_whole": "0x00000000",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0x41614D20",
+   "crc_d18_minus4_matches": true
+  },
+  "v2": {
+   "verdict": "VERIFIED_PLAIN_TELINK_OTA",
+   "crc": "PASS",
+   "auth": "NO_CONTAINER_AUTH_DETECTED"
+  }
+ },
+ {
+  "file": "full\\pvvx__1141-0228-01393001-TS202PIR1.zigbee",
+  "ind": {
+   "bytes": 127458,
+   "headerLength": 56,
+   "imageSize_field": 127458,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x01393001",
+   "magic_06": "5d02",
+   "marker_08": "0x544C4E4B",
+   "marker_is_544C4E4B": true,
+   "containerLen": 127396,
+   "d18": 127396,
+   "d18_rel": "==containerLen",
+   "stored_tail_crc": "0xB612DFFA",
+   "crc_data_minus4": "0xB612DFFA",
+   "crc_data_minus4_matches": true,
+   "crc_whole": "0x00000000",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0xB612DFFA",
+   "crc_d18_minus4_matches": true
+  },
+  "v2": {
+   "verdict": "VERIFIED_PLAIN_TELINK_OTA",
+   "crc": "PASS",
+   "auth": "NO_CONTAINER_AUTH_DETECTED"
+  }
+ },
+ {
+  "file": "full\\pvvx__1141-022c-01383001-ZG303Z.zigbee",
+  "ind": {
+   "bytes": 133042,
+   "headerLength": 56,
+   "imageSize_field": 133042,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x01383001",
+   "magic_06": "5d02",
+   "marker_08": "0x544C4E4B",
+   "marker_is_544C4E4B": true,
+   "containerLen": 132980,
+   "d18": 132980,
+   "d18_rel": "==containerLen",
+   "stored_tail_crc": "0x4EFE299E",
+   "crc_data_minus4": "0x4EFE299E",
+   "crc_data_minus4_matches": true,
+   "crc_whole": "0x00000000",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0x4EFE299E",
+   "crc_d18_minus4_matches": true
+  },
+  "v2": {
+   "verdict": "VERIFIED_PLAIN_TELINK_OTA",
+   "crc": "PASS",
+   "auth": "NO_CONTAINER_AUTH_DETECTED"
+  }
+ },
+ {
+  "file": "full\\pvvx__1141-022c-01393001-ZG303Z.zigbee",
+  "ind": {
+   "bytes": 132722,
+   "headerLength": 56,
+   "imageSize_field": 132722,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x01393001",
+   "magic_06": "5d02",
+   "marker_08": "0x544C4E4B",
+   "marker_is_544C4E4B": true,
+   "containerLen": 132660,
+   "d18": 132660,
+   "d18_rel": "==containerLen",
+   "stored_tail_crc": "0x5EE72B51",
+   "crc_data_minus4": "0x5EE72B51",
+   "crc_data_minus4_matches": true,
+   "crc_whole": "0x00000000",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0x5EE72B51",
+   "crc_d18_minus4_matches": true
+  },
+  "v2": {
+   "verdict": "VERIFIED_PLAIN_TELINK_OTA",
+   "crc": "PASS",
+   "auth": "NO_CONTAINER_AUTH_DETECTED"
+  }
+ },
+ {
+  "file": "full\\pvvx__1141-022d-01383001-ZBTH01.zigbee",
+  "ind": {
+   "bytes": 130578,
+   "headerLength": 56,
+   "imageSize_field": 130578,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x01383001",
+   "magic_06": "5d02",
+   "marker_08": "0x544C4E4B",
+   "marker_is_544C4E4B": true,
+   "containerLen": 130516,
+   "d18": 130516,
+   "d18_rel": "==containerLen",
+   "stored_tail_crc": "0xEFD2CECF",
+   "crc_data_minus4": "0xEFD2CECF",
+   "crc_data_minus4_matches": true,
+   "crc_whole": "0x00000000",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0xEFD2CECF",
+   "crc_d18_minus4_matches": true
+  },
+  "v2": {
+   "verdict": "VERIFIED_PLAIN_TELINK_OTA",
+   "crc": "PASS",
+   "auth": "NO_CONTAINER_AUTH_DETECTED"
+  }
+ },
+ {
+  "file": "full\\pvvx__1141-022d-01393001-ZBTH01.zigbee",
+  "ind": {
+   "bytes": 130258,
+   "headerLength": 56,
+   "imageSize_field": 130258,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x01393001",
+   "magic_06": "5d02",
+   "marker_08": "0x544C4E4B",
+   "marker_is_544C4E4B": true,
+   "containerLen": 130196,
+   "d18": 130196,
+   "d18_rel": "==containerLen",
+   "stored_tail_crc": "0xB3B713DD",
+   "crc_data_minus4": "0xB3B713DD",
+   "crc_data_minus4_matches": true,
+   "crc_whole": "0x00000000",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0xB3B713DD",
+   "crc_d18_minus4_matches": true
+  },
+  "v2": {
+   "verdict": "VERIFIED_PLAIN_TELINK_OTA",
+   "crc": "PASS",
+   "auth": "NO_CONTAINER_AUTH_DETECTED"
+  }
+ },
+ {
+  "file": "full\\pvvx__1141-022e-01383001-ZB_MC.zigbee",
+  "ind": {
+   "bytes": 130562,
+   "headerLength": 56,
+   "imageSize_field": 130562,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x01383001",
+   "magic_06": "5d02",
+   "marker_08": "0x544C4E4B",
+   "marker_is_544C4E4B": true,
+   "containerLen": 130500,
+   "d18": 130500,
+   "d18_rel": "==containerLen",
+   "stored_tail_crc": "0xB4842FBB",
+   "crc_data_minus4": "0xB4842FBB",
+   "crc_data_minus4_matches": true,
+   "crc_whole": "0x00000000",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0xB4842FBB",
+   "crc_d18_minus4_matches": true
+  },
+  "v2": {
+   "verdict": "VERIFIED_PLAIN_TELINK_OTA",
+   "crc": "PASS",
+   "auth": "NO_CONTAINER_AUTH_DETECTED"
+  }
+ },
+ {
+  "file": "full\\pvvx__1141-022e-01393001-ZB_MC.zigbee",
+  "ind": {
+   "bytes": 130242,
+   "headerLength": 56,
+   "imageSize_field": 130242,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x01393001",
+   "magic_06": "5d02",
+   "marker_08": "0x544C4E4B",
+   "marker_is_544C4E4B": true,
+   "containerLen": 130180,
+   "d18": 130180,
+   "d18_rel": "==containerLen",
+   "stored_tail_crc": "0xBAC17EF7",
+   "crc_data_minus4": "0xBAC17EF7",
+   "crc_data_minus4_matches": true,
+   "crc_whole": "0x00000000",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0xBAC17EF7",
+   "crc_d18_minus4_matches": true
+  },
+  "v2": {
+   "verdict": "VERIFIED_PLAIN_TELINK_OTA",
+   "crc": "PASS",
+   "auth": "NO_CONTAINER_AUTH_DETECTED"
+  }
+ },
+ {
+  "file": "full\\pvvx__1141-022f-01383001-ZB2TH01.zigbee",
+  "ind": {
+   "bytes": 130562,
+   "headerLength": 56,
+   "imageSize_field": 130562,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x01383001",
+   "magic_06": "5d02",
+   "marker_08": "0x544C4E4B",
+   "marker_is_544C4E4B": true,
+   "containerLen": 130500,
+   "d18": 130500,
+   "d18_rel": "==containerLen",
+   "stored_tail_crc": "0x5657BE42",
+   "crc_data_minus4": "0x5657BE42",
+   "crc_data_minus4_matches": true,
+   "crc_whole": "0x00000000",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0x5657BE42",
+   "crc_d18_minus4_matches": true
+  },
+  "v2": {
+   "verdict": "VERIFIED_PLAIN_TELINK_OTA",
+   "crc": "PASS",
+   "auth": "NO_CONTAINER_AUTH_DETECTED"
+  }
+ },
+ {
+  "file": "full\\pvvx__1141-022f-01393001-ZB2TH01.zigbee",
+  "ind": {
+   "bytes": 130242,
+   "headerLength": 56,
+   "imageSize_field": 130242,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x01393001",
+   "magic_06": "5d02",
+   "marker_08": "0x544C4E4B",
+   "marker_is_544C4E4B": true,
+   "containerLen": 130180,
+   "d18": 130180,
+   "d18_rel": "==containerLen",
+   "stored_tail_crc": "0xAE62A08A",
+   "crc_data_minus4": "0xAE62A08A",
+   "crc_data_minus4_matches": true,
+   "crc_whole": "0x00000000",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0xAE62A08A",
+   "crc_d18_minus4_matches": true
+  },
+  "v2": {
+   "verdict": "VERIFIED_PLAIN_TELINK_OTA",
+   "crc": "PASS",
+   "auth": "NO_CONTAINER_AUTH_DETECTED"
+  }
+ },
+ {
+  "file": "full\\pvvx__1141-0230-01383001-ZTY0201.zigbee",
+  "ind": {
+   "bytes": 131314,
+   "headerLength": 56,
+   "imageSize_field": 131314,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x01383001",
+   "magic_06": "5d02",
+   "marker_08": "0x544C4E4B",
+   "marker_is_544C4E4B": true,
+   "containerLen": 131252,
+   "d18": 131252,
+   "d18_rel": "==containerLen",
+   "stored_tail_crc": "0x0043A664",
+   "crc_data_minus4": "0x0043A664",
+   "crc_data_minus4_matches": true,
+   "crc_whole": "0x00000000",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0x0043A664",
+   "crc_d18_minus4_matches": true
+  },
+  "v2": {
+   "verdict": "VERIFIED_PLAIN_TELINK_OTA",
+   "crc": "PASS",
+   "auth": "NO_CONTAINER_AUTH_DETECTED"
+  }
+ },
+ {
+  "file": "full\\pvvx__1141-0230-01393001-ZTY0201.zigbee",
+  "ind": {
+   "bytes": 130978,
+   "headerLength": 56,
+   "imageSize_field": 130978,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x01393001",
+   "magic_06": "5d02",
+   "marker_08": "0x544C4E4B",
+   "marker_is_544C4E4B": true,
+   "containerLen": 130916,
+   "d18": 130916,
+   "d18_rel": "==containerLen",
+   "stored_tail_crc": "0x9AF81468",
+   "crc_data_minus4": "0x9AF81468",
+   "crc_data_minus4_matches": true,
+   "crc_whole": "0x00000000",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0x9AF81468",
+   "crc_d18_minus4_matches": true
+  },
+  "v2": {
+   "verdict": "VERIFIED_PLAIN_TELINK_OTA",
+   "crc": "PASS",
+   "auth": "NO_CONTAINER_AUTH_DETECTED"
+  }
+ },
+ {
+  "file": "full\\pvvx__1141-0232-01383001-ZG204ZL.zigbee",
+  "ind": {
+   "bytes": 129074,
+   "headerLength": 56,
+   "imageSize_field": 129074,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x01383001",
+   "magic_06": "5d02",
+   "marker_08": "0x544C4E4B",
+   "marker_is_544C4E4B": true,
+   "containerLen": 129012,
+   "d18": 129012,
+   "d18_rel": "==containerLen",
+   "stored_tail_crc": "0xCBFD6F75",
+   "crc_data_minus4": "0xCBFD6F75",
+   "crc_data_minus4_matches": true,
+   "crc_whole": "0x00000000",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0xCBFD6F75",
+   "crc_d18_minus4_matches": true
+  },
+  "v2": {
+   "verdict": "VERIFIED_PLAIN_TELINK_OTA",
+   "crc": "PASS",
+   "auth": "NO_CONTAINER_AUTH_DETECTED"
+  }
+ },
+ {
+  "file": "full\\pvvx__1141-0232-01393001-ZG204ZL.zigbee",
+  "ind": {
+   "bytes": 129122,
+   "headerLength": 56,
+   "imageSize_field": 129122,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x01393001",
+   "magic_06": "5d02",
+   "marker_08": "0x544C4E4B",
+   "marker_is_544C4E4B": true,
+   "containerLen": 129060,
+   "d18": 129060,
+   "d18_rel": "==containerLen",
+   "stored_tail_crc": "0x861F28FF",
+   "crc_data_minus4": "0x861F28FF",
+   "crc_data_minus4_matches": true,
+   "crc_whole": "0x00000000",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0x861F28FF",
+   "crc_d18_minus4_matches": true
+  },
+  "v2": {
+   "verdict": "VERIFIED_PLAIN_TELINK_OTA",
+   "crc": "PASS",
+   "auth": "NO_CONTAINER_AUTH_DETECTED"
+  }
+ },
+ {
+  "file": "full\\pvvx__1141-0233-01383001-ZG204ZV.zigbee",
+  "ind": {
+   "bytes": 132066,
+   "headerLength": 56,
+   "imageSize_field": 132066,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x01383001",
+   "magic_06": "5d02",
+   "marker_08": "0x544C4E4B",
+   "marker_is_544C4E4B": true,
+   "containerLen": 132004,
+   "d18": 132004,
+   "d18_rel": "==containerLen",
+   "stored_tail_crc": "0x3962C552",
+   "crc_data_minus4": "0x3962C552",
+   "crc_data_minus4_matches": true,
+   "crc_whole": "0x00000000",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0x3962C552",
+   "crc_d18_minus4_matches": true
+  },
+  "v2": {
+   "verdict": "VERIFIED_PLAIN_TELINK_OTA",
+   "crc": "PASS",
+   "auth": "NO_CONTAINER_AUTH_DETECTED"
+  }
+ },
+ {
+  "file": "full\\pvvx__1141-0233-01393001-ZG204ZV.zigbee",
+  "ind": {
+   "bytes": 132066,
+   "headerLength": 56,
+   "imageSize_field": 132066,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x01393001",
+   "magic_06": "5d02",
+   "marker_08": "0x544C4E4B",
+   "marker_is_544C4E4B": true,
+   "containerLen": 132004,
+   "d18": 132004,
+   "d18_rel": "==containerLen",
+   "stored_tail_crc": "0xD5F56973",
+   "crc_data_minus4": "0xD5F56973",
+   "crc_data_minus4_matches": true,
+   "crc_whole": "0x00000000",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0xD5F56973",
+   "crc_d18_minus4_matches": true
+  },
+  "v2": {
+   "verdict": "VERIFIED_PLAIN_TELINK_OTA",
+   "crc": "PASS",
+   "auth": "NO_CONTAINER_AUTH_DETECTED"
+  }
+ },
+ {
+  "file": "full\\pvvx__1141-0234-01393001-TS0201W.zigbee",
+  "ind": {
+   "bytes": 129826,
+   "headerLength": 56,
+   "imageSize_field": 129826,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x01393001",
+   "magic_06": "5d02",
+   "marker_08": "0x544C4E4B",
+   "marker_is_544C4E4B": true,
+   "containerLen": 129764,
+   "d18": 129764,
+   "d18_rel": "==containerLen",
+   "stored_tail_crc": "0x85853208",
+   "crc_data_minus4": "0x85853208",
+   "crc_data_minus4_matches": true,
+   "crc_whole": "0x00000000",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0x85853208",
+   "crc_d18_minus4_matches": true
+  },
+  "v2": {
+   "verdict": "VERIFIED_PLAIN_TELINK_OTA",
+   "crc": "PASS",
+   "auth": "NO_CONTAINER_AUTH_DETECTED"
+  }
+ },
+ {
+  "file": "full\\pvvx__1141-0235-01393001-ZG223Z.zigbee",
+  "ind": {
+   "bytes": 131618,
+   "headerLength": 56,
+   "imageSize_field": 131618,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x01393001",
+   "magic_06": "5d02",
+   "marker_08": "0x544C4E4B",
+   "marker_is_544C4E4B": true,
+   "containerLen": 131556,
+   "d18": 131556,
+   "d18_rel": "==containerLen",
+   "stored_tail_crc": "0xF6B72036",
+   "crc_data_minus4": "0xF6B72036",
+   "crc_data_minus4_matches": true,
+   "crc_whole": "0x00000000",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0xF6B72036",
+   "crc_d18_minus4_matches": true
+  },
+  "v2": {
+   "verdict": "VERIFIED_PLAIN_TELINK_OTA",
+   "crc": "PASS",
+   "auth": "NO_CONTAINER_AUTH_DETECTED"
+  }
+ },
+ {
+  "file": "pvvx-Z03MMC-v38-oldbuild__1141-020a-01383001-Z03MMC.zigbee",
+  "ind": {
+   "bytes": 134210,
+   "headerLength": 56,
+   "imageSize_field": 134210,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x01383001",
+   "magic_06": "5d02",
+   "marker_08": "0x544C4E4B",
+   "marker_is_544C4E4B": true,
+   "containerLen": 134148,
+   "d18": 134148,
+   "d18_rel": "==containerLen",
+   "stored_tail_crc": "0xF24130E2",
+   "crc_data_minus4": "0xF24130E2",
+   "crc_data_minus4_matches": true,
+   "crc_whole": "0x00000000",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0xF24130E2",
+   "crc_d18_minus4_matches": true
+  },
+  "v2": {
+   "verdict": "VERIFIED_PLAIN_TELINK_OTA",
+   "crc": "PASS",
+   "auth": "NO_CONTAINER_AUTH_DETECTED"
+  }
+ },
+ {
+  "file": "pvvx-Z03MMC-v39__1141-020a-01393001-Z03MMC.zigbee",
+  "ind": {
+   "bytes": 133858,
+   "headerLength": 56,
+   "imageSize_field": 133858,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x01393001",
+   "magic_06": "5d02",
+   "marker_08": "0x544C4E4B",
+   "marker_is_544C4E4B": true,
+   "containerLen": 133796,
+   "d18": 133796,
+   "d18_rel": "==containerLen",
+   "stored_tail_crc": "0x067CB5B2",
+   "crc_data_minus4": "0x067CB5B2",
+   "crc_data_minus4_matches": true,
+   "crc_whole": "0x00000000",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0x067CB5B2",
+   "crc_d18_minus4_matches": true
+  },
+  "v2": {
+   "verdict": "VERIFIED_PLAIN_TELINK_OTA",
+   "crc": "PASS",
+   "auth": "NO_CONTAINER_AUTH_DETECTED"
+  }
+ },
+ {
+  "file": "pvvx-ZG204ZV-v39__1141-0233-01393001-ZG204ZV.zigbee",
+  "ind": {
+   "bytes": 132066,
+   "headerLength": 56,
+   "imageSize_field": 132066,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x01393001",
+   "magic_06": "5d02",
+   "marker_08": "0x544C4E4B",
+   "marker_is_544C4E4B": true,
+   "containerLen": 132004,
+   "d18": 132004,
+   "d18_rel": "==containerLen",
+   "stored_tail_crc": "0xD5F56973",
+   "crc_data_minus4": "0xD5F56973",
+   "crc_data_minus4_matches": true,
+   "crc_whole": "0x00000000",
+   "crc_whole_matches": false,
+   "crc_d18_minus4": "0xD5F56973",
+   "crc_d18_minus4_matches": true
+  },
+  "v2": {
+   "verdict": "VERIFIED_PLAIN_TELINK_OTA",
+   "crc": "PASS",
+   "auth": "NO_CONTAINER_AUTH_DETECTED"
+  }
+ },
+ {
+  "file": "rangetest.bin",
+  "ind": {
+   "note": "independent-error: KeyError('payload')"
+  },
+  "v2": {
+   "verdict": "INVALID_SIZE_MISMATCH",
+   "crc": "absent",
+   "auth": "absent"
+  }
+ },
+ {
+  "file": "xyzroe-ZigUSB_C6-ESP32C6__ZigUSB_C6.ota",
+  "ind": {
+   "bytes": 416645,
+   "headerLength": 56,
+   "imageSize_field": 416645,
+   "imageSize_at": 52,
+   "size_eq_file": true,
+   "size_eq_file_minus1": false,
+   "n_subelements": 1,
+   "tags": [
+    "0x0000"
+   ],
+   "trailing_after_chain": 0,
+   "inner_ver_02": "0x9C09BDDC",
+   "magic_06": "2345",
+   "marker_08": "0xB3DC3815",
+   "marker_is_544C4E4B": false,
+   "containerLen": 416583,
+   "d18": 740218683,
+   "d18_rel": ">containerLen",
+   "stored_tail_crc": "0x3F15FCCB",
+   "crc_data_minus4": "0x26D6E3E0",
+   "crc_data_minus4_matches": false,
+   "crc_whole": "0xE4F5E03F",
+   "crc_whole_matches": false
+  },
+  "v2": {
+   "verdict": "INVALID_TELINK_APP_HEADER",
+   "crc": "absent",
+   "auth": "absent"
+  }
+ }
+]

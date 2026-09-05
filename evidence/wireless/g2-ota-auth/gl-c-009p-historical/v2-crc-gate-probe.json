@@ -1,0 +1,59 @@
+{
+  "baseline_verdict": "VERIFIED_PLAIN_TELINK_OTA",
+  "cases": [
+    {
+      "case": "A_declared_size_ffffffff",
+      "injected_inner_declared_size": "0xFFFFFFFF",
+      "payload_byte_flipped": false,
+      "tool_crc_status": "size_out_of_range",
+      "tool_verdict": "VERIFIED_PLAIN_TELINK_OTA",
+      "tool_auth_indicator": "NO_CONTAINER_AUTH_DETECTED"
+    },
+    {
+      "case": "B_declared_size_zero",
+      "injected_inner_declared_size": "0x0",
+      "payload_byte_flipped": false,
+      "tool_crc_status": "size_out_of_range",
+      "tool_verdict": "VERIFIED_PLAIN_TELINK_OTA",
+      "tool_auth_indicator": "NO_CONTAINER_AUTH_DETECTED"
+    },
+    {
+      "case": "C_declared_size_two",
+      "injected_inner_declared_size": "0x2",
+      "payload_byte_flipped": false,
+      "tool_crc_status": "size_out_of_range",
+      "tool_verdict": "VERIFIED_PLAIN_TELINK_OTA",
+      "tool_auth_indicator": "NO_CONTAINER_AUTH_DETECTED"
+    },
+    {
+      "case": "D_declared_size_midrange",
+      "injected_inner_declared_size": "0x3E8",
+      "payload_byte_flipped": false,
+      "tool_crc_status": "FAIL",
+      "tool_verdict": "INVALID_TELINK_CRC",
+      "tool_auth_indicator": "absent"
+    },
+    {
+      "case": "E_payload_corrupt_crc_stale",
+      "injected_inner_declared_size": null,
+      "payload_byte_flipped": true,
+      "tool_crc_status": "FAIL",
+      "tool_verdict": "INVALID_TELINK_CRC",
+      "tool_auth_indicator": "absent"
+    },
+    {
+      "case": "F_declared_size_plus_one",
+      "injected_inner_declared_size": "0x33EC5",
+      "payload_byte_flipped": false,
+      "tool_crc_status": "size_out_of_range",
+      "tool_verdict": "VERIFIED_PLAIN_TELINK_OTA",
+      "tool_auth_indicator": "NO_CONTAINER_AUTH_DETECTED"
+    }
+  ],
+  "certified_badly": [
+    "A_declared_size_ffffffff",
+    "B_declared_size_zero",
+    "C_declared_size_two",
+    "F_declared_size_plus_one"
+  ]
+}

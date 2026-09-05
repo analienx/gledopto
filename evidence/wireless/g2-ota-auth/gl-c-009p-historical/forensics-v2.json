@@ -1,0 +1,43 @@
+{
+  "file": ".local\\gl-c-009p.ota",
+  "size": 212738,
+  "sha256": "196f06a3b0deaa0f0fd0f6c235182c7c5b64bd5c4bdeeae7a9bf8788377a8018",
+  "sha512": "868e671255db3c753a282125cdc4c333771cf1032423968b1412f9760cb105f97874261ab56559dc1cf54c0742eec062ccf9b8a75b4ef5e85b1485e8d5fd1aac",
+  "container_verdict": "VERIFIED_PLAIN_TELINK_OTA",
+  "production_ota_go": false,
+  "zigbee_header": {
+    "magic": "0x0BEEF11E",
+    "headerVersion": 256,
+    "headerLength": 56,
+    "fieldControl": "0x0000",
+    "manufacturerCode": "0x124F",
+    "imageType": "0x1416",
+    "fileVersion": "0x24013001",
+    "stackVersion": 2,
+    "headerString": "Telink OTA Sample Usage",
+    "totalImageSize": 212738
+  },
+  "subelements": [
+    {
+      "tag": "0x0000",
+      "length": 212676,
+      "offset": 62
+    }
+  ],
+  "trailing_bytes": 0,
+  "telink_app": {
+    "valid": true,
+    "magic_5d02": "5d02",
+    "boot_marker": "0x544C4E4B",
+    "inner_mfr": "0x124F",
+    "inner_type": "0x1416",
+    "inner_ver": "0x24013001",
+    "declared_size": 212676
+  },
+  "crc_validation": {
+    "status": "PASS",
+    "stored": "0xBC753C12",
+    "computed": "0xBC753C12"
+  },
+  "auth_indicator": "NO_CONTAINER_AUTH_DETECTED"
+}

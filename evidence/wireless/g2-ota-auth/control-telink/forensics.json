@@ -1,0 +1,43 @@
+{
+  "file": ".local\\ota-secondaries\\full\\Tuya__1730081189-oem_zg_tl8258_plug_OTA_1.1.2.bin",
+  "size": 311026,
+  "sha256": "4c16a0403e1633fa7098f91fcd378ebe4a7a76724f42b4e877a8ad8090213b0e",
+  "sha512": "8c981bb6d2c25a2ca013fbf63fa34f974606c34b60a25ab62daad22af6636855356178694f4c4557902e6dc91705825636ed5bfb8f64e68efa3d69dadc6d881e",
+  "container_verdict": "VERIFIED_PLAIN_TELINK_OTA",
+  "production_ota_go": false,
+  "zigbee_header": {
+    "magic": "0x0BEEF11E",
+    "headerVersion": 256,
+    "headerLength": 56,
+    "fieldControl": "0x0000",
+    "manufacturerCode": "0x1141",
+    "imageType": "0xD3A3",
+    "fileVersion": "0x00000052",
+    "stackVersion": 2,
+    "headerString": "Telink OTA Sample Usage",
+    "totalImageSize": 311026
+  },
+  "subelements": [
+    {
+      "tag": "0x0000",
+      "length": 310964,
+      "offset": 62
+    }
+  ],
+  "trailing_bytes": 0,
+  "telink_app": {
+    "valid": true,
+    "magic_5d02": "5d02",
+    "boot_marker": "0x544C4E4B",
+    "inner_mfr": "0x0000",
+    "inner_type": "0x0000",
+    "inner_ver": "0x00000000",
+    "declared_size": 310964
+  },
+  "crc_validation": {
+    "status": "PASS",
+    "stored": "0xCE929C6E",
+    "computed": "0xCE929C6E"
+  },
+  "auth_indicator": "NO_CONTAINER_AUTH_DETECTED"
+}
