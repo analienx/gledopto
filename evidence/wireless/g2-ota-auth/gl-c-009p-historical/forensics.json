@@ -1,0 +1,21 @@
+{
+  "file": ".local\\gl-c-009p.ota",
+  "size": 212738,
+  "sha256": "196f06a3b0deaa0f0fd0f6c235182c7c5b64bd5c4bdeeae7a9bf8788377a8018",
+  "sha512": "868e671255db3c753a282125cdc4c333771cf1032423968b1412f9760cb105f97874261ab56559dc1cf54c0742eec062ccf9b8a75b4ef5e85b1485e8d5fd1aac",
+  "container_verdict": "VERIFIED_PLAIN_TELINK_OTA",
+  "auth_indicator": "NO_CONTAINER_AUTH_DETECTED",
+  "production_ota_go": false,
+  "header": {
+    "headerLength": 56,
+    "manufacturerCode": 4687,
+    "imageType": 5142,
+    "fileVersion": 604057601,
+    "headerString": "Telink OTA Sample Usage",
+    "totalImageSize": 212738
+  },
+  "subelement": {
+    "tag": 0,
+    "length": 212676
+  }
+}

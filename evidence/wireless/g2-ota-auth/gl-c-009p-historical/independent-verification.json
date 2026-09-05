@@ -1,0 +1,115 @@
+{
+  "task": "Offline OTA Forensics Validation (Batch 1)",
+  "control_issue": "analienx/gledopto#1",
+  "artifact_pinned": {
+    "repository": "Koenkk/zigbee-OTA",
+    "commit": "f4260fe4dfa47561f607707ad38abb829eb95a83",
+    "path": "images/Gledopto/GL-C-009P(MINI)_20451203_20240227.ota",
+    "expected_git_blob": "09c1e5ad3874a422cbe1e87e351e6478d4e1272e",
+    "expected_size": 212738,
+    "expected_sha512": "868e671255db3c753a282125cdc4c333771cf1032423968b1412f9760cb105f97874261ab56559dc1cf54c0742eec062ccf9b8a75b4ef5e85b1485e8d5fd1aac"
+  },
+  "g1_artifact_hash": {
+    "expected_size_match": true,
+    "expected_sha512_match": true,
+    "expected_git_blob_match": true,
+    "observed_size": 212738,
+    "observed_sha256": "196f06a3b0deaa0f0fd0f6c235182c7c5b64bd5c4bdeeae7a9bf8788377a8018",
+    "observed_sha512": "868e671255db3c753a282125cdc4c333771cf1032423968b1412f9760cb105f97874261ab56559dc1cf54c0742eec062ccf9b8a75b4ef5e85b1485e8d5fd1aac",
+    "observed_git_blob": "09c1e5ad3874a422cbe1e87e351e6478d4e1272e"
+  },
+  "zigbee_ota_header": {
+    "magic": "0x0BEEF11E",
+    "magic_valid": true,
+    "headerLength": 56,
+    "fieldControl": "0x0000",
+    "manufacturerCode": "0x124F (4687)",
+    "imageType": "0x1416 (5142)",
+    "fileVersion": "0x24013001 (604057601)",
+    "zigbeeStackVersion": "0x0002",
+    "headerString": "Telink OTA Sample Usage",
+    "totalImageSize": 212738
+  },
+  "subelement": {
+    "tag": "0x0000",
+    "length": 212676,
+    "payloadOffset": 62,
+    "trailingBytesAfterSubelement": 0
+  },
+  "telink_inner_header": {
+    "first_32_bytes_hex": "58 80 01 30 01 24 5d 02 4b 4e 4c 54 90 01 88 00 06 81 4f 12 16 14 00 00 c4 3e 03 00 00 00 00 00",
+    "fileVersion_at_0x02": "0x24013001",
+    "magic_at_0x06": "5d02",
+    "startupFlag_at_0x08": {
+      "u32_little_endian_value": "0x544C4E4B",
+      "on_disk_bytes": "4b 4e 4c 54",
+      "expected": "0x544C4E4B",
+      "match": true,
+      "reading_note": "u32 value 0x544C4E4B reads 'TLNK' most-significant-byte first; stored little-endian the on-disk bytes are '4B 4E 4C 54' which renders as the string 'KNLT'. Same flag, opposite byte order."
+    },
+    "manufacturer_at_0x12": "0x124F",
+    "imageType_at_0x14": "0x1416",
+    "declaredSize_at_0x18": 212676,
+    "storedCrc_at_tail": "0xBC753C12"
+  },
+  "crc_candidates_tested": {
+    "bitserial_reflected_init_FFFFFFFF_no_final_xor_over_data_minus_crc": "0xBC753C12",
+    "bitserial_reflected_init_0_over_data_minus_crc": "0x4005987B",
+    "bitserial_with_crc_field_zeroed": "0x47FEF1F4",
+    "zlib_crc32_of_data_minus_crc": "0x438AC3ED",
+    "zlib_crc32_of_data_minus_crc_xor_FFFFFFFF": "0xBC753C12"
+  },
+  "crc_conventions_matching_stored_value": [
+    "bitserial_reflected_init_FFFFFFFF_no_final_xor_over_data_minus_crc",
+    "zlib_crc32_of_data_minus_crc_xor_FFFFFFFF"
+  ],
+  "gate0": {
+    "1_outer_total_size_structurally_valid": {
+      "pass": true,
+      "detail": "declaredTotalImageSize=212738 fileBytes=212738 framingSum=212738 trailingBytes=0"
+    },
+    "2_upgrade_image_subelement_parsed": {
+      "pass": true,
+      "detail": "tag=0x0000 subLen=212676(0x33EC4) innerDeclaredSize=212676 payloadStart=62"
+    },
+    "3_outer_identity_matches_telink_inner_fields": {
+      "pass": true,
+      "detail": "outer mfg=0x124F type=0x1416 ver=0x24013001 / inner@0x12 mfg=0x124F @0x14 type=0x1416 @0x02 ver=0x24013001"
+    },
+    "4_crc_convention_identified_from_real_image": {
+      "pass": true,
+      "detail": "storedTailU32=0xBC753C12 matchingConventions=['bitserial_reflected_init_FFFFFFFF_no_final_xor_over_data_minus_crc', 'zlib_crc32_of_data_minus_crc_xor_FFFFFFFF']"
+    },
+    "5_no_unexplained_signature_or_authentication_material": {
+      "pass": true,
+      "detail": "trailingBytes=0 subelementTag=0x0000 headerFieldControl=0x0000 aesWrapperElement0xF000=absent zigbeeSignatureOrCertSubelement=absent"
+    }
+  },
+  "gate0_all_pass": true,
+  "live_device_comparison": {
+    "source": "evidence/phase1-software-only-20260903/raw/ota-live-descriptor.json",
+    "captured_at": "2026-09-03T06:52:02Z",
+    "commandQueryNextImageRequest": {
+      "manufacturerCode": 4687,
+      "imageType": 5142,
+      "fileVersion": 637612033,
+      "provenance": "values transcribed from the cited device ZCL capture, not from this file"
+    },
+    "comparison": {
+      "manufacturerCode_matches_live": true,
+      "imageType_matches_live": true,
+      "fileVersion_matches_live": false,
+      "historical_minus_live_u32": -33554432,
+      "historical_minus_live_hex": "0xFE000000",
+      "live_fileVersion_hex": "0x26013001",
+      "historical_fileVersion_hex": "0x24013001",
+      "note": "Historical GL-C-009P(MINI) container shares mfg+imageType with the live GL-SD-301P but its fileVersion is LOWER than the device's current 0x26013001, so it is a version downgrade for this device. Identical mfg/imageType across two different physical products confirms the issue-#1 rule that tuple identity alone never proves firmware compatibility."
+    }
+  },
+  "interpretation_limits": [
+    "Container-level only. Proves nothing about whether the GL-SD-301P bootloader would ACCEPT an image with this tuple.",
+    "Cross-model evidence (GL-C-009P(MINI)), not GL-SD-301P. Does not satisfy G4 target-specific validation.",
+    "Absence of a signature/AES wrapper in this historical artifact does not establish that GLEDOPTO never signs; it establishes only that this pinned build is unsigned and plain.",
+    "production_ota_go remains false. No live device interaction was performed in this batch."
+  ]
+}
