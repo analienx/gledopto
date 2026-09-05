@@ -2,6 +2,8 @@ import binascii
 import importlib.util
 from pathlib import Path
 import struct
+import subprocess
+import shutil
 import sys
 import tempfile
 import unittest
@@ -42,6 +44,66 @@ def make_valid_telink_app(size=256, marker_first=0x4B):
 
 
 class WirelessDumpTests(unittest.TestCase):
+    def test_native_read_only_stager_core(self):
+        gcc = shutil.which("gcc")
+        if not gcc:
+            self.skipTest("gcc not available")
+        fw = ROOT.parent / "firmware" / "wireless-dump-stager"
+        with tempfile.TemporaryDirectory() as td:
+            exe = Path(td) / "stager_core_test"
+            subprocess.run(
+                [
+                    gcc, "-std=c11", "-Wall", "-Wextra", "-Werror",
+                    "-I", str(fw),
+                    str(fw / "glsd_stager_core.c"),
+                    str(fw / "tests" / "stager_core_test.c"),
+                    "-o", str(exe),
+                ],
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+            cp = subprocess.run([str(exe)], check=True, capture_output=True, text=True)
+            self.assertIn("stager_core_test: PASS", cp.stdout)
+
+    def test_native_dispatcher_and_cross_language_fixture(self):
+        gcc = shutil.which("gcc")
+        if not gcc:
+            self.skipTest("gcc not available")
+        fw = ROOT.parent / "firmware" / "wireless-dump-stager"
+        with tempfile.TemporaryDirectory() as td:
+            exe = Path(td) / "stager_e2e_fixture"
+            subprocess.run(
+                [
+                    gcc, "-std=c11", "-Wall", "-Wextra", "-Werror",
+                    "-I", str(fw),
+                    str(fw / "glsd_stager_core.c"),
+                    str(fw / "glsd_stager_dispatch.c"),
+                    str(fw / "tests" / "stager_e2e_fixture.c"),
+                    "-o", str(exe),
+                ],
+                check=True, capture_output=True, text=True,
+            )
+            cp = subprocess.run([str(exe)], check=True, capture_output=True, text=True)
+            lines = [line.strip() for line in cp.stdout.splitlines() if line.strip()]
+            self.assertTrue(lines[0].startswith("INFO="))
+            info = proto.StagerInfo.decode(bytes.fromhex(lines[0].split("=", 1)[1]))
+            self.assertEqual(info.session_id, 0x11223344)
+            self.assertEqual(info.old_declared_size, 240)
+            self.assertEqual(info.inferred_old_base, 0)
+            self.assertEqual(info.inferred_stager_base, 0x40000)
+            with tempfile.TemporaryDirectory() as state_td:
+                obj = host.PersistentDump.create(
+                    Path(state_td) / "s", session_id=info.session_id,
+                    total_len=info.old_declared_size, chunk_size=48, target_ieee="fixture",
+                )
+                for line in reversed(lines[1:]):
+                    self.assertTrue(line.startswith("DATA="))
+                    obj.ingest(bytes.fromhex(line.split("=", 1)[1]))
+                result = obj.finalize()
+                self.assertTrue(result["pass"])
+                self.assertEqual(result["reconstruction_diffs"], [{"offset": 8, "before": 0, "after": 0x4B}])
+
     def test_probe_parses_and_is_deliberately_crc_invalid(self):
         data = probe.build_ota(0x26013002, 512)
         with tempfile.TemporaryDirectory() as td:
@@ -83,8 +145,8 @@ class WirelessDumpTests(unittest.TestCase):
             flash_size=0x80000,
             bank_a_base=0,
             bank_b_base=0x40000,
-            bank_a_flag32=0,
-            bank_b_flag32=0,
+            bank_a_flag32=proto.TELINK_INVALIDATED_FLAG,
+            bank_b_flag32=proto.TELINK_STARTUP_FLAG,
             inferred_stager_base=0x40000,
             inferred_old_base=0x40000,
             old_declared_size=0x20000,
@@ -97,6 +159,22 @@ class WirelessDumpTests(unittest.TestCase):
         )
         with self.assertRaises(ValueError):
             proto.validate_info(info)
+
+    def test_info_gate_rejects_bad_bank_marker_state(self):
+        base = dict(
+            protocol_version=1, stager_build_id=1, session_id=2, flash_jedec_id=0,
+            flash_size=0x80000, bank_a_base=0, bank_b_base=0x40000,
+            bank_a_flag32=proto.TELINK_INVALIDATED_FLAG,
+            bank_b_flag32=proto.TELINK_STARTUP_FLAG,
+            inferred_stager_base=0x40000, inferred_old_base=0,
+            old_declared_size=0x20000, old_tail_crc32=0,
+            old_reconstructed_crc_valid=True, allowed_read_start=0,
+            allowed_read_length=0x20000, journal_state=0xFF, rollback_compiled=False,
+        )
+        proto.validate_info(proto.StagerInfo(**base))
+        base["bank_b_flag32"] = 0xFFFFFFFF
+        with self.assertRaises(ValueError):
+            proto.validate_info(proto.StagerInfo(**base))
 
     def test_data_frame_crc_and_reassembly_out_of_order(self):
         image = bytes(range(150))

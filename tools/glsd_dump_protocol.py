@@ -27,10 +27,13 @@ BANK_A_BASE = 0x00000
 BANK_B_BASE = 0x40000
 FLASH_SIZE_512K = 0x80000
 APP_LIMIT = 0x34000
+TELINK_STARTUP_FLAG = 0x544C4E4B
+TELINK_INVALIDATED_FLAG = 0x544C4E00
 
 READ_REQUEST = struct.Struct("<IIIB")  # session_id, seq, offset, length
 DATA_PREFIX = struct.Struct("<IIIB")   # session_id, seq, offset, length
 DATA_SUFFIX = struct.Struct("<IB")     # crc32(data), status
+INFO_RESPONSE = struct.Struct("<BIIIIIIIIIIIIBIIBB")
 
 
 @dataclass(frozen=True)
@@ -54,6 +57,34 @@ class StagerInfo:
     journal_state: int
     rollback_compiled: bool
 
+    @classmethod
+    def decode(cls, raw: bytes) -> "StagerInfo":
+        if len(raw) != INFO_RESPONSE.size:
+            raise ValueError(f"invalid INFO response length {len(raw)}; expected {INFO_RESPONSE.size}")
+        values = INFO_RESPONSE.unpack(raw)
+        obj = cls(
+            protocol_version=values[0],
+            stager_build_id=values[1],
+            session_id=values[2],
+            flash_jedec_id=values[3],
+            flash_size=values[4],
+            bank_a_base=values[5],
+            bank_b_base=values[6],
+            bank_a_flag32=values[7],
+            bank_b_flag32=values[8],
+            inferred_stager_base=values[9],
+            inferred_old_base=values[10],
+            old_declared_size=values[11],
+            old_tail_crc32=values[12],
+            old_reconstructed_crc_valid=bool(values[13]),
+            allowed_read_start=values[14],
+            allowed_read_length=values[15],
+            journal_state=values[16],
+            rollback_compiled=bool(values[17]),
+        )
+        validate_info(obj)
+        return obj
+
 
 def validate_info(info: StagerInfo) -> None:
     """Fail closed unless INFO matches the proven 512-KiB application-bank model."""
@@ -70,8 +101,22 @@ def validate_info(info: StagerInfo) -> None:
     )
     if info.inferred_old_base != expected_old:
         raise ValueError("old bank is not opposite stager bank")
-    if not (0x1C <= info.old_declared_size < APP_LIMIT):
+    if not (0x20 <= info.old_declared_size < APP_LIMIT):
         raise ValueError("old application declared size outside safe range")
+    stager_flag = (
+        info.bank_a_flag32
+        if info.inferred_stager_base == BANK_A_BASE
+        else info.bank_b_flag32
+    )
+    old_flag = (
+        info.bank_a_flag32
+        if info.inferred_old_base == BANK_A_BASE
+        else info.bank_b_flag32
+    )
+    if stager_flag != TELINK_STARTUP_FLAG:
+        raise ValueError("executing stager bank does not have a valid Telink startup flag")
+    if old_flag != TELINK_INVALIDATED_FLAG:
+        raise ValueError("old bank is not in the expected post-OTA invalidated state")
     if info.allowed_read_start != 0:
         raise ValueError("v1 only permits reads relative to old-bank offset zero")
     if info.allowed_read_length != info.old_declared_size:
