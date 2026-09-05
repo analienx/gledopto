@@ -1,14 +1,20 @@
-#include "glsd_telink_sdk_adapter.h"
-
-#include "glsd_transport_adapter.h"
-
 #if defined(GLSD_TELINK_SDK)
-
+/*
+ * Telink's legacy TC32 headers must establish app_cfg/platform/compiler types
+ * before our portable headers include the host C library typedef surface.
+ * The target-build harness also defines the legacy size_t guard macros used by
+ * Telink's TC32 environment.  This ordering is irrelevant to the native
+ * fail-closed stub build but is required for the real TLSR8258 translation unit.
+ */
 #include "tl_common.h"
 #include "zb_api.h"
 #include "zcl_include.h"
+#endif
 
-#include <string.h>
+#include "glsd_telink_sdk_adapter.h"
+#include "glsd_transport_adapter.h"
+
+#if defined(GLSD_TELINK_SDK)
 
 static glsd_stager_core_t *g_glsd_stager_ctx;
 
