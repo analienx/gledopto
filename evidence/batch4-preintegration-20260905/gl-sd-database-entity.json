@@ -1,0 +1,75 @@
+{
+  "note": "herdsman entity from /config/zigbee2mqtt/database.db (read-only snapshot 2026-09-05, sha256 384829665f1f3d4e9b6637ef1b70e30fed21bbaab608362e077f849406337830)",
+  "id": 237,
+  "type": "Router",
+  "ieeeAddr": "0xa4c13850cfcdb3a4",
+  "nwkAddr": 17901,
+  "manufId": 4687,
+  "manufName": "GLEDOPTO",
+  "powerSource": "Mains (single phase)",
+  "modelId": "GL-SD-301P",
+  "epList": [11, 242],
+  "endpoints": {
+    "11": {
+      "profId": 260,
+      "epId": 11,
+      "devId": 257,
+      "inClusterList": [0, 3, 4, 5, 6, 8, 768, 4096],
+      "outClusterList": [25],
+      "clusters": {
+        "genBasic": {
+          "attributes": {
+            "modelId": "GL-SD-301P",
+            "manufacturerName": "GLEDOPTO",
+            "powerSource": 1,
+            "zclVersion": 3,
+            "appVersion": 1,
+            "stackVersion": 2,
+            "hwVersion": 2,
+            "dateCode": "20240704",
+            "swBuildId": "20651203"
+          }
+        },
+        "lightingColorCtrl": {
+          "attributes": {
+            "colorCapabilities": 0,
+            "colorTempPhysicalMin": 158,
+            "colorTempPhysicalMax": 495
+          }
+        },
+        "genOnOff": { "attributes": { "onOff": 1 } },
+        "genLevelCtrl": { "attributes": { "currentLevel": 0 } }
+      },
+      "binds": [
+        { "cluster": 6, "type": "endpoint", "deviceIeeeAddress": "0xfdb1122d004b1200", "endpointID": 1 },
+        { "cluster": 8, "type": "endpoint", "deviceIeeeAddress": "0xfdb1122d004b1200", "endpointID": 1 }
+      ],
+      "configuredReportings": [
+        { "cluster": 6, "attrId": 0, "minRepIntval": 0, "maxRepIntval": 65000, "repChange": 1 },
+        { "cluster": 8, "attrId": 0, "minRepIntval": 5, "maxRepIntval": 65000, "repChange": 1 }
+      ],
+      "meta": {}
+    },
+    "242": {
+      "profId": 41440,
+      "epId": 242,
+      "devId": 97,
+      "inClusterList": [],
+      "outClusterList": [33],
+      "clusters": {},
+      "binds": [],
+      "configuredReportings": [],
+      "meta": {}
+    }
+  },
+  "appVersion": 1,
+  "stackVersion": 2,
+  "hwVersion": 2,
+  "dateCode": "20240704",
+  "swBuildId": "20651203",
+  "zclVersion": 3,
+  "interviewCompleted": true,
+  "interviewState": "SUCCESSFUL",
+  "meta": { "configured": "0.0.0" },
+  "lastSeen": 1788620566159
+}
