@@ -1,6 +1,6 @@
 # Telink SDK adapter pin — wireless dump stager
 
-Status: **design/source pin only; no live OTA authorization**
+Status: **thin adapter implemented from pinned source contracts; target TC32 build still blocked; no live OTA authorization**.
 
 Pinned upstream SDK:
 
@@ -10,7 +10,16 @@ commit: 09fa2c3483b3aa2f0a6f2e2cc7e267cd6f1f9277
 MCU:    TLSR8258 / B85 path
 ```
 
-This file records the exact SDK integration points for the next implementation step. The production stager remains blocked behind the target-acceptance and transactional-rollback gates in `WIRELESS_EXTRACTION_TRANSFER.md`.
+Implemented files:
+
+```text
+glsd_transport_adapter.h/.c      stack-independent fail-closed boundary
+glsd_telink_sdk_adapter.h/.c     thin Telink binding behind GLSD_TELINK_SDK
+```
+
+The host/native build compiles a deliberate fail-closed Telink stub. Only a real
+TC32 target build with `GLSD_TELINK_SDK` defined may compile the SDK-facing
+handler.
 
 ## 1. Flash read primitive
 
@@ -20,7 +29,7 @@ Pinned source:
 tl_zigbee_sdk/proj/drivers/drv_flash.c
 ```
 
-The SDK wrapper is:
+SDK wrapper:
 
 ```c
 void flash_read(u32 addr, u32 len, u8 *buf)
@@ -29,7 +38,7 @@ void flash_read(u32 addr, u32 len, u8 *buf)
 }
 ```
 
-The extraction adapter must expose **read only** to `glsd_stager_core_t`:
+The extraction image must expose **read only** to `glsd_stager_core_t`:
 
 ```c
 static int telink_flash_read(void *user, uint32_t address, uint8_t *dst, uint32_t length)
@@ -40,9 +49,10 @@ static int telink_flash_read(void *user, uint32_t address, uint8_t *dst, uint32_
 }
 ```
 
-No `flash_write_page`, `flash_erase_sector`, `flash_erase`, boot-marker write, NV write, or factory write belongs in extraction build v1.
+No `flash_write_page`, `flash_erase_sector`, `flash_erase`, boot-marker write,
+NV write or factory write belongs in extraction build v1.
 
-## 2. Raw cluster-specific receive path
+## 2. Exact raw cluster receive path
 
 Pinned source:
 
@@ -56,22 +66,92 @@ The SDK defines:
 typedef status_t (*cluster_cmdHdlr_t)(zclIncoming_t *pInHdlrMsg);
 ```
 
-and `zclIncoming_t` exposes the raw command payload through:
+and `zclIncoming_t` retains both raw payload and APS/ZCL metadata:
 
-```c
-pInMsg->pData
-pInMsg->dataLen
-pInMsg->hdr.cmd
-pInMsg->addrInfo
+```text
+msg              apsdeDataInd_t *
+pData            raw command payload
+dataLen           raw payload length
+addrInfo.profileId
+addrInfo.srcAddr
+addrInfo.dstAddr
+addrInfo.srcEp
+addrInfo.dstEp
+addrInfo.seqNum
+addrInfo.dirCluster
+addrInfo.apsSec
+hdr.cmd
 ```
 
-This is the correct integration level for our existing pure dispatcher. Do not invent a second parser in the radio adapter. The handler should validate transport/addressing metadata, then call:
+The adapter therefore does not invent another wire parser. It normalizes those
+fields into `glsd_transport_request_t`, then the pure transport layer invokes the
+existing `glsd_stager_dispatch()`.
+
+## 3. Unicast/group/broadcast gate is now source-proven
+
+The pinned SDK provides this exact helper in `zcl.h`:
 
 ```c
-glsd_stager_dispatch(..., pInMsg->hdr.cmd, pInMsg->pData, pInMsg->dataLen, ...)
+#define UNICAST_MSG(msg) \
+    (((msg)->indInfo.dst_addr < NWK_BROADCAST_ROUTER_COORDINATOR) && \
+     (((msg)->indInfo.dst_addr_mode) != APS_SHORT_GROUPADDR_NOEP))
 ```
 
-## 3. Cluster registration
+Because `zclIncoming_t.msg` is the original `apsdeDataInd_t *`, the custom
+cluster handler can call `UNICAST_MSG(incoming->msg)` directly.
+
+`glsd_transport_handle()` then independently requires:
+
+```text
+is_unicast == true
+destination_endpoint == 11
+client_to_server == true
+```
+
+before calling the dispatcher. Group/broadcast traffic therefore cannot reach a
+READ response path.
+
+The native regression proves non-unicast, wrong-endpoint and wrong-direction
+requests do not invoke the response callback.
+
+## 4. Response route and APS security are pinned
+
+`zclIncomingAddrInfo_t` supplies the exact requester short address, source
+endpoint, profile ID, ZCL sequence and whether APS security was present.
+
+Pinned SDK precedents construct `epInfo_t` as:
+
+```text
+dstAddrMode = APS_SHORT_DSTADDR_WITHEP
+dstAddr.shortAddr = incoming source short address
+dstEp = incoming source endpoint
+profileId = incoming profile ID
+txOptions includes APS_TX_OPT_ACK_TX
+txOptions includes APS_TX_OPT_SECURITY_ENABLED when incoming apsSec is set
+```
+
+The implemented adapter follows that pattern and calls:
+
+```c
+zcl_sendCmd(
+    11,
+    &dst,
+    0xFC00,
+    response_command,
+    TRUE,
+    ZCL_FRAME_SERVER_CLIENT_DIR,
+    TRUE,
+    0,
+    incoming_zcl_sequence,
+    payload_length,
+    payload
+);
+```
+
+The payload is exactly what `glsd_stager_dispatch()` produced; the SDK adapter
+does not rebuild INFO/DATA fields.
+
+## 5. Cluster registration
 
 Pinned API:
 
@@ -87,57 +167,33 @@ status_t zcl_registerCluster(
 );
 ```
 
-The private dump cluster remains:
+The thin adapter registers:
 
 ```text
-cluster ID: 0xFC00
-endpoint:   11, unless the final stager descriptor deliberately allocates a separate endpoint
-attributes: none required for extraction v1
+endpoint:     11
+cluster ID:   0xFC00
+manufacturer: 0
+attributes:   none
 ```
 
-Registration is not sufficient by itself: the final stager simple descriptor must also advertise the chosen input cluster consistently.
+Registration is only one part of the final target application. Its simple
+descriptor must also advertise `0xFC00` as an input cluster. The final target
+project must keep its total registered cluster set within the SDK's configured
+`ZCL_CLUSTER_NUM_MAX` rather than inheriting an oversized sample profile.
 
-## 4. Response primitive
+## 6. Adapter behavior on errors
 
-Pinned API:
+`glsd_telink_sdk_adapter.c` returns `ZCL_STA_CMD_HAS_RESP` only when the pure
+transport layer successfully sent the explicit cluster response.
 
-```c
-status_t zcl_sendCmd(
-    u8 srcEp,
-    epInfo_t *pDstEpInfo,
-    u16 clusterId,
-    u8 cmd,
-    u8 specific,
-    u8 direction,
-    u8 disableDefaultRsp,
-    u16 manuCode,
-    u8 seqNo,
-    u16 cmdPldLen,
-    u8 *cmdPld
-);
-```
+Dropped or invalid requests return normal success to ZCL but produce no private
+payload. The companion host always sets `disableDefaultResponse=true`; this
+avoids accidentally turning malformed READs into a data-bearing alternate path.
 
-Telink OTA code provides the relevant response-address precedent: construct `epInfo_t` from the incoming source short address, source endpoint, and profile ID, and enable APS ACK for the unicast reply.
+If target cluster registration fails, the adapter clears its context and returns
+failure. It never falls back to a different endpoint or cluster.
 
-The adapter must send the bytes produced by `glsd_stager_dispatch()` unchanged. It must not reinterpret or rebuild INFO/DATA payloads.
-
-## 5. Hard addressing gate before the real adapter is merged
-
-Extraction v1 is intended to answer **unicast only**. Group/broadcast requests must not trigger flash-data responses.
-
-Telink's ZCL layer has an `UNICAST_MSG(...)` helper at the APS-indication level, but the exact group/broadcast discriminator available inside the custom `cluster_cmdHdlr_t(zclIncoming_t *)` path has **not yet been pinned strongly enough** from source.
-
-Therefore the real SDK adapter must remain unimplemented/disabled until one of these is proven from the pinned SDK:
-
-1. `zclIncoming_t` / `zclIncomingAddrInfo_t` directly retains destination address mode/address sufficient to reject group/broadcast; or
-2. the endpoint/AF receive hook can perform the unicast test before passing the frame into ZCL; or
-3. a narrowly scoped wrapper around `zcl_rx_handler` can preserve that APS indication bit without changing unrelated ZCL behavior.
-
-Do not guess this check and do not rely only on `session_id` as the addressing boundary.
-
-## 6. Other adapter invariants
-
-The SDK-facing adapter must preserve all existing extraction-core invariants:
+## 7. Other extraction invariants retained
 
 ```text
 - 512 KiB flash only
@@ -152,16 +208,23 @@ The SDK-facing adapter must preserve all existing extraction-core invariants:
 - no reads from MAC/NV/factory/calibration regions
 - no flash write/erase callback in extraction build
 - no rollback commands in extraction build
+- unicast only, endpoint 11 only, client-to-server only
+- APS ACK on replies; preserve incoming APS security where present
 ```
 
-## 7. Next offline implementation gate
+## 8. What remains before target compilation
 
-Before adding Telink headers to the stager build:
+The radio/addressing design is no longer the blocker. Remaining target-build
+gates are:
 
-1. pin the unicast/group distinction from the SDK source;
-2. add a mock of that addressing metadata to host-native tests;
-3. prove group/broadcast requests are rejected before `glsd_stager_dispatch()`;
-4. prove the unicast response uses the incoming source endpoint/profile and APS ACK;
-5. only then add the thin TLSR8258 adapter behind an explicit build flag.
+1. obtain a reproducible TC32 compiler/toolchain with acceptable provenance;
+2. obtain/link the required TLSR8258 low-level SDK support objects/headers;
+3. establish the exact production-module silicon/flash/board assumptions needed
+   for the target project;
+4. choose a minimal endpoint/simple-descriptor/cluster set that includes the
+   private dump cluster and the recovery/OTA path without guessing board logic;
+5. compile with `GLSD_TELINK_SDK`, then inspect the map, symbols, flash addresses
+   and forbidden write/erase references before generating any OTA container.
 
-None of the above requires touching `LivingRoomCircleLightDimmer`.
+None of those steps authorizes loading the extension or serving an image to
+`LivingRoomCircleLightDimmer`.
