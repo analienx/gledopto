@@ -92,6 +92,41 @@ be relaxed on the strength of this lineage argument. `MCU_EXACT` stays unresolve
    returned `INVALID_TELINK_CRC`. It is the corpus's only marker-bearing CRC failure and is
    sufficient to show the convention is not *universally* implied by the marker alone.
 
+## What "no container auth" may and may not be argued from
+
+Batch 1's Gate-0 item 5 listed `trailing_bytes == 0` among its reasons. That is **necessary but
+not sufficient**, and the corpus supplies the counterexample:
+
+```text
+Develco "ED - HA - Smoke Sensor Mini" 4.0.9  ->  trailing_bytes = 0, FOUR sub-elements:
+   tag 0xF000 length 18      @62      <- Telink AES-128B wrapper
+   tag 0x0000 length 201942  @86      <- the application payload
+   tag 0xF001 length 18      @202034
+   tag 0x0003 length 16      @202058
+   v2 verdict INVALID_TELINK_APP_HEADER, auth_indicator UNKNOWN_SUBELEMENT_TAGS
+```
+
+Cryptographic material can therefore sit **inside** the sub-element chain with a clean
+zero-trailing file. The GL-SD artifact's item-5 conclusion still stands, but the sound basis for
+it is the *enumeration*, not the trailing count: the Batch 1 container holds **exactly one**
+sub-element, tag `0x0000`, whose length consumes the file to EOF, leaving no room for any further
+element. That is what v2's new enumeration proves and what should be cited.
+
+Corpus-wide, the boundary is now measurable rather than assumed: the AES wrapper tag `0xF000`
+occurs as a first sub-element in a substantial minority of public containers (Develco, Hue,
+LEDVANCE, Sonoff), but in **none** of the Telink-marker population — so "no container auth" is a
+strong claim *about this SDK family* and no claim at all about Zigbee images generally.
+
+## Manufacturer code `0x124F` is not exclusive to GLEDOPTO
+
+The verified-set code tally above lists `0x124F`×11, but those are not eleven GLEDOPTO-path
+images: **one is under `images/Candeo/`** and carries `0x124F` in its outer header. So `0x124F`
+identifies a Telink-lineage manufacturer code, not "this is a GLEDOPTO product image". Combined
+with the shared `(0x124F, 0x1416)` tuple across two different GLEDOPTO physical products, the
+Batch 1 warning that tuple identity never proves compatibility is now backed by a
+cross-vendor instance of the code itself being reused. Probe gating must key on explicit target
+IEEE plus a version floor.
+
 ## Scope note
 
 This is a **container-format** baseline on **other vendors' public images**. It says nothing

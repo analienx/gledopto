@@ -1,0 +1,158 @@
+{
+  "purpose": "inner identity reliability + in-chain crypto bounding",
+  "samples": [
+    {
+      "image": "pvvx Z03MMC",
+      "path": "\\full\\pvvx__1141-020a-01393001-Z03MMC.zigbee",
+      "outer": {
+        "mfg": "0x1141",
+        "type": "0x020A",
+        "ver": "0x01393001"
+      },
+      "inner": {
+        "mfg": "0x1141",
+        "type": "0x020A",
+        "ver": "0x01393001"
+      },
+      "inner_eq_outer": true,
+      "inner_all_zero": false,
+      "result": "inner == outer"
+    },
+    {
+      "image": "Tuya OEM TL8258 plug 3.0.0",
+      "path": "\\full\\Tuya__1662545193-oem_zg_tl8258_plug_OTA_3.0.0.bin",
+      "outer": {
+        "mfg": "0x1141",
+        "type": "0xD3A3",
+        "ver": "0x000000C0"
+      },
+      "inner": {
+        "mfg": "0x0000",
+        "type": "0x0000",
+        "ver": "0x00000000"
+      },
+      "inner_eq_outer": false,
+      "inner_all_zero": true,
+      "result": "inner ALL-ZERO"
+    },
+    {
+      "image": "Innr bb262",
+      "path": "\\full\\Innr__1166-0109-17103685-rb262-1.7.16.ota",
+      "outer": {
+        "mfg": "0x1166",
+        "type": "0x0109",
+        "ver": "0x17103685"
+      },
+      "inner": {
+        "mfg": "0x1141",
+        "type": "0x0381",
+        "ver": "0x10013001"
+      },
+      "inner_eq_outer": false,
+      "inner_all_zero": false,
+      "result": "inner DIFFERS"
+    },
+    {
+      "image": "ThirdReality SmartPlug V101",
+      "path": "\\full\\ThirdReality__SmartPlug_Zigbee_PROD_OTA_V101_1.01.01.ota",
+      "outer": {
+        "mfg": "0x1233",
+        "type": "0xD3A6",
+        "ver": "0x10013065"
+      },
+      "inner": {
+        "mfg": "0x1233",
+        "type": "0xD3A6",
+        "ver": "0x0065D3A6"
+      },
+      "inner_eq_outer": false,
+      "inner_all_zero": false,
+      "result": "inner DIFFERS"
+    },
+    {
+      "image": "Yandex YNDX-00530",
+      "path": "\\full\\Yandex__132f-0212-0000000d-YNDX-00530.zigbee",
+      "outer": {
+        "mfg": "0x132F",
+        "type": "0x0212",
+        "ver": "0x0000000D"
+      },
+      "inner": {
+        "mfg": "0x132F",
+        "type": "0x0212",
+        "ver": "0x0000000D"
+      },
+      "inner_eq_outer": true,
+      "inner_all_zero": false,
+      "result": "inner == outer"
+    },
+    {
+      "image": "Candeo C-ZB-LC20v2",
+      "path": "\\full\\Candeo__C-ZB-LC20v2_V30251203_20251110.ota",
+      "outer": {
+        "mfg": "0x124F",
+        "type": "0x1419",
+        "ver": "0x32013001"
+      },
+      "inner": {
+        "mfg": "0x124F",
+        "type": "0x1419",
+        "ver": "0x32013001"
+      },
+      "inner_eq_outer": true,
+      "inner_all_zero": false,
+      "result": "inner == outer"
+    },
+    {
+      "image": "GLEDOPTO GL-C-002P",
+      "path": "\\full\\Gledopto__GL-C-002P_V20551203_20240125.ota",
+      "outer": {
+        "mfg": "0x124F",
+        "type": "0x1419",
+        "ver": "0x25013001"
+      },
+      "inner": {
+        "mfg": "0x124F",
+        "type": "0x1419",
+        "ver": "0x25013001"
+      },
+      "inner_eq_outer": true,
+      "inner_all_zero": false,
+      "result": "inner == outer"
+    }
+  ],
+  "tally": {
+    "eq_outer": 4,
+    "all_zero": 1,
+    "differs": 2
+  },
+  "develco_multi_subelement": {
+    "path": "\\bonus__Develco__ED_-_HA_-_Smoke_Sensor_Mini-4.0.9.zigbee",
+    "verdict": "INVALID_TELINK_APP_HEADER",
+    "auth_indicator": "UNKNOWN_SUBELEMENT_TAGS",
+    "trailing_bytes": 0,
+    "subelements": [
+      {
+        "tag": "0xF000",
+        "length": 18,
+        "offset": 62
+      },
+      {
+        "tag": "0x0000",
+        "length": 201942,
+        "offset": 86
+      },
+      {
+        "tag": "0xF001",
+        "length": 18,
+        "offset": 202034
+      },
+      {
+        "tag": "0x0003",
+        "length": 16,
+        "offset": 202058
+      }
+    ]
+  },
+  "conclusion": "Inner identity is build-dependent: some publishers populate it, one zeroes it, one carries a different inner version. Not a container invariant; must not be hard-gated. Separately, trailing_bytes == 0 does NOT prove absence of authentication - crypto sub-elements can sit inside the chain, as the Develco container shows."
+}
