@@ -15,6 +15,7 @@ on:
       - 'tools/telink_ota_forensics.py'
       - 'tools/make_ota_acceptance_probe.py'
       - 'tools/make_glsd_stager_index.py'
+      - 'tools/build_glsd_tc32_objects.sh'
       - 'tools/tests/test_wireless_dump.py'
       - 'tools/tests/test_wireless_dump_guard.py'
       - 'tools/tests/test_z2m_dump_integration.py'
@@ -33,6 +34,7 @@ on:
       - 'tools/telink_ota_forensics.py'
       - 'tools/make_ota_acceptance_probe.py'
       - 'tools/make_glsd_stager_index.py'
+      - 'tools/build_glsd_tc32_objects.sh'
       - 'tools/tests/test_wireless_dump.py'
       - 'tools/tests/test_wireless_dump_guard.py'
       - 'tools/tests/test_z2m_dump_integration.py'
@@ -77,6 +79,9 @@ jobs:
 
       - name: Compile Python modules
         run: python -m compileall -q tools
+
+      - name: Check offline TC32 harness shell syntax
+        run: bash -n tools/build_glsd_tc32_objects.sh
 
       - name: Check Zigbee2MQTT extension syntax and pure contract
         run: |
