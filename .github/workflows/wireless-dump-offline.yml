@@ -111,11 +111,14 @@ jobs:
       - name: Checkout supervisor branch
         uses: actions/checkout@v4
 
-      - name: Checkout pinned public Telink Zigbee SDK
+      # V3.7.2.0 is intentionally a public TLSR8258 build-MECHANICS fixture.
+      # It is not evidence that the production GL-SD-301P uses this exact SDK
+      # release, board profile, flash geometry, or power-stage wiring.
+      - name: Checkout complete public TLSR8258 mechanics fixture
         uses: actions/checkout@v4
         with:
           repository: telink-semi/telink_zigbee_sdk
-          ref: 09fa2c3483b3aa2f0a6f2e2cc7e267cd6f1f9277
+          ref: V3.7.2.0
           path: telink-sdk
 
       - name: Acquire hash-pinned official TC32 toolchain
