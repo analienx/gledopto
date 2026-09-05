@@ -620,6 +620,8 @@ def query_firmware(api: Any, device_id: str) -> dict[str, Any]:
     responses = {
         "device_v1_1": tuya_get(api, f"/v1.1/iot-03/devices/{device_id}"),
         "firmware_v2": tuya_get(api, f"/v2.0/cloud/thing/{device_id}/firmware"),
+        "firmware_progress_v2_channel_3": tuya_get(api, f"/v2.0/cloud/thing/{device_id}/firmware/3/progress"),
+        "upgrade_infos_v1": tuya_get(api, f"/v1.0/devices/{device_id}/upgrade-infos"),
         "upgrade_infos_legacy": tuya_get(api, f"/v1.0/iot-03/devices/{device_id}/upgrade-infos"),
     }
     return responses
