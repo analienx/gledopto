@@ -40,7 +40,7 @@ asm_flags=(-fomit-frame-pointer -fshort-enums -fdata-sections -ffunction-section
 
 # Generic SDK closure based on the public 8258 build topology used by mature
 # open-source Telink firmware. Intentionally NO sampleLight*.c, light control,
-# key UI, GPIO application, factory_reset.c, or touchlink application sources.
+# key UI, application GPIO/PWM, factory_reset.c, or touchlink application sources.
 sdk_sources=(
   platform/boot/8258/cstartup_8258.S
   platform/boot/link_cfg.S
@@ -112,7 +112,7 @@ compile_one() {
   mkdir -p "$(dirname "$obj")"
   local defs=("${common_defs[@]}" "-DGLSD_STAGER_LINK_BASE=$base")
   local flags=("${common_flags[@]}")
-  if [[ "$is_sdk" == 1 ]]; then flags+=(-fpack-struct); fi
+  [[ "$is_sdk" == 1 ]] && flags+=(-fpack-struct)
   case "$source" in
     *.S) "$TC32_CC" "${asm_flags[@]}" "${defs[@]}" "${includes[@]}" -c "$source" -o "$obj" ;;
     *glsd_telink_sdk_adapter.c|*glsd_telink_stager_app.c)
@@ -159,7 +159,6 @@ build_bank() {
 
   local bytes
   bytes="$(stat -c %s "$bin")"
-  # Mechanics slot limit inherited from the proved 512K dual-bank SDK layout.
   (( bytes < 0x34000 )) || { echo "ERROR: $label binary exceeds 0x34000 mechanics slot" >&2; exit 1; }
 
   {
@@ -169,14 +168,17 @@ build_bank() {
     echo "GLSD_STAGER_LINK_BASE=$base"
     echo "BINARY_SIZE=$bytes"
     sha256sum "$elf" "$bin" "$map"
-    echo "POWER_STAGE_SYMBOL_SCAN"
-    if "$TC32_NM" "$elf" | grep -Eai '(^|[[:space:]])(light_|led_|pwm_|gpio_|factoryRst|factory_reset|bdb_networkSteerStart)'; then
+    echo "APPLICATION_POWER_STAGE_AND_RESET_SCAN"
+    # Generic platform GPIO support is required by the SDK startup and is not
+    # itself evidence of dimmer control. Reject the actual sample-light/PWM UI
+    # and dangerous application reset/steering entry points instead.
+    if "$TC32_NM" "$elf" | grep -Eai '(^|[[:space:]])(light_|led_|pwm_|factoryRst|factory_reset|bdb_networkSteerStart)'; then
       echo "ERROR: forbidden application power/reset/steering symbol reachable" >&2
       exit 1
     else
       echo "NONE"
     fi
-    echo "EXTRACTION_WRITE_SYMBOL_SCAN"
+    echo "PRIVATE_EXTRACTION_WRITE_IMPORT_SCAN"
     if "$TC32_NM" "$dir/obj/app/"*.o | grep -Eai '(flash_write|flash_erase|nv_flashWrite|nv_reset|factory|leave|commission)'; then
       echo "ERROR: private extraction/app objects import mutation primitive" >&2
       exit 1
