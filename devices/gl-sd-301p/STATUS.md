@@ -1,5 +1,65 @@
 # STATUS — gl-sd-301p
 
+## 2026-09-05 — Batch 4 + supervisor host/integration implementation
+
+- Executor Batch 4 large evidence pass accepted as **PARTIAL / high-value**:
+  exact installed stack pinned at Z2M 2.14.0, ZHC 26.103.0, herdsman 10.9.1;
+  Telink SDK source pinned; 8258 dual-bank boot/CRC/marker semantics traced;
+  NV/application regions separated; native C tests + ASan/UBSan clean.
+- Supervisor independently closed the remaining host API questions from exact
+  upstream tags:
+  - herdsman private-cluster traffic uses normal controller `message` events;
+  - Z2M exposes these as `eventBus.onDeviceMessage` with rawData/TSN metadata;
+  - `Endpoint.command()` supports custom-cluster request/response waiters;
+  - ZHC `definition.ota` is boolean/metadata, **not** a custom IEEE-lock function.
+- Stronger host/integration stack implemented on `research/wireless-dump-stager`:
+  - exact-target Z2M external extension for IEEE `0xa4c13850cfcdb3a4`, EP11,
+    cluster `0xFC00`;
+  - bridge RPC exposes only PING/INFO/READ/ABORT;
+  - guarded MQTT dump CLI with fresh PING+INFO, strict retry sequence rotation,
+    crash-safe resume, chunk journal validation and final Telink CRC gate;
+  - fail-closed OTA override-index builder locked to `0x124F/0x1416`,
+    `GL-SD-301P`, GLEDOPTO, hwVersion 2 and version > `0x26013001`;
+  - intentionally bad-CRC acceptance probe is rejected by normal stager-index
+    generation.
+- Expanded offline CI passes Python 3.11 + 3.14, Node contract/syntax, native
+  GCC/cross-language tests, synthetic dropped-response end-to-end dump and OTA
+  index rejection/acceptance tests.
+- `CMD_STATUS=0x04` is now documented as **reserved/unsupported**, not an
+  implemented v1 command.
+- Watchdog policy for eventual device adapter: preserve SDK/default stack WDT
+  behavior; do not add a stager-specific disable/feed path without the exact
+  target SDK/toolchain implementation. READs remain bounded to <=48 bytes.
+
+Current gates:
+
+```text
+OTA_CONTAINER_FORENSICS       = PASS
+TELINK_CRC_CONVENTION         = PASS
+TELINK_8258_LINEAGE           = PASS / exact production revision still gated
+HOST_PERSISTENCE_GUARD        = PASS (offline CI)
+Z2M_PRIVATE_CLUSTER_TRANSPORT = PASS (source-pinned + offline contract CI)
+SYNTHETIC_END_TO_END_DUMP     = PASS
+STAGER_OTA_INDEX_GUARD        = PASS
+BOOTABLE_TC32_STAGER_BUILD    = BLOCKED
+LIVE_CUSTOM_OTA               = NO_GO
+PRODUCTION_DEVICE_MUTATION    = NO_GO
+```
+
+Remaining device-side blockers before a bootable stager can be treated as a
+real target image:
+
+1. acquire/verify a usable TC32 compiler + required 8258 low-level SDK support
+   libraries/headers under acceptable provenance;
+2. prove the production 2024/2026 module's exact flash/silicon profile before
+   relying on the historical 512-KiB lineage at runtime;
+3. establish enough current board/module configuration to build a Zigbee image
+   without guessing RF/clock/board definitions;
+4. only after those gates, build the stager and audit its linker map/forbidden
+   address references before any live acceptance decision.
+
+No new live-device mutation was authorized or performed in this phase.
+
 ## 2026-09-03 — Flash-size forensic (supervisor 5524449062): 512K confirmed
 
 - App header size field == payload size exactly; last non-0xFF byte is the
@@ -50,9 +110,6 @@
   `MCU_CONFIDENCE=medium`, `POWER_STAGE_CONTROL=UNKNOWN (single-SoC leaning)`,
   `SPARE_STILL_REQUIRED=yes`. Machine-code 8258-vs-8278 match NOT_TESTED
   (no TC32 toolchain on the executor host).
-- 07:39 review items: `action: off` CLOSED / NOT A DEVICE ANOMALY
-  (`state_action: true`). Control-path classification task superseded by the
-  07:52 pivot order; treated as resolved by the supervisor's own pivot.
 - Evidence: `evidence/phase1-forensics-20260903/`.
 - Support letter draft ready: `SUPPORT-LETTER-DRAFT.md` (user to send).
 
@@ -73,13 +130,12 @@
 
 ## Next
 
-1. **Sacrificial GL-SD-301P spare (unchanged physical gate):** unpowered
-   teardown — exact MCU/module marking (expect Telink TC32/B85-class QFN32),
-   power-stage trace (direct SoC GPIO/timer vs second MCU), SWS/debug pads,
-   full stock flash backup before any experimental write.
-2. Optional: TC32 disassembly (Ghidra + rgov/Ghidra_TELink_TC32) of the
-   historical payload + reference 8258/8278 sampleLight builds to resolve
-   8258 vs 8278 before the spare arrives.
-3. Send `SUPPORT-LETTER-DRAFT.md` to Gledopto.
-4. Firmware plan afterwards: RX-on-when-idle End Device build
+1. Acquire/prove the TC32 build toolchain and exact 8258 low-level support needed
+   to link a minimal Zigbee image; record hashes/provenance and do not install
+   unknown binaries on the HA host.
+2. Resolve production-module exact silicon/flash/board facts with read-only
+   evidence if possible; otherwise the sacrificial-spare gate remains.
+3. Build and statically audit the read-only stager only after 1–2 are satisfied.
+4. Keep the current host/Z2M stack offline until a separate live gate is opened.
+5. Firmware product plan after recovery remains RX-on-when-idle End Device
    (`ZB_ED_ROLE=1`, `ZB_ROUTER_ROLE=0`, `RX_ON_WHEN_IDLE=1`, `PM_ENABLE=0`).
