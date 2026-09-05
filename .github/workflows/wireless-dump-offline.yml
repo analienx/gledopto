@@ -103,3 +103,53 @@ jobs:
 
       - name: Run fail-closed OTA index tests
         run: python tools/tests/test_glsd_stager_index.py -v
+
+  tc32-object-proof:
+    name: Pinned Telink TC32 + TLSR8258 object proof
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout supervisor branch
+        uses: actions/checkout@v4
+
+      - name: Checkout pinned public Telink Zigbee SDK
+        uses: actions/checkout@v4
+        with:
+          repository: telink-semi/telink_zigbee_sdk
+          ref: 09fa2c3483b3aa2f0a6f2e2cc7e267cd6f1f9277
+          path: telink-sdk
+
+      - name: Acquire hash-pinned official TC32 toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          url='https://shyboy.oss-cn-shenzhen.aliyuncs.com/readonly/tc32_gcc_v2.0.tar.bz2'
+          expected='33b854be3e3db3dba4b4dacdda2cd4ea1c94dfd4d562864a095956de7991b430'
+          archive="$RUNNER_TEMP/tc32_gcc_v2.0.tar.bz2"
+          root="$RUNNER_TEMP/tc32"
+          curl --fail --location --retry 3 --output "$archive" "$url"
+          echo "$expected  $archive" | sha256sum --check --strict
+          mkdir -p "$root"
+          tar -xjf "$archive" -C "$root"
+          cc="$(find "$root" -type f -name tc32-elf-gcc -print -quit)"
+          nm="$(find "$root" -type f -name tc32-elf-nm -print -quit)"
+          test -n "$cc" && test -n "$nm"
+          chmod +x "$cc" "$nm" "$(dirname "$cc")"/* || true
+          echo "TC32_CC=$cc" >> "$GITHUB_ENV"
+          echo "TC32_NM=$nm" >> "$GITHUB_ENV"
+          "$cc" --version | head -n 1
+
+      - name: Compile all four GL-SD target objects
+        shell: bash
+        run: |
+          set -euo pipefail
+          export TELINK_SDK_ROOT="$GITHUB_WORKSPACE/telink-sdk/tl_zigbee_sdk"
+          export OUT_DIR="$RUNNER_TEMP/glsd-tc32-objects"
+          bash tools/build_glsd_tc32_objects.sh
+          cat "$OUT_DIR/build-manifest.txt"
+
+      - name: Enforce read-only import surface
+        shell: bash
+        run: |
+          set -euo pipefail
+          manifest="$RUNNER_TEMP/glsd-tc32-objects/build-manifest.txt"
+          ! grep -Eai '(^|[^[:alnum:]_])(flash_write|flash_erase|nv_flashWrite|nv_reset|factory|leave|commission|boot.*marker.*write)' "$manifest"
