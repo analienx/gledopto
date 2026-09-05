@@ -6,24 +6,36 @@ on:
       - research/wireless-dump-stager
     paths:
       - 'firmware/wireless-dump-stager/**'
+      - 'integrations/zigbee2mqtt/**'
       - 'tools/glsd_dump_protocol.py'
       - 'tools/glsd_wireless_dump_host.py'
       - 'tools/glsd_dump_session_guard.py'
+      - 'tools/glsd_z2m_bridge.py'
+      - 'tools/glsd_z2m_dump.py'
       - 'tools/telink_ota_forensics.py'
       - 'tools/make_ota_acceptance_probe.py'
+      - 'tools/make_glsd_stager_index.py'
       - 'tools/tests/test_wireless_dump.py'
       - 'tools/tests/test_wireless_dump_guard.py'
+      - 'tools/tests/test_z2m_dump_integration.py'
+      - 'tools/tests/test_glsd_stager_index.py'
       - '.github/workflows/wireless-dump-offline.yml'
   pull_request:
     paths:
       - 'firmware/wireless-dump-stager/**'
+      - 'integrations/zigbee2mqtt/**'
       - 'tools/glsd_dump_protocol.py'
       - 'tools/glsd_wireless_dump_host.py'
       - 'tools/glsd_dump_session_guard.py'
+      - 'tools/glsd_z2m_bridge.py'
+      - 'tools/glsd_z2m_dump.py'
       - 'tools/telink_ota_forensics.py'
       - 'tools/make_ota_acceptance_probe.py'
+      - 'tools/make_glsd_stager_index.py'
       - 'tools/tests/test_wireless_dump.py'
       - 'tools/tests/test_wireless_dump_guard.py'
+      - 'tools/tests/test_z2m_dump_integration.py'
+      - 'tools/tests/test_glsd_stager_index.py'
       - '.github/workflows/wireless-dump-offline.yml'
   workflow_dispatch:
 
@@ -32,7 +44,7 @@ permissions:
 
 jobs:
   offline-regression:
-    name: Python ${{ matrix.python-version }} + native GCC
+    name: Python ${{ matrix.python-version }} + native GCC + Z2M contract
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -50,16 +62,34 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
 
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
       - name: Show toolchain
         run: |
           python --version
+          node --version
           gcc --version
 
       - name: Compile Python modules
         run: python -m compileall -q tools
+
+      - name: Check Zigbee2MQTT extension syntax and pure contract
+        run: |
+          node --check integrations/zigbee2mqtt/glsd_wireless_dump_contract.mjs
+          node --check integrations/zigbee2mqtt/glsd_wireless_dump_extension.mjs
+          node integrations/zigbee2mqtt/test_glsd_wireless_dump_contract.mjs
 
       - name: Run protocol, host, native C and cross-language tests
         run: python tools/tests/test_wireless_dump.py -v
 
       - name: Run guarded-session tests
         run: python tools/tests/test_wireless_dump_guard.py -v
+
+      - name: Run synthetic Z2M end-to-end tests
+        run: python tools/tests/test_z2m_dump_integration.py -v
+
+      - name: Run fail-closed OTA index tests
+        run: python tools/tests/test_glsd_stager_index.py -v
