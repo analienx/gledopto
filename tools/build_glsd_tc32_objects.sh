@@ -42,12 +42,15 @@ fi
 mkdir -p "$OUT_DIR"
 rm -f "$OUT_DIR"/*.o "$OUT_DIR"/build-manifest.txt
 
-# Telink's legacy TC32 environment uses these guards around its size_t surface.
-# Batch-5 independently reproduced the clash without them. Keep them confined
-# to this target mechanics harness rather than polluting portable source.
-defines=(
+# Common target identity. Do NOT globally predefine the legacy size_t guards:
+# the portable core includes <stddef.h> directly and needs the compiler's own
+# size_t typedef. The guards are required only for the adapter translation unit,
+# where Telink headers establish their legacy type surface before our headers.
+base_defines=(
   -DGLSD_TELINK_SDK
   -DMCU_CORE_8258=1
+)
+adapter_defines=(
   -D_SIZE_T
   -D_SIZE_T_
   -D__SIZE_T
@@ -93,13 +96,18 @@ sources=(
   fi
   echo "COMPILER=$TC32_CC"
   "$TC32_CC" --version | head -n 1 | sed 's/^/COMPILER_VERSION=/'
-  printf 'DEFINES='; printf '%q ' "${defines[@]}"; echo
+  printf 'BASE_DEFINES='; printf '%q ' "${base_defines[@]}"; echo
+  printf 'ADAPTER_ONLY_DEFINES='; printf '%q ' "${adapter_defines[@]}"; echo
   printf 'CFLAGS='; printf '%q ' "${cflags[@]}"; echo
 } | tee "$OUT_DIR/build-manifest.txt"
 
 for name in "${sources[@]}"; do
   src="$SRC/$name"
   obj="$OUT_DIR/${name%.c}.o"
+  defines=("${base_defines[@]}")
+  if [[ "$name" == "glsd_telink_sdk_adapter.c" ]]; then
+    defines+=("${adapter_defines[@]}")
+  fi
   echo "[TC32] $name"
   "$TC32_CC" "${cflags[@]}" "${defines[@]}" "${includes[@]}" -I"$SRC" -c "$src" -o "$obj"
   if command -v sha256sum >/dev/null 2>&1; then
