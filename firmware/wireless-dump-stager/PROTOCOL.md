@@ -1,12 +1,15 @@
 # GL-SD wireless dump protocol v1
 
-Status: **offline/host implementation; no live production OTA authorized**.
+Status: **device-independent core + host/Z2M integration implemented and offline-tested; no live production OTA authorized**.
 
 The extraction protocol is intentionally read-only. There is no command in the
 v1 extraction build that can erase/write flash, change a boot marker, factory
-reset, or mutate Zigbee network/factory/MAC/calibration storage.
+reset, alter bindings/groups, or mutate Zigbee network/factory/MAC/calibration
+storage.
 
 Transport target: cluster-specific ZCL on private cluster `0xFC00`, unicast only.
+The current host bridge is additionally compile-time locked to IEEE
+`0xa4c13850cfcdb3a4`, endpoint `11`.
 
 ## Constants
 
@@ -24,15 +27,20 @@ maximum, not a throughput target.
 
 ## Commands
 
+Implemented v1 request IDs:
+
 ```text
 0x00 PING
 0x01 INFO
 0x02 READ
 0x03 ABORT
-0x04 STATUS
 ```
 
-Responses use `request | 0x80` when implemented.
+Responses use `request | 0x80`.
+
+`0x04 STATUS` remains reserved in source constants but is deliberately
+**unsupported by the dispatcher**. It must not be advertised as an implemented
+wire command until a concrete read-only response contract and tests are added.
 
 Rollback commands are deliberately **not** part of the extraction build. They
 belong to a separately gated canary-only rollback build after the transactional
@@ -40,13 +48,29 @@ journal has been fault-injection tested.
 
 ## PING
 
-Request carries protocol version + host nonce. Response echoes the nonce and
-adds stager build/session identity. The host must use this to reject stale
-responses from another session.
+Request:
+
+```text
+protocol_version : u8
+host_nonce       : u32 LE
+```
+
+Response:
+
+```text
+protocol_version : u8
+host_nonce       : u32 LE
+tager_build_id   : u32 LE
+session_id       : u32 LE
+```
+
+The host requires the echoed nonce and protocol version, then cross-checks the
+PING build/session IDs against a fresh INFO response. This rejects stale or
+cross-session responses before any READ is issued.
 
 ## INFO
 
-INFO must expose at least:
+INFO exposes:
 
 ```text
 protocol_version
@@ -71,12 +95,18 @@ rollback_compiled
 
 Host-side `validate_info()` fails closed unless:
 
+- protocol version is exact;
 - flash size is exactly the proved 512-KiB profile;
 - banks are exactly `0x00000` and `0x40000`;
 - old bank is opposite the executing stager bank;
-- declared old application size is `>=0x1C` and `<0x34000`;
+- executing stager marker is valid and old bank marker has the expected Telink
+  post-OTA invalidated shape;
+- declared old application size is `>=0x20` and `<0x34000`;
 - read range begins at relative offset zero and equals the declared app size;
 - the stager already verified the reconstructed old-bank Telink CRC.
+
+Resume state is bound to the complete validated INFO geometry, target IEEE,
+protocol/build/session identity and chunk size.
 
 ## READ
 
@@ -97,19 +127,42 @@ seq        : u32
 offset     : u32
 length     : u8
 data       : u8[length]
-crc32      : u32   # CRC32 of data only
+crc32      : u32   # standard finalized CRC32 of data only
 status     : u8    # zero = success
 ```
 
-Only one outstanding READ is expected in v1.
+Only one READ may be outstanding in the guarded live v1 path.
 
-The stager must reject any request whose range is outside the old application's
-declared size or outside the proved application slot. NV/MAC/factory/calibration
-regions are never readable through this protocol.
+A sequence number is fsynced to guarded host state **before** the corresponding
+request may be emitted. Sequences are strictly increasing across retries and
+process restarts. A retry therefore replaces the pending request with a higher
+sequence; a late response to the previous request cannot match.
+
+The stager rejects any request outside the old application's declared size or
+the proved application slot. NV/MAC/factory/calibration regions are never
+readable through this protocol.
+
+## ABORT
+
+ABORT carries no payload and is a read-only transport no-op in v1. It does not
+erase data, change a marker, reset the device or alter network state.
+
+## Live Z2M correlation
+
+The version-pinned Zigbee2MQTT bridge uses herdsman's normal
+`Endpoint.command()` response waiter. This supplies the first correlation
+layer: address/endpoint/cluster/response-command/ZCL-TSN matching.
+
+The protocol supplies an independent second layer: the guarded host requires
+`session_id + seq + offset + length` to match its single persisted pending READ
+exactly before a DATA frame is ingested.
+
+The bridge itself exposes only PING/INFO/READ/ABORT and is compile-time locked
+to the target IEEE, endpoint and cluster.
 
 ## Host persistence
 
-The host persists:
+Lower persistent store:
 
 ```text
 session.json
@@ -121,12 +174,33 @@ reconstructed_stock.bin
 validation.json
 ```
 
-A chunk is marked received only after its bytes have been written and flushed.
-Duplicate chunks are accepted only when the bytes on disk match exactly.
+Live-session guard:
 
-Finalization requires every chunk, reconstructs only relative byte `+0x08`
-from `0x00` to `0x4B`, requires that to be the **only** reconstruction diff,
-then validates:
+```text
+guarded_session.json
+```
+
+For each accepted chunk the lower store persists, in order:
+
+1. bytes into the partial image + `fsync`;
+2. SHA-256/CRC/offset/length journal row + `fsync`;
+3. received bitmap via atomic replace.
+
+On resume every bitmap-committed chunk is reread and must match its fsynced
+journal SHA-256 and CRC32. Journal-only rows are safe after a crash before
+bitmap commit. A crash after the lower store commits but before the caller
+returns is recoverable because received state is derived from the lower store;
+protocol sequence state was already persisted before request transmission.
+
+Duplicate chunks are accepted by the lower offline primitive only when the bytes
+on disk match exactly. In the guarded live layer a stale duplicate with no
+current pending request is rejected.
+
+## Finalization
+
+Finalization requires every chunk and no outstanding READ. It reconstructs only
+relative byte `+0x08` from `0x00` to `0x4B`, requires that to be the **only**
+reconstruction diff, then validates:
 
 ```text
 fw[6:8] == 5D 02
