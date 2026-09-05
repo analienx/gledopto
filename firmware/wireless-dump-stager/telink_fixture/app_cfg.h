@@ -73,7 +73,9 @@
 #define ZCL_WWAH_SUPPORT                        0
 #define AF_TEST_ENABLE                          0
 
+/* mac_phy.c unconditionally uses the ED-scan poll slot. HCI stays disabled. */
 typedef enum {
+    EV_POLL_ED_DETECT,
     EV_POLL_IDLE,
     EV_POLL_MAX,
 } ev_poll_e;
