@@ -1,0 +1,65 @@
+name: Wireless dump offline regression
+
+on:
+  push:
+    branches:
+      - research/wireless-dump-stager
+    paths:
+      - 'firmware/wireless-dump-stager/**'
+      - 'tools/glsd_dump_protocol.py'
+      - 'tools/glsd_wireless_dump_host.py'
+      - 'tools/glsd_dump_session_guard.py'
+      - 'tools/telink_ota_forensics.py'
+      - 'tools/make_ota_acceptance_probe.py'
+      - 'tools/tests/test_wireless_dump.py'
+      - 'tools/tests/test_wireless_dump_guard.py'
+      - '.github/workflows/wireless-dump-offline.yml'
+  pull_request:
+    paths:
+      - 'firmware/wireless-dump-stager/**'
+      - 'tools/glsd_dump_protocol.py'
+      - 'tools/glsd_wireless_dump_host.py'
+      - 'tools/glsd_dump_session_guard.py'
+      - 'tools/telink_ota_forensics.py'
+      - 'tools/make_ota_acceptance_probe.py'
+      - 'tools/tests/test_wireless_dump.py'
+      - 'tools/tests/test_wireless_dump_guard.py'
+      - '.github/workflows/wireless-dump-offline.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  offline-regression:
+    name: Python ${{ matrix.python-version }} + native GCC
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version:
+          - '3.11'
+          - '3.14'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Show toolchain
+        run: |
+          python --version
+          gcc --version
+
+      - name: Compile Python modules
+        run: python -m compileall -q tools
+
+      - name: Run protocol, host, native C and cross-language tests
+        run: python tools/tests/test_wireless_dump.py -v
+
+      - name: Run guarded-session tests
+        run: python tools/tests/test_wireless_dump_guard.py -v
