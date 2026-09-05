@@ -167,7 +167,7 @@ Lower persistent store:
 ```text
 session.json
 raw_after_ota.bin.part
-received.bitmap.jsonl
+received.bitmap.json
 chunk_checksums.jsonl
 raw_after_ota.bin
 reconstructed_stock.bin
