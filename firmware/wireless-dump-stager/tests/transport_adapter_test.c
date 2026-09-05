@@ -3,12 +3,14 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "glsd_stager_dispatch.h"
 #include "glsd_transport_adapter.h"
 
 #define ARRAY_LEN(x) (sizeof(x) / sizeof((x)[0]))
 
 typedef struct {
     int calls;
+    uint8_t aps_secured;
     uint16_t profile_id;
     uint16_t destination_short_addr;
     uint8_t destination_endpoint;
@@ -21,6 +23,7 @@ typedef struct {
 
 static int capture_send(
     void *user,
+    uint8_t aps_secured,
     uint16_t profile_id,
     uint16_t destination_short_addr,
     uint8_t destination_endpoint,
@@ -34,6 +37,7 @@ static int capture_send(
     assert(capture != NULL);
     assert(payload_length <= sizeof(capture->payload));
     ++capture->calls;
+    capture->aps_secured = aps_secured;
     capture->profile_id = profile_id;
     capture->destination_short_addr = destination_short_addr;
     capture->destination_endpoint = destination_endpoint;
@@ -53,6 +57,7 @@ static glsd_transport_request_t base_request(const uint8_t *payload, size_t payl
     memset(&request, 0, sizeof(request));
     request.is_unicast = 1u;
     request.client_to_server = 1u;
+    request.aps_secured = 1u;
     request.profile_id = 0x0104u;
     request.source_short_addr = 0x1234u;
     request.source_endpoint = 1u;
@@ -102,6 +107,7 @@ int main(void) {
     rc = glsd_transport_handle(&ctx, &request, capture_send, &capture);
     assert(rc == GLSD_TRANSPORT_OK);
     assert(capture.calls == 1);
+    assert(capture.aps_secured == request.aps_secured);
     assert(capture.profile_id == request.profile_id);
     assert(capture.destination_short_addr == request.source_short_addr);
     assert(capture.destination_endpoint == request.source_endpoint);
