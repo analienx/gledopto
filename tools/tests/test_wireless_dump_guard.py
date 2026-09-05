@@ -107,9 +107,35 @@ class GuardedDumpTests(unittest.TestCase):
             obj.ingest_response(current)
             self.assertIn(0, obj.inner.received)
 
+    def test_sequence_non_reuse_persists_across_restart(self):
+        info = make_info()
+        with tempfile.TemporaryDirectory() as td:
+            state = Path(td) / "s"
+            obj = guard.GuardedPersistentDump.create(
+                state, info=info, target_ieee="fixture"
+            )
+            obj.next_request(seq=7)
+            obj = guard.GuardedPersistentDump.open(
+                state, info=info, target_ieee="fixture"
+            )
+            self.assertEqual(obj.ledger.last_issued_seq, 7)
+            with self.assertRaises(ValueError):
+                obj.next_request(seq=7)
+            req = obj.next_request(seq=8)
+            self.assertEqual(req.seq, 8)
+
+    def test_auto_sequence_is_monotonic_for_retry(self):
+        info = make_info()
+        with tempfile.TemporaryDirectory() as td:
+            obj = guard.GuardedPersistentDump.create(
+                Path(td) / "s", info=info, target_ieee="fixture"
+            )
+            first = obj.next_request()
+            second = obj.retry()
+            self.assertEqual(second.seq, first.seq + 1)
+
     def test_resume_is_bound_to_fresh_info_session_and_geometry(self):
         info = make_info()
-        state = None
         with tempfile.TemporaryDirectory() as td:
             state = Path(td) / "s"
             obj = guard.GuardedPersistentDump.create(
@@ -123,6 +149,7 @@ class GuardedDumpTests(unittest.TestCase):
                 state, info=info, target_ieee="fixture"
             )
             self.assertEqual(reopened.inner.received, {0})
+            self.assertEqual(reopened.ledger.last_issued_seq, 1)
 
             with self.assertRaises(ValueError):
                 guard.GuardedPersistentDump.open(
@@ -141,7 +168,33 @@ class GuardedDumpTests(unittest.TestCase):
                     state, info=info, target_ieee="different-ieee"
                 )
 
-    def test_bitmap_manifest_mix_is_rejected(self):
+    def test_crash_after_lower_commit_is_resumable(self):
+        info = make_info(old_size=96)
+        with tempfile.TemporaryDirectory() as td:
+            state = Path(td) / "s"
+            obj = guard.GuardedPersistentDump.create(
+                state, info=info, target_ieee="fixture"
+            )
+            req = obj.next_request(seq=20)
+            payload = proto.DataFrame(
+                info.session_id, req.seq, req.offset, b"A" * req.length
+            ).encode()
+
+            # Simulate a process/power failure after the lower persistent store
+            # committed data+journal+bitmap but before the guard cleared pending.
+            obj.inner.ingest(payload)
+
+            reopened = guard.GuardedPersistentDump.open(
+                state, info=info, target_ieee="fixture"
+            )
+            self.assertEqual(reopened.inner.received, {0})
+            self.assertEqual(reopened.ledger.last_issued_seq, 20)
+            with self.assertRaises(ValueError):
+                reopened.ingest_response(payload)
+            nxt = reopened.next_request(seq=21)
+            self.assertEqual((nxt.offset, nxt.length), (48, 48))
+
+    def test_bitmap_without_committed_checksum_is_rejected(self):
         info = make_info()
         with tempfile.TemporaryDirectory() as td:
             state = Path(td) / "s"
@@ -151,6 +204,26 @@ class GuardedDumpTests(unittest.TestCase):
             bitmap = json.loads((state / "received.bitmap.json").read_text())
             bitmap["received_offsets"] = [0]
             (state / "received.bitmap.json").write_text(json.dumps(bitmap))
+            with self.assertRaises(ValueError):
+                guard.GuardedPersistentDump.open(
+                    state, info=info, target_ieee="fixture"
+                )
+
+    def test_persisted_chunk_corruption_is_rejected_on_open(self):
+        info = make_info()
+        with tempfile.TemporaryDirectory() as td:
+            state = Path(td) / "s"
+            obj = guard.GuardedPersistentDump.create(
+                state, info=info, target_ieee="fixture"
+            )
+            req = obj.next_request(seq=30)
+            obj.ingest_response(
+                proto.DataFrame(info.session_id, req.seq, 0, b"A" * 48).encode()
+            )
+            part = state / "raw_after_ota.bin.part"
+            data = bytearray(part.read_bytes())
+            data[0] ^= 0xFF
+            part.write_bytes(data)
             with self.assertRaises(ValueError):
                 guard.GuardedPersistentDump.open(
                     state, info=info, target_ieee="fixture"
@@ -174,6 +247,16 @@ class GuardedDumpTests(unittest.TestCase):
                 proto.DataFrame(info.session_id, 3, 96, b"B" * 4).encode()
             )
             self.assertEqual(obj.missing_offsets(), [])
+
+    def test_finalize_with_pending_read_is_rejected(self):
+        info = make_info()
+        with tempfile.TemporaryDirectory() as td:
+            obj = guard.GuardedPersistentDump.create(
+                Path(td) / "s", info=info, target_ieee="fixture"
+            )
+            obj.next_request(seq=1)
+            with self.assertRaises(ValueError):
+                obj.finalize()
 
 
 if __name__ == "__main__":
