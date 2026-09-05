@@ -21,6 +21,7 @@ extern "C" {
 typedef struct {
     uint8_t is_unicast;
     uint8_t client_to_server;
+    uint8_t aps_secured;
     uint16_t profile_id;
     uint16_t source_short_addr;
     uint8_t source_endpoint;
@@ -33,6 +34,7 @@ typedef struct {
 
 typedef int (*glsd_transport_send_fn)(
     void *user,
+    uint8_t aps_secured,
     uint16_t profile_id,
     uint16_t destination_short_addr,
     uint8_t destination_endpoint,
