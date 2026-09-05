@@ -16,6 +16,7 @@ on:
       - 'tools/make_ota_acceptance_probe.py'
       - 'tools/make_glsd_stager_index.py'
       - 'tools/build_glsd_tc32_objects.sh'
+      - 'tools/build_glsd_tc32_link_probe.sh'
       - 'tools/tests/test_wireless_dump.py'
       - 'tools/tests/test_wireless_dump_guard.py'
       - 'tools/tests/test_z2m_dump_integration.py'
@@ -35,6 +36,7 @@ on:
       - 'tools/make_ota_acceptance_probe.py'
       - 'tools/make_glsd_stager_index.py'
       - 'tools/build_glsd_tc32_objects.sh'
+      - 'tools/build_glsd_tc32_link_probe.sh'
       - 'tools/tests/test_wireless_dump.py'
       - 'tools/tests/test_wireless_dump_guard.py'
       - 'tools/tests/test_z2m_dump_integration.py'
@@ -60,67 +62,53 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
-
       - name: Set up Node
         uses: actions/setup-node@v4
         with:
           node-version: '24'
-
       - name: Show toolchain
         run: |
           python --version
           node --version
           gcc --version
-
       - name: Compile Python modules
         run: python -m compileall -q tools
-
       - name: Check offline TC32 harness shell syntax
-        run: bash -n tools/build_glsd_tc32_objects.sh
-
+        run: |
+          bash -n tools/build_glsd_tc32_objects.sh
+          bash -n tools/build_glsd_tc32_link_probe.sh
       - name: Check Zigbee2MQTT extension syntax and pure contract
         run: |
           node --check integrations/zigbee2mqtt/glsd_wireless_dump_contract.mjs
           node --check integrations/zigbee2mqtt/glsd_wireless_dump_extension.mjs
           node integrations/zigbee2mqtt/test_glsd_wireless_dump_contract.mjs
-
       - name: Run protocol, host, native C and cross-language tests
         run: python tools/tests/test_wireless_dump.py -v
-
       - name: Run guarded-session tests
         run: python tools/tests/test_wireless_dump_guard.py -v
-
       - name: Run radio transport adapter tests
         run: python tools/tests/test_transport_adapter.py -v
-
       - name: Run synthetic Z2M end-to-end tests
         run: python tools/tests/test_z2m_dump_integration.py -v
-
       - name: Run fail-closed OTA index tests
         run: python tools/tests/test_glsd_stager_index.py -v
 
   tc32-object-proof:
-    name: Pinned Telink TC32 + TLSR8258 object proof
+    name: Pinned Telink TC32 + TLSR8258 object/link proof
     runs-on: ubuntu-latest
     steps:
       - name: Checkout supervisor branch
         uses: actions/checkout@v4
-
-      # V3.7.2.0 is intentionally a public TLSR8258 build-MECHANICS fixture.
-      # It is not evidence that the production GL-SD-301P uses this exact SDK
-      # release, board profile, flash geometry, or power-stage wiring.
       - name: Checkout complete public TLSR8258 mechanics fixture
         uses: actions/checkout@v4
         with:
           repository: telink-semi/telink_zigbee_sdk
           ref: V3.7.2.0
           path: telink-sdk
-
       - name: Acquire hash-pinned official TC32 toolchain
         shell: bash
         run: |
@@ -133,15 +121,13 @@ jobs:
           echo "$expected  $archive" | sha256sum --check --strict
           mkdir -p "$root"
           tar -xjf "$archive" -C "$root"
-          cc="$(find "$root" -type f -name tc32-elf-gcc -print -quit)"
-          nm="$(find "$root" -type f -name tc32-elf-nm -print -quit)"
-          test -n "$cc" && test -n "$nm"
-          chmod +x "$cc" "$nm" "$(dirname "$cc")"/* || true
-          echo "TC32_CC=$cc" >> "$GITHUB_ENV"
-          echo "TC32_NM=$nm" >> "$GITHUB_ENV"
-          "$cc" --version | head -n 1
-
-      - name: Compile all four GL-SD target objects
+          bindir="$(dirname "$(find "$root" -type f -name tc32-elf-gcc -print -quit)")"
+          test -x "$bindir/tc32-elf-gcc"
+          chmod +x "$bindir"/* || true
+          echo "TC32_CC=$bindir/tc32-elf-gcc" >> "$GITHUB_ENV"
+          echo "TC32_NM=$bindir/tc32-elf-nm" >> "$GITHUB_ENV"
+          "$bindir/tc32-elf-gcc" --version | head -n 1
+      - name: Compile minimal GL-SD target objects
         shell: bash
         run: |
           set -euo pipefail
@@ -149,10 +135,18 @@ jobs:
           export OUT_DIR="$RUNNER_TEMP/glsd-tc32-objects"
           bash tools/build_glsd_tc32_objects.sh
           cat "$OUT_DIR/build-manifest.txt"
-
-      - name: Enforce read-only import surface
+      - name: Enforce private extraction read-only import surface
         shell: bash
         run: |
           set -euo pipefail
           manifest="$RUNNER_TEMP/glsd-tc32-objects/build-manifest.txt"
-          ! grep -Eai '(^|[^[:alnum:]_])(flash_write|flash_erase|nv_flashWrite|nv_reset|factory|leave|commission|boot.*marker.*write)' "$manifest"
+          ! grep -Eai '(^|[^[:alnum:]_])(flash_write|flash_erase|nv_flashWrite|nv_reset|factory|leave|boot.*marker.*write)' "$manifest"
+      - name: Link non-deployable stager mechanics for both banks
+        shell: bash
+        run: |
+          set -euo pipefail
+          export TELINK_SDK_ROOT="$GITHUB_WORKSPACE/telink-sdk/tl_zigbee_sdk"
+          export OUT_DIR="$RUNNER_TEMP/glsd-tc32-link"
+          bash tools/build_glsd_tc32_link_probe.sh
+          cat "$OUT_DIR/bank_a/manifest.txt"
+          cat "$OUT_DIR/bank_b/manifest.txt"
