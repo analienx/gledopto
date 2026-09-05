@@ -11,7 +11,6 @@ extern "C" {
 #endif
 
 #define GLSD_DUMP_ENDPOINT 11u
-#define GLSD_DUMP_CLUSTER_ID 0xFC00u
 
 /*
  * Radio/stack-independent metadata normalized by a concrete SDK adapter.
