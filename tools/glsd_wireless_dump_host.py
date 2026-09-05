@@ -9,6 +9,7 @@ Telink application CRC validates.
 from __future__ import annotations
 
 import argparse
+import binascii
 import hashlib
 import importlib.util
 import json
@@ -95,6 +96,9 @@ class PersistentDump:
             f.flush()
             os.fsync(f.fileno())
         _atomic_json(state_dir / BITMAP_JSON, {"received_offsets": []})
+        with (state_dir / CHECKSUMS_JSONL).open("w", encoding="utf-8") as f:
+            f.flush()
+            os.fsync(f.fileno())
         return obj
 
     @classmethod
@@ -107,6 +111,7 @@ class PersistentDump:
         part = state_dir / PARTIAL_BIN
         if not part.exists() or part.stat().st_size != obj.total_len:
             raise ValueError("partial file missing or wrong size")
+        obj._validate_persisted_chunks()
         return obj
 
     @property
@@ -117,6 +122,76 @@ class PersistentDump:
         for off in self.received:
             if off < 0 or off >= self.total_len or off % self.chunk_size:
                 raise ValueError(f"invalid persisted offset {off}")
+
+    def _read_checksum_records(self) -> dict[int, list[dict[str, Any]]]:
+        path = self.state_dir / CHECKSUMS_JSONL
+        if not path.exists():
+            if self.received:
+                raise ValueError("checksum journal missing for persisted chunks")
+            return {}
+        records: dict[int, list[dict[str, Any]]] = {}
+        for lineno, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+            if not line.strip():
+                continue
+            try:
+                rec = json.loads(line)
+                off = int(rec["offset"])
+                length = int(rec["length"])
+                sha256 = str(rec["sha256"])
+                crc32 = str(rec["crc32"])
+            except (KeyError, TypeError, ValueError, json.JSONDecodeError) as exc:
+                raise ValueError(f"invalid checksum journal record at line {lineno}") from exc
+            if off < 0 or off >= self.total_len or off % self.chunk_size:
+                raise ValueError(f"checksum journal has invalid offset {off}")
+            expected_len = min(self.chunk_size, self.total_len - off)
+            if length != expected_len:
+                raise ValueError(f"checksum journal has invalid length at offset {off}")
+            if len(sha256) != 64:
+                raise ValueError(f"checksum journal has invalid sha256 at offset {off}")
+            try:
+                int(sha256, 16)
+                int(crc32, 16)
+            except ValueError as exc:
+                raise ValueError(f"checksum journal has malformed digest at offset {off}") from exc
+            records.setdefault(off, []).append(rec)
+        return records
+
+    def _validate_persisted_chunks(self) -> None:
+        """Prove every bitmap-committed chunk still matches the fsynced journal.
+
+        The journal is written before the bitmap. Therefore extra journal rows are
+        legitimate after a crash before bitmap commit and are ignored for resume.
+        Any bitmap-committed offset, however, must have a consistent journal record
+        and the current bytes on disk must match its SHA-256 and CRC32.
+        """
+        records = self._read_checksum_records()
+        part = self.state_dir / PARTIAL_BIN
+        with part.open("rb") as f:
+            for off in sorted(self.received):
+                expected_len = min(self.chunk_size, self.total_len - off)
+                rows = records.get(off)
+                if not rows:
+                    raise ValueError(f"persisted chunk {off} has no checksum journal record")
+                row_pairs = {
+                    (str(r["sha256"]).lower(), str(r["crc32"]).lower()) for r in rows
+                }
+                if len(row_pairs) != 1:
+                    raise ValueError(f"conflicting checksum journal history at offset {off}")
+                expected_sha, expected_crc_text = next(iter(row_pairs))
+                f.seek(off)
+                data = f.read(expected_len)
+                if len(data) != expected_len:
+                    raise ValueError(f"persisted chunk {off} is truncated")
+                actual_sha = hashlib.sha256(data).hexdigest()
+                actual_crc = binascii.crc32(data) & 0xFFFFFFFF
+                if actual_sha != expected_sha:
+                    raise ValueError(f"persisted chunk {off} sha256 mismatch")
+                try:
+                    expected_crc = int(expected_crc_text, 16) & 0xFFFFFFFF
+                except ValueError as exc:
+                    raise ValueError(f"persisted chunk {off} crc32 is malformed") from exc
+                if actual_crc != expected_crc:
+                    raise ValueError(f"persisted chunk {off} crc32 mismatch")
 
     def missing_offsets(self) -> list[int]:
         return [
@@ -182,6 +257,7 @@ class PersistentDump:
         if missing:
             raise ValueError(f"dump incomplete; {len(missing)} chunks missing")
 
+        self._validate_persisted_chunks()
         raw = (self.state_dir / PARTIAL_BIN).read_bytes()
         if len(raw) != self.total_len:
             raise ValueError("partial dump size changed unexpectedly")
