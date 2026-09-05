@@ -21,10 +21,12 @@ OUT_DIR="${OUT_DIR:-${TMPDIR:-/tmp}/glsd-tc32-objects}"
 
 SDK="$(cd "$TELINK_SDK_ROOT" && pwd)"
 APP_CFG_DIR="$SDK/apps/zigbee/sampleLight"
+APP_COMMON_DIR="$SDK/apps/common"
 
 required=(
   "$SDK/proj/tl_common.h"
   "$APP_CFG_DIR/app_cfg.h"
+  "$APP_COMMON_DIR/comm_cfg.h"
   "$SDK/stack/zigbee/zbapi/zb_api.h"
 )
 for f in "${required[@]}"; do
@@ -58,10 +60,10 @@ adapter_defines=(
 )
 
 # Header layout varies slightly across public Telink revisions. Instead of
-# embedding an Eclipse-only include list, use every SDK/application directory
-# that actually contains headers. This is deterministic for a pinned checkout
-# and avoids silently substituting host headers for Telink headers.
-includes=(-I"$APP_CFG_DIR" -I"$SDK/proj")
+# embedding an Eclipse-only include list, use the two public app header roots
+# plus every SDK directory that actually contains headers. This is deterministic
+# for a pinned checkout and avoids silently substituting host headers.
+includes=(-I"$APP_CFG_DIR" -I"$APP_COMMON_DIR" -I"$SDK/proj")
 while IFS= read -r -d '' d; do
   includes+=("-I$d")
 done < <(find "$SDK/proj" "$SDK/platform" "$SDK/stack" -type d -print0 | sort -z)
