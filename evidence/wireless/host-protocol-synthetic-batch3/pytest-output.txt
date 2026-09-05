@@ -1,0 +1,46 @@
+============================= test session starts =============================
+platform win32 -- Python 3.14.4, pytest-9.1.1, pluggy-1.6.0 -- C:\Users\jakub\AppData\Local\Programs\Python\Python314\python.exe
+cachedir: .pytest_cache
+rootdir: C:\Users\jakub\OneDrive\Projects\Gledopto
+plugins: anyio-4.13.0, cov-7.1.0
+collecting ... collected 4 items
+
+tools/tests/test_host_protocol.py::test_build_read_req FAILED            [ 25%]
+tools/tests/test_host_protocol.py::test_parse_read_rsp_valid FAILED      [ 50%]
+tools/tests/test_host_protocol.py::test_parse_read_rsp_bad_crc FAILED    [ 75%]
+tools/tests/test_host_protocol.py::test_resume_bitmap PASSED             [100%]
+
+================================== FAILURES ===================================
+_____________________________ test_build_read_req _____________________________
+
+    def test_build_read_req():
+        req = build_read_req(region=0, offset=0x1000, length=48, sequence=1)
+>       assert len(req) == 9
+E       AssertionError: assert 8 == 9
+E        +  where 8 = len(b'\x00\x00\x10\x00\x000\x01\x00')
+
+tools\tests\test_host_protocol.py:8: AssertionError
+__________________________ test_parse_read_rsp_valid __________________________
+
+    def test_parse_read_rsp_valid():
+        payload = b'A' * 48
+        crc = xcrc32(payload)
+>       rsp = struct.pack("<HBIB", 1, 0, 0x1000, 48) + payload + struct.pack("<I", crc)
+              ^^^^^^
+E       NameError: name 'struct' is not defined. Did you forget to import 'struct'?
+
+tools\tests\test_host_protocol.py:14: NameError
+_________________________ test_parse_read_rsp_bad_crc _________________________
+
+    def test_parse_read_rsp_bad_crc():
+        payload = b'A' * 48
+>       rsp = struct.pack("<HBIB", 1, 0, 0x1000, 48) + payload + struct.pack("<I", 0xDEADBEEF)
+              ^^^^^^
+E       NameError: name 'struct' is not defined. Did you forget to import 'struct'?
+
+tools\tests\test_host_protocol.py:22: NameError
+=========================== short test summary info ===========================
+FAILED tools/tests/test_host_protocol.py::test_build_read_req - AssertionErro...
+FAILED tools/tests/test_host_protocol.py::test_parse_read_rsp_valid - NameErr...
+FAILED tools/tests/test_host_protocol.py::test_parse_read_rsp_bad_crc - NameE...
+========================= 3 failed, 1 passed in 0.13s =========================

@@ -1,0 +1,31 @@
+=== 1. build_read_req vs the frozen spec (READ_REQ: u8,u32,u8,u16 = 8 bytes) ===
+   emitted        b'\x00\x00\x10\x00\x000\x01\x00'  (8 bytes)
+   spec size      8 bytes  -> CONFORMS
+   round-trip     region=0 offset=0x1000 length=48 sequence=1  -> fields decode exactly
+   the test's own literal b'\x00\x00\x10\x00\x00\x30\x01\x00' is 8 bytes
+   => literal is CORRECT; `assert len(req) == 9` is the faulty line.
+
+=== 2. READ_RSP header size: spec vs parse_read_rsp offsets ===
+   spec READ_RSP header  seq u16 + region u8 + offset u32 + len u8 = 8 bytes
+   code unpacks at       <HBIB (=8) but slices payload at [9:] and reads CRC at 9+length
+   guard                 `if len(data) < 9 + length + 4: raise`
+
+   a fully spec-conformant frame: 60 bytes (8 hdr + 48 data + 4 crc)
+   parse_read_rsp -> **REJECTED** ValueError: READ_RSP truncated payload/CRC
+   (frame is 60 bytes, guard demands 61, so 8==9 off-by-one rejects every real chunk)
+
+=== 3. the same bug does not merely reject - it silently mis-frames ===
+   padded frame accepted. payload recovered == original? False
+   payload[0:3]=b'AAA' expected b'AAA'  offset_shift=1
+   crc_valid=False  -> flagged
+
+=== 4. spec Safety Invariant 4: "Host MUST track sequence to detect dropped frames" ===
+   lines mentioning seq: [5, 32, 35, 40, 47]
+   ResumeBitmap tracks by OFFSET only (mark_received(offset)); nothing compares or gaps-checks `sequence` anywhere in the module.
+   -> invariant 4 is NOT implemented by the host, and no test covers it.
+
+=== 5. resume bitmap vs a real region size ===
+   total_chunks for the 0x33EC4 historical app size: 4431
+   missing offsets list length when empty: 4431
+   mark_received(last byte offset) accepted? True (idx=4430)
+   mark_received(9999999) out of range -> False

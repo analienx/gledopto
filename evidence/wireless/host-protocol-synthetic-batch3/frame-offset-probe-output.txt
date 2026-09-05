@@ -1,0 +1,18 @@
+READ_RSP header size per spec and per the code's own unpack: 8 bytes
+payload sent : 00 01 02 03 04 05 06 07 ...
+
+--- A) exactly spec-conformant frame, 60 bytes ---
+    REJECTED: READ_RSP truncated payload/CRC   <- host cannot consume a conformant chunk
+
+--- B) same frame plus one padding byte (passes the guard) ---
+    payload parsed: 01 02 03 04 05 06 07 08 ...
+    equals sent? False
+    first differing index: 0
+    parsed payload is the sent payload shifted by 1 byte: True
+    crc_valid reported: False
+
+--- C) what the offsets should be ---
+    payload at [8:56] == sent? True
+    crc at [56:] = 0xFADFDE8E, xcrc32(sent)=0xFADFDE8E, match=True
+
+=> replacing the three 9s with 8 in parse_read_rsp makes A accepted and correct.
