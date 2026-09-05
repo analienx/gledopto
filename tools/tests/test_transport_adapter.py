@@ -27,6 +27,10 @@ class TransportAdapterNativeTests(unittest.TestCase):
                     str(FW / "glsd_stager_core.c"),
                     str(FW / "glsd_stager_dispatch.c"),
                     str(FW / "glsd_transport_adapter.c"),
+                    # Without GLSD_TELINK_SDK this compiles only the deliberate
+                    # fail-closed stub. The real target branch must later be
+                    # compiled by TC32 against the pinned Telink SDK.
+                    str(FW / "glsd_telink_sdk_adapter.c"),
                     str(FW / "tests" / "transport_adapter_test.c"),
                     "-o",
                     str(exe),
