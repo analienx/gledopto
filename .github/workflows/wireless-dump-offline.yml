@@ -19,6 +19,7 @@ on:
       - 'tools/tests/test_wireless_dump_guard.py'
       - 'tools/tests/test_z2m_dump_integration.py'
       - 'tools/tests/test_glsd_stager_index.py'
+      - 'tools/tests/test_transport_adapter.py'
       - '.github/workflows/wireless-dump-offline.yml'
   pull_request:
     paths:
@@ -36,6 +37,7 @@ on:
       - 'tools/tests/test_wireless_dump_guard.py'
       - 'tools/tests/test_z2m_dump_integration.py'
       - 'tools/tests/test_glsd_stager_index.py'
+      - 'tools/tests/test_transport_adapter.py'
       - '.github/workflows/wireless-dump-offline.yml'
   workflow_dispatch:
 
@@ -87,6 +89,9 @@ jobs:
 
       - name: Run guarded-session tests
         run: python tools/tests/test_wireless_dump_guard.py -v
+
+      - name: Run radio transport adapter tests
+        run: python tools/tests/test_transport_adapter.py -v
 
       - name: Run synthetic Z2M end-to-end tests
         run: python tools/tests/test_z2m_dump_integration.py -v
