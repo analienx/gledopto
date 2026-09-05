@@ -7,7 +7,7 @@ set -euo pipefail
 # Zigbee OTA container, access Zigbee, or serve anything to a device.
 #
 # The Telink sampleLight app_cfg.h is intentionally used only to reproduce the
-# SDK's public MCU/header/toolchain mechanics for MCU_CORE_8258. Its dongle
+# SDK's public MCU/header/toolchain mechanics for MCU_CORE_8258. Its sample
 # BOARD selection is NOT a GL-SD-301P board definition and MUST NOT be used as
 # deployment evidence or as permission to initialize GPIO/PWM/power-stage I/O.
 
@@ -20,14 +20,51 @@ TC32_NM="${TC32_NM:-tc32-elf-nm}"
 OUT_DIR="${OUT_DIR:-${TMPDIR:-/tmp}/glsd-tc32-objects}"
 
 SDK="$(cd "$TELINK_SDK_ROOT" && pwd)"
-APP_CFG_DIR="$SDK/apps/zigbee/sampleLight"
-APP_COMMON_DIR="$SDK/apps/common"
+
+first_existing_dir() {
+  local d
+  for d in "$@"; do
+    if [[ -d "$d" ]]; then
+      printf '%s\n' "$d"
+      return 0
+    fi
+  done
+  return 1
+}
+
+first_existing_file() {
+  local f
+  for f in "$@"; do
+    if [[ -f "$f" ]]; then
+      printf '%s\n' "$f"
+      return 0
+    fi
+  done
+  return 1
+}
+
+APP_CFG_DIR="$(first_existing_dir \
+  "$SDK/apps/zigbee/sampleLight" \
+  "$SDK/apps/sampleLight")" || {
+    echo "ERROR: no public Telink sampleLight app directory found" >&2
+    exit 2
+  }
+APP_COMMON_DIR="$(first_existing_dir "$SDK/apps/common")" || {
+  echo "ERROR: no public Telink apps/common directory found" >&2
+  exit 2
+}
+ZB_API_H="$(first_existing_file \
+  "$SDK/stack/zigbee/zbapi/zb_api.h" \
+  "$SDK/zigbee/zbapi/zb_api.h")" || {
+    echo "ERROR: no public Telink zb_api.h found" >&2
+    exit 2
+  }
 
 required=(
   "$SDK/proj/tl_common.h"
   "$APP_CFG_DIR/app_cfg.h"
   "$APP_COMMON_DIR/comm_cfg.h"
-  "$SDK/stack/zigbee/zbapi/zb_api.h"
+  "$ZB_API_H"
 )
 for f in "${required[@]}"; do
   if [[ ! -f "$f" ]]; then
@@ -59,14 +96,18 @@ adapter_defines=(
   -D__SIZE_T__
 )
 
-# Header layout varies slightly across public Telink revisions. Instead of
-# embedding an Eclipse-only include list, use the two public app header roots
-# plus every SDK directory that actually contains headers. This is deterministic
-# for a pinned checkout and avoids silently substituting host headers.
+# Public Telink generations use either stack/zigbee or zigbee as the Zigbee
+# source root. Add whichever roots are present, recursively, together with the
+# public app/proj/platform headers. This remains deterministic for a pinned SDK
+# checkout while avoiding Eclipse-only include-path assumptions.
+include_roots=("$SDK/proj" "$SDK/platform" "$APP_COMMON_DIR" "$APP_CFG_DIR")
+[[ -d "$SDK/stack" ]] && include_roots+=("$SDK/stack")
+[[ -d "$SDK/zigbee" ]] && include_roots+=("$SDK/zigbee")
+
 includes=(-I"$APP_CFG_DIR" -I"$APP_COMMON_DIR" -I"$SDK/proj")
 while IFS= read -r -d '' d; do
   includes+=("-I$d")
-done < <(find "$SDK/proj" "$SDK/platform" "$SDK/stack" -type d -print0 | sort -z)
+done < <(find "${include_roots[@]}" -type d -print0 | sort -zu)
 
 cflags=(
   -std=gnu99
@@ -90,6 +131,8 @@ sources=(
   echo "PRODUCTION_BOARD_PROFILE=UNRESOLVED"
   echo "SAMPLELIGHT_BOARD_PROFILE_IS_MECHANICS_ONLY=YES"
   echo "SDK_ROOT=$SDK"
+  echo "APP_CFG_DIR=$APP_CFG_DIR"
+  echo "ZB_API_H=$ZB_API_H"
   if git -C "$SDK" rev-parse HEAD >/dev/null 2>&1; then
     echo "SDK_GIT_HEAD=$(git -C "$SDK" rev-parse HEAD)"
     echo "SDK_GIT_DIRTY=$(git -C "$SDK" status --porcelain | wc -l | tr -d ' ')"
