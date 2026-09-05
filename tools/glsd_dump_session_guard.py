@@ -10,7 +10,6 @@ It performs no Zigbee I/O and exposes no flash write/erase operation.
 """
 from __future__ import annotations
 
-from dataclasses import asdict
 import hashlib
 import importlib.util
 import json
@@ -36,7 +35,7 @@ proto = _load("glsd_dump_protocol_guard_runtime", "glsd_dump_protocol.py")
 host = _load("glsd_wireless_dump_host_guard_runtime", "glsd_wireless_dump_host.py")
 
 GUARD_JSON = "guarded_session.json"
-GUARD_VERSION = 1
+GUARD_VERSION = 2
 
 
 def _atomic_json(path: Path, obj: Any) -> None:
@@ -90,24 +89,47 @@ def _binding_sha256(payload: dict[str, Any]) -> str:
 
 
 class PendingReadLedger:
-    """Exactly one outstanding READ with deterministic retry semantics."""
+    """Exactly one outstanding READ with strictly increasing sequence values."""
 
-    def __init__(self, *, session_id: int, total_len: int, chunk_size: int):
+    def __init__(
+        self,
+        *,
+        session_id: int,
+        total_len: int,
+        chunk_size: int,
+        last_issued_seq: int = -1,
+    ):
         self.session_id = session_id & 0xFFFFFFFF
         self.total_len = total_len
         self.chunk_size = chunk_size
+        if last_issued_seq < -1 or last_issued_seq > 0xFFFFFFFF:
+            raise ValueError("invalid persisted sequence state")
+        self.last_issued_seq = last_issued_seq
         self.pending: "proto.ReadRequest | None" = None
+
+    def next_sequence(self) -> int:
+        if self.last_issued_seq >= 0xFFFFFFFF:
+            raise ValueError("READ sequence space exhausted")
+        return self.last_issued_seq + 1
+
+    def _claim_sequence(self, seq: int) -> None:
+        if seq < 0 or seq > 0xFFFFFFFF:
+            raise ValueError("READ sequence outside uint32 range")
+        if seq <= self.last_issued_seq:
+            raise ValueError("READ sequence must be strictly increasing")
+        self.last_issued_seq = seq
 
     def begin(self, *, seq: int, offset: int, length: int) -> "proto.ReadRequest":
         if self.pending is not None:
             raise ValueError("a READ request is already outstanding")
-        expected_len = min(self.chunk_size, self.total_len - offset)
         if offset < 0 or offset >= self.total_len or offset % self.chunk_size:
             raise ValueError("READ offset outside guarded image geometry")
+        expected_len = min(self.chunk_size, self.total_len - offset)
         if expected_len <= 0 or length != expected_len:
             raise ValueError("READ length does not match guarded chunk geometry")
+        self._claim_sequence(seq)
         req = proto.ReadRequest(self.session_id, seq, offset, length)
-        req.encode()  # validates wire-level bounds too
+        req.encode()
         self.pending = req
         return req
 
@@ -116,6 +138,7 @@ class PendingReadLedger:
         if self.pending is None:
             raise ValueError("no pending READ to retry")
         old = self.pending
+        self._claim_sequence(seq)
         req = proto.ReadRequest(old.session_id, seq, old.offset, old.length)
         req.encode()
         self.pending = req
@@ -156,10 +179,12 @@ class GuardedPersistentDump:
         self.info = info
         self.target_ieee = target_ieee.lower()
         self.manifest = manifest
+        last_seq = int(manifest.get("last_issued_seq", -1))
         self.ledger = PendingReadLedger(
             session_id=info.session_id,
             total_len=info.allowed_read_length,
             chunk_size=inner.chunk_size,
+            last_issued_seq=last_seq,
         )
 
     @classmethod
@@ -182,9 +207,10 @@ class GuardedPersistentDump:
             target_ieee=target_ieee.lower(),
         )
         manifest = {
+            "format_version": GUARD_VERSION,
             "binding": binding,
             "binding_sha256": _binding_sha256(binding),
-            "received_offsets": [],
+            "last_issued_seq": -1,
         }
         _atomic_json(state_dir / GUARD_JSON, manifest)
         return cls(
@@ -204,6 +230,8 @@ class GuardedPersistentDump:
     ) -> "GuardedPersistentDump":
         inner = host.PersistentDump.open(state_dir)
         manifest = json.loads((state_dir / GUARD_JSON).read_text(encoding="utf-8"))
+        if int(manifest.get("format_version", -1)) != GUARD_VERSION:
+            raise ValueError("unsupported guarded-session state version")
         expected = _binding_payload(
             info, target_ieee=target_ieee, chunk_size=inner.chunk_size
         )
@@ -212,8 +240,12 @@ class GuardedPersistentDump:
             raise ValueError("persisted dump is bound to different INFO/session geometry")
         if manifest.get("binding_sha256") != expected_sha:
             raise ValueError("persisted session binding checksum mismatch")
-        if sorted(manifest.get("received_offsets", [])) != sorted(inner.received):
-            raise ValueError("guard manifest and persisted bitmap disagree")
+        try:
+            last_seq = int(manifest["last_issued_seq"])
+        except (KeyError, TypeError, ValueError) as exc:
+            raise ValueError("invalid persisted sequence state") from exc
+        if last_seq < -1 or last_seq > 0xFFFFFFFF:
+            raise ValueError("invalid persisted sequence state")
         if int(inner.meta.get("protocol_version", -1)) != info.protocol_version:
             raise ValueError("session.json protocol version does not match INFO")
         if inner.session_id != info.session_id:
@@ -229,27 +261,42 @@ class GuardedPersistentDump:
             manifest=manifest,
         )
 
-    def _persist_manifest(self) -> None:
-        self.manifest["received_offsets"] = sorted(self.inner.received)
+    def _persist_sequence_state(self) -> None:
+        self.manifest["last_issued_seq"] = self.ledger.last_issued_seq
         _atomic_json(self.inner.state_dir / GUARD_JSON, self.manifest)
 
-    def next_request(self, *, seq: int) -> "proto.ReadRequest":
+    def _commit_issued_request(self, issue_fn):
+        old_pending = self.ledger.pending
+        old_last = self.ledger.last_issued_seq
+        req = issue_fn()
+        try:
+            self._persist_sequence_state()
+        except Exception:
+            self.ledger.pending = old_pending
+            self.ledger.last_issued_seq = old_last
+            raise
+        return req
+
+    def next_request(self, *, seq: int | None = None) -> "proto.ReadRequest":
         missing = self.inner.missing_offsets()
         if not missing:
             raise ValueError("dump already complete")
         offset = missing[0]
         length = min(self.inner.chunk_size, self.inner.total_len - offset)
-        return self.ledger.begin(seq=seq, offset=offset, length=length)
+        chosen = self.ledger.next_sequence() if seq is None else seq
+        return self._commit_issued_request(
+            lambda: self.ledger.begin(seq=chosen, offset=offset, length=length)
+        )
 
-    def retry(self, *, seq: int) -> "proto.ReadRequest":
-        return self.ledger.retry(seq=seq)
+    def retry(self, *, seq: int | None = None) -> "proto.ReadRequest":
+        chosen = self.ledger.next_sequence() if seq is None else seq
+        return self._commit_issued_request(lambda: self.ledger.retry(seq=chosen))
 
     def ingest_response(self, payload: bytes) -> dict[str, Any]:
         frame = proto.DataFrame.decode(payload)
         self.ledger.assert_matches(frame)
         result = self.inner.ingest(payload)
         self.ledger.complete(frame)
-        self._persist_manifest()
         return result
 
     def missing_offsets(self) -> list[int]:
