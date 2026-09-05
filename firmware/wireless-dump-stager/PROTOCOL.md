@@ -60,7 +60,7 @@ Response:
 ```text
 protocol_version : u8
 host_nonce       : u32 LE
-tager_build_id   : u32 LE
+stager_build_id  : u32 LE
 session_id       : u32 LE
 ```
 
@@ -167,7 +167,7 @@ Lower persistent store:
 ```text
 session.json
 raw_after_ota.bin.part
-received.bitmap.json
+received.bitmap.jsonl
 chunk_checksums.jsonl
 raw_after_ota.bin
 reconstructed_stock.bin
