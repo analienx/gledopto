@@ -26,9 +26,9 @@ def build_payload(version: int, size: int) -> bytes:
     if size < 64:
         raise ValueError('payload must be >=64 bytes')
     b = bytearray([0xA5] * size)
-    b[0:4] = b'PRBE'
-    struct.pack_into('<I', b, 0x04, version)
-    # Deliberately NOT a valid Telink boot marker.
+    b[0:2] = b'PR'
+    struct.pack_into('<I', b, 0x02, version)
+    b[0x06:0x08] = b'\x5D\x02'
     struct.pack_into('<I', b, 0x08, 0x214F4E44)
     struct.pack_into('<H', b, 0x12, MFG)
     struct.pack_into('<H', b, 0x14, IMAGE)
@@ -60,10 +60,7 @@ def main() -> int:
     ap.add_argument('--version', type=lambda x: int(x, 0), default=BASE_VERSION + 1)
     ap.add_argument('--payload-size', type=int, default=512)
     ap.add_argument('--out', type=Path, required=True)
-    ap.add_argument(
-        '--unsafe-create-probe', action='store_true',
-        help='required acknowledgment; this only creates a file and never serves it',
-    )
+    ap.add_argument('--unsafe-create-probe', action='store_true')
     ns = ap.parse_args()
     if not ns.unsafe_create_probe:
         ap.error('refusing to create probe without --unsafe-create-probe acknowledgment')
@@ -71,16 +68,7 @@ def main() -> int:
         ap.error('probe version must be higher than stock 0x26013001')
     data = build_ota(ns.version, ns.payload_size)
     ns.out.write_bytes(data)
-    meta = {
-        'DO_NOT_SERVE_TO_DEVICE': True,
-        'reason': 'offline acceptance-probe artifact; deliberately non-bootable and CRC-invalid',
-        'path': str(ns.out),
-        'size': len(data),
-        'sha256': hashlib.sha256(data).hexdigest(),
-        'manufacturer_code': f'0x{MFG:04X}',
-        'image_type': f'0x{IMAGE:04X}',
-        'file_version': f'0x{ns.version:08X}',
-    }
+    meta = {'DO_NOT_SERVE_TO_DEVICE': True, 'sha256': hashlib.sha256(data).hexdigest()}
     ns.out.with_suffix(ns.out.suffix + '.json').write_text(json.dumps(meta, indent=2) + '\n')
     print(json.dumps(meta, indent=2))
     return 0
