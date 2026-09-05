@@ -49,6 +49,7 @@ glsd_transport_status_t glsd_transport_handle(
 
     send_status = send_response(
         send_user,
+        request->aps_secured,
         request->profile_id,
         request->source_short_addr,
         request->source_endpoint,
