@@ -1,11 +1,8 @@
 #!/usr/bin/env python3
-"""Offline Zigbee/Telink OTA forensics for the GL-SD wireless-recovery stream.
+"""Offline Zigbee/Telink OTA forensics for the GL-SD recovery stream.
 
-This module never talks to Zigbee hardware. It parses Zigbee OTA containers,
-validates Telink application structure, implements Telink's exact xcrc32
-convention (initial 0xFFFFFFFF, reflected polynomial, no final XOR), and can
-reconstruct the single boot-marker byte invalidated by standard Telink bank
-switching.
+No device I/O is performed here.  The Telink application CRC convention is the
+reflected 0xEDB88320 CRC with initial 0xFFFFFFFF and no final XOR.
 """
 from __future__ import annotations
 
@@ -13,7 +10,7 @@ import argparse
 import binascii
 import hashlib
 import json
-from dataclasses import dataclass, asdict
+from dataclasses import asdict, dataclass
 from pathlib import Path
 import struct
 from typing import Any
@@ -23,7 +20,9 @@ OTA_BASE_HEADER_LEN = 56
 OTA_TAG_UPGRADE_IMAGE = 0x0000
 
 TELINK_VALID_PATTERN = b"\x5D\x02"
-TELINK_STARTUP_FLAG = 0x544C4E4C
+# Telink valid startup marker on this B85/TLSR8258 lineage is bytes
+# 4B 4E 4C 54 at +0x08, i.e. little-endian 0x544C4E4B.
+TELINK_STARTUP_FLAG = 0x544C4E4B
 TELINK_FILE_VERSION_OFFSET = 0x02
 TELINK_MARKER_OFFSET = 0x08
 TELINK_DECLARED_SIZE_OFFSET = 0x18
@@ -70,12 +69,11 @@ def _u16(data: bytes, off: int) -> int:
 
 
 def telink_xcrc32(data: bytes, initial: int = 0xFFFFFFFF) -> int:
-    """Exact Telink xcrc32: reflected 0xEDB88320, no final XOR."""
     crc = initial & 0xFFFFFFFF
     for byte in data:
         crc ^= byte
         for _ in range(8):
-            crc = (crc >> 1) ^ (0xEDB88320 if (crc & 1) else 0)
+            crc = (crc >> 1) ^ (0xEDB88320 if crc & 1 else 0)
     return crc & 0xFFFFFFFF
 
 
@@ -88,6 +86,7 @@ def parse_ota_header(data: bytes) -> OtaHeader:
         raise ParseError(f"bad Zigbee OTA magic 0x{magic:08X}")
     if hl < OTA_BASE_HEADER_LEN or hl > len(data):
         raise ParseError(f"invalid OTA header length {hl}")
+
     off = OTA_BASE_HEADER_LEN
     sec = None
     dest = None
@@ -112,6 +111,7 @@ def parse_ota_header(data: bytes) -> OtaHeader:
         raise ParseError(
             f"fieldControl/headerLength mismatch: parsed {off}, declared {hl}"
         )
+
     return OtaHeader(
         file_identifier=magic,
         header_version=hv,
@@ -121,9 +121,7 @@ def parse_ota_header(data: bytes) -> OtaHeader:
         image_type=img,
         file_version=fv,
         zigbee_stack_version=stack,
-        header_string=raw_name.split(b"\x00", 1)[0].decode(
-            "ascii", errors="replace"
-        ),
+        header_string=raw_name.split(b"\x00", 1)[0].decode("ascii", errors="replace"),
         total_image_size=total,
         security_credential_version=sec,
         upgrade_file_destination=dest,
@@ -151,26 +149,17 @@ def parse_subelements(data: bytes, start: int) -> list[SubElement]:
 
 
 def crc_candidates(body: bytes) -> dict[str, int]:
-    """Additional common CRC representations for forensic comparison."""
     z = binascii.crc32(body) & 0xFFFFFFFF
-    comp = z ^ 0xFFFFFFFF
     return {
         "telink_xcrc32": telink_xcrc32(body),
         "crc32_iso_hdlc": z,
-        "crc32_iso_hdlc_complement": comp,
+        "crc32_iso_hdlc_complement": z ^ 0xFFFFFFFF,
     }
 
 
 def validate_telink_application(
     fw: bytes, *, allow_invalidated_marker: bool = False
 ) -> dict[str, Any]:
-    """Validate one Telink application image using its declared size.
-
-    If allow_invalidated_marker is true, byte +8 may be 0x00 (the state left
-    behind after a standard Telink bank switch). CRC is still evaluated on the
-    bytes exactly supplied, so an invalidated bank normally fails until
-    reconstructed.
-    """
     result: dict[str, Any] = {"available_length": len(fw)}
     if len(fw) < 0x1C:
         result.update(valid=False, reason="too_short")
@@ -178,14 +167,14 @@ def validate_telink_application(
 
     declared = _u32(fw, TELINK_DECLARED_SIZE_OFFSET)
     marker = _u32(fw, TELINK_MARKER_OFFSET)
+    expected = TELINK_STARTUP_FLAG.to_bytes(4, "little")
     valid_pattern = fw[6:8] == TELINK_VALID_PATTERN
     size_valid = 0x1C <= declared < TELINK_APP_LIMIT and declared <= len(fw)
     marker_valid = marker == TELINK_STARTUP_FLAG
-    marker_invalidated = (
+    marker_invalidated = bool(
         allow_invalidated_marker
-        and fw[TELINK_MARKER_OFFSET] == 0x00
-        and fw[TELINK_MARKER_OFFSET + 1 : TELINK_MARKER_OFFSET + 4]
-        == TELINK_STARTUP_FLAG.to_bytes(4, "little")[1:]
+        and fw[TELINK_MARKER_OFFSET] == 0
+        and fw[TELINK_MARKER_OFFSET + 1 : TELINK_MARKER_OFFSET + 4] == expected[1:]
     )
 
     result.update(
@@ -196,28 +185,26 @@ def validate_telink_application(
         marker_valid=marker_valid,
         marker_invalidated=marker_invalidated,
     )
-
     if not size_valid:
         result.update(valid=False, reason="invalid_declared_size")
         return result
 
     stored_crc = _u32(fw, declared - 4)
     exact_crc = telink_xcrc32(fw[: declared - 4])
+    crc_valid = stored_crc == exact_crc
     result.update(
         stored_crc32=f"0x{stored_crc:08X}",
         telink_xcrc32=f"0x{exact_crc:08X}",
-        telink_crc_valid=stored_crc == exact_crc,
+        telink_crc_valid=crc_valid,
     )
     result["valid"] = bool(
-        valid_pattern
-        and (marker_valid or marker_invalidated)
-        and stored_crc == exact_crc
+        valid_pattern and (marker_valid or marker_invalidated) and crc_valid
     )
     if not valid_pattern:
         result["reason"] = "missing_5d02_pattern"
     elif not (marker_valid or marker_invalidated):
         result["reason"] = "bad_startup_marker"
-    elif stored_crc != exact_crc:
+    elif not crc_valid:
         result["reason"] = "telink_crc_mismatch"
     else:
         result["reason"] = "ok"
@@ -225,9 +212,9 @@ def validate_telink_application(
 
 
 def reconstruct_invalidated_telink_app(raw: bytes) -> tuple[bytes, dict[str, Any]]:
-    """Reconstruct the one marker byte invalidated by standard Telink OTA.
+    """Restore only the boot-marker byte changed by a standard bank switch.
 
-    Refuses any marker shape other than:
+    Accepted marker shapes at +0x08 are exactly:
       valid stock:       4B 4E 4C 54
       invalidated stock: 00 4E 4C 54
     """
@@ -257,13 +244,12 @@ def reconstruct_invalidated_telink_app(raw: bytes) -> tuple[bytes, dict[str, Any
         )
 
     validation = validate_telink_application(patched)
-    meta = {
+    return patched, {
         "diffs": diffs,
         "raw_sha256": hashlib.sha256(raw).hexdigest(),
         "reconstructed_sha256": hashlib.sha256(patched).hexdigest(),
         "validation": validation,
     }
-    return patched, meta
 
 
 def parse_telink_payload(payload: bytes) -> dict[str, Any]:
@@ -274,23 +260,18 @@ def parse_telink_payload(payload: bytes) -> dict[str, Any]:
 
     declared = _u32(payload, TELINK_DECLARED_SIZE_OFFSET)
     result.update(
-        {
-            "file_version_at_0x02": _u32(payload, TELINK_FILE_VERSION_OFFSET),
-            "boot_marker_at_0x08_hex": f"0x{_u32(payload, 0x08):08X}",
-            "manufacturer_code_at_0x12": _u16(payload, 0x12),
-            "image_type_at_0x14": _u16(payload, 0x14),
-            "declared_app_size_at_0x18": declared,
-        }
+        file_version_at_0x02=_u32(payload, TELINK_FILE_VERSION_OFFSET),
+        boot_marker_at_0x08_hex=f"0x{_u32(payload, 0x08):08X}",
+        manufacturer_code_at_0x12=_u16(payload, 0x12),
+        image_type_at_0x14=_u16(payload, 0x14),
+        declared_app_size_at_0x18=declared,
     )
-
     result["application_validation"] = validate_telink_application(payload)
     if 4 <= declared <= len(payload):
         trailer = _u32(payload, declared - 4)
         cands = crc_candidates(payload[: declared - 4])
         result["declared_tail_crc32"] = f"0x{trailer:08X}"
-        result["crc32_candidates"] = {
-            k: f"0x{v:08X}" for k, v in cands.items()
-        }
+        result["crc32_candidates"] = {k: f"0x{v:08X}" for k, v in cands.items()}
         matches = [name for name, value in cands.items() if value == trailer]
         result["crc_match_candidates"] = matches
         result["crc_convention_proven"] = "telink_xcrc32" in matches
@@ -314,37 +295,28 @@ def analyze(path: Path) -> dict[str, Any]:
         "subelements": [asdict(x) for x in subs],
     }
     upgrade = next((x for x in subs if x.tag_id == OTA_TAG_UPGRADE_IMAGE), None)
-    if upgrade:
+    if upgrade is None:
+        result["upgrade_image"] = None
+    else:
         payload = data[upgrade.data_offset : upgrade.data_end]
         telink = parse_telink_payload(payload)
-        telink["outer_identity_matches_inner"] = (
+        telink["outer_identity_matches_inner"] = bool(
             telink.get("manufacturer_code_at_0x12") == header.manufacturer_code
             and telink.get("image_type_at_0x14") == header.image_type
             and telink.get("file_version_at_0x02") == header.file_version
         )
         result["upgrade_image"] = telink
         result["upgrade_image_sha256"] = hashlib.sha256(payload).hexdigest()
-    else:
-        result["upgrade_image"] = None
 
+    upgrade_info = result.get("upgrade_image") or {}
     result["offline_gate"] = {
         "container_structurally_valid": header.total_image_size == len(data),
         "has_upgrade_image": upgrade is not None,
-        "identity_consistent": bool(
-            result.get("upgrade_image", {}).get("outer_identity_matches_inner")
-        )
-        if upgrade
-        else False,
+        "identity_consistent": bool(upgrade_info.get("outer_identity_matches_inner")),
         "telink_crc_convention_identified": bool(
-            result.get("upgrade_image", {}).get("crc_convention_proven")
-        )
-        if upgrade
-        else False,
-        "crc_convention_identified": bool(
-            result.get("upgrade_image", {}).get("crc_convention_proven")
-        )
-        if upgrade
-        else False,
+            upgrade_info.get("crc_convention_proven")
+        ),
+        "crc_convention_identified": bool(upgrade_info.get("crc_convention_proven")),
     }
     return result
 
@@ -356,8 +328,8 @@ def main(argv: list[str] | None = None) -> int:
     ns = ap.parse_args(argv)
     try:
         r = analyze(ns.image)
-    except (OSError, ParseError, struct.error) as e:
-        print(f"ERROR: {e}")
+    except (OSError, ParseError, struct.error) as exc:
+        print(f"ERROR: {exc}")
         return 2
     if ns.json:
         print(json.dumps(r, indent=2, sort_keys=True))
