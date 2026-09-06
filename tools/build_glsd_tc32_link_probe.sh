@@ -32,14 +32,16 @@ telink_first=(-D_SIZE_T -D_SIZE_T_ -D__SIZE_T -D__SIZE_T__)
 cflags=(-O2 -ffunction-sections -fdata-sections -fshort-enums -finline-small-functions -std=gnu99 -funsigned-char -fshort-wchar -fms-extensions -nostartfiles -nostdlib)
 asflags=(-fomit-frame-pointer -fshort-enums -fdata-sections -ffunction-sections)
 
-# Keep only flash implementations required by the generic 8258 path and the
-# historically/lineage-relevant JEDEC families. Three vendor helper TUs
-# (011460c8, 136085, 1360eb) were proven by CI to be the sole origin of OTP
-# read/write/erase imports; the stager neither needs nor permits those helpers.
+# flash_common.c references each supported vendor's lock/unlock helpers, so the
+# corresponding TUs must remain available. Some of those TUs also carry unused
+# OTP wrappers. glsd_telink_disabled_feature_glue.c resolves those generic OTP
+# calls with non-mutating stubs solely so --gc-sections can discard the wrappers;
+# the final ELF is rejected if any OTP-named symbol survives.
 sdk_sources=(
  platform/boot/8258/cstartup_8258.S platform/boot/link_cfg.S platform/services/b85m/irq_handler.c platform/tc32/div_mod.S
  platform/chip_8258/flash.c platform/chip_8258/flash/flash_common.c platform/chip_8258/flash/flash_mid1060c8.c
- platform/chip_8258/flash/flash_mid1360c8.c platform/chip_8258/flash/flash_mid134051.c platform/chip_8258/flash/flash_mid14325e.c
+ platform/chip_8258/flash/flash_mid1360c8.c platform/chip_8258/flash/flash_mid011460c8.c platform/chip_8258/flash/flash_mid134051.c
+ platform/chip_8258/flash/flash_mid136085.c platform/chip_8258/flash/flash_mid1360eb.c platform/chip_8258/flash/flash_mid14325e.c
  platform/chip_8258/flash/flash_mid1460c8.c platform/chip_8258/flash/flash_mid13325e.c platform/chip_8258/adc.c
  proj/common/list.c proj/common/mempool.c proj/common/tlPrintf.c proj/common/string.c proj/common/utility.c
  proj/drivers/drv_gpio.c proj/drivers/drv_adc.c proj/drivers/drv_nv.c proj/drivers/drv_pm.c proj/drivers/drv_putchar.c
@@ -115,6 +117,10 @@ build_bank() {
   {
     echo MECHANICS_ONLY=YES; echo DEPLOYABLE=NO; echo "BANK=$label"; echo "GLSD_STAGER_LINK_BASE=$base"; echo "BINARY_SIZE=$bytes"
     "$TC32_SIZE" "$elf"; sha256sum "$elf" "$bin" "$map"
+    echo FINAL_OTP_SYMBOL_SCAN
+    if "$TC32_NM" "$elf" | grep -Eai '(^|[[:space:]_])flash_(read|write|erase|lock)_otp'; then
+      echo "ERROR: OTP path survived section GC" >&2; exit 1
+    else echo NONE; fi
     echo APPLICATION_POWER_STAGE_AND_RESET_SCAN
     if "$TC32_NM" "$elf" | grep -Eai '(^|[[:space:]])(light_|led_|pwm_|factoryRst|factory_reset|bdb_networkSteerStart)'; then
       echo "ERROR: forbidden application light/PWM/reset/steering symbol reachable" >&2; exit 1
