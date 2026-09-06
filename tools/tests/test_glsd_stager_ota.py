@@ -98,7 +98,7 @@ class StagerOtaTests(unittest.TestCase):
         self.assertEqual(report["subelements"][0]["data_end"], len(ota))
 
     def test_acceptance_probe_reaches_only_exact_telink_crc_failure(self) -> None:
-        ota, crc_meta = build_acceptance_probe_ota(ACCEPTANCE_BASE_VERSION + 1, 512)
+        ota = build_acceptance_probe_ota(ACCEPTANCE_BASE_VERSION + 1, 512)
         with tempfile.TemporaryDirectory() as td:
             path = pathlib.Path(td) / "acceptance-probe.ota"
             path.write_bytes(ota)
@@ -114,9 +114,7 @@ class StagerOtaTests(unittest.TestCase):
         self.assertFalse(validation["telink_crc_valid"])
         self.assertFalse(validation["valid"])
         self.assertEqual(validation["reason"], "telink_crc_mismatch")
-        self.assertNotEqual(
-            crc_meta["expected_telink_xcrc32"], crc_meta["stored_bad_xcrc32"]
-        )
+        self.assertNotEqual(validation["stored_crc32"], validation["telink_xcrc32"])
 
     def test_neutral_manifest_attests_exact_inner_and_both_physical_slots(self) -> None:
         inner = make_finalized_inner()
