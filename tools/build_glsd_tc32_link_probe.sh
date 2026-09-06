@@ -32,11 +32,14 @@ telink_first=(-D_SIZE_T -D_SIZE_T_ -D__SIZE_T -D__SIZE_T__)
 cflags=(-O2 -ffunction-sections -fdata-sections -fshort-enums -finline-small-functions -std=gnu99 -funsigned-char -fshort-wchar -fms-extensions -nostartfiles -nostdlib)
 asflags=(-fomit-frame-pointer -fshort-enums -fdata-sections -ffunction-sections)
 
+# Keep only flash implementations required by the generic 8258 path and the
+# historically/lineage-relevant JEDEC families. Three vendor helper TUs
+# (011460c8, 136085, 1360eb) were proven by CI to be the sole origin of OTP
+# read/write/erase imports; the stager neither needs nor permits those helpers.
 sdk_sources=(
  platform/boot/8258/cstartup_8258.S platform/boot/link_cfg.S platform/services/b85m/irq_handler.c platform/tc32/div_mod.S
  platform/chip_8258/flash.c platform/chip_8258/flash/flash_common.c platform/chip_8258/flash/flash_mid1060c8.c
- platform/chip_8258/flash/flash_mid1360c8.c platform/chip_8258/flash/flash_mid011460c8.c platform/chip_8258/flash/flash_mid134051.c
- platform/chip_8258/flash/flash_mid136085.c platform/chip_8258/flash/flash_mid1360eb.c platform/chip_8258/flash/flash_mid14325e.c
+ platform/chip_8258/flash/flash_mid1360c8.c platform/chip_8258/flash/flash_mid134051.c platform/chip_8258/flash/flash_mid14325e.c
  platform/chip_8258/flash/flash_mid1460c8.c platform/chip_8258/flash/flash_mid13325e.c platform/chip_8258/adc.c
  proj/common/list.c proj/common/mempool.c proj/common/tlPrintf.c proj/common/string.c proj/common/utility.c
  proj/drivers/drv_gpio.c proj/drivers/drv_adc.c proj/drivers/drv_nv.c proj/drivers/drv_pm.c proj/drivers/drv_putchar.c
