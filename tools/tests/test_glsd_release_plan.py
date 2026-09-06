@@ -12,6 +12,7 @@ TOOLS = ROOT / "tools"
 if str(TOOLS) not in sys.path:
     sys.path.insert(0, str(TOOLS))
 
+from glsd_flash_preflight import HARDWARE_EVIDENCE_EXACT_SPARE  # noqa: E402
 from glsd_release_plan import TARGET_IEEE, ReleasePlanError, build_plan  # noqa: E402
 
 
@@ -71,9 +72,9 @@ class ReleasePlanTests(unittest.TestCase):
         self.assertEqual(plan["targetIeee"], TARGET_IEEE)
         self.assertEqual(plan["checkRequest"]["payload"]["id"], TARGET_IEEE)
         self.assertTrue(plan["candidateByteAttestation"]["matchesQuarantineSidecar"])
-        self.assertEqual(plan["schemaVersion"], 2)
+        self.assertEqual(plan["schemaVersion"], 3)
 
-    def test_full_evidence_emits_exact_ieee_request_but_not_authorization(self) -> None:
+    def test_direct_full_evidence_emits_exact_ieee_request_but_not_authorization(self) -> None:
         url = "https://fw.example.invalid/one-use/glsd-stager.ota"
         plan = build_plan(
             self.meta,
@@ -93,8 +94,56 @@ class ReleasePlanTests(unittest.TestCase):
             {"id": TARGET_IEEE, "url": url},
         )
         self.assertTrue(plan["updateRequest"]["mutatesFirmware"])
+        self.assertTrue(plan["preflight"]["directProductionGeometryProven"])
+        self.assertFalse(plan["preflight"]["productionGeometryInferredFromExactRevisionSpare"])
         self.assertEqual(plan["candidateByteAttestation"]["sha256"], self.meta["sha256"])
         self.assertEqual(plan["candidateByteAttestation"]["sha512"], self.meta["sha512"])
+
+    def test_exact_spare_evidence_needs_explicit_inference_acceptance(self) -> None:
+        plan = build_plan(
+            self.meta,
+            candidate_path=self.path,
+            url="https://fw.example.invalid/one-use/glsd-stager.ota",
+            production_flash_size=0x80000,
+            production_hw_version=2,
+            current_file_version=0x26013001,
+            production_mcu="TLSR8258",
+            production_revision_proven=False,
+            return_to_stock_spare_passed=True,
+            hardware_evidence_source=HARDWARE_EVIDENCE_EXACT_SPARE,
+            exact_revision_spare_match_passed=True,
+            accept_spare_inference_for_production=False,
+        )
+        self.assertFalse(plan["preflight"]["FLASH_WRITE_PRECONDITIONS_PASS"])
+        self.assertIn("SPARE_GEOMETRY_INFERENCE_NOT_ACCEPTED", plan["preflight"]["blockers"])
+        self.assertIsNone(plan["updateRequest"])
+        self.assertFalse(plan["authorizationGranted"])
+
+    def test_exact_spare_evidence_can_emit_request_without_claiming_direct_proof(self) -> None:
+        url = "https://fw.example.invalid/one-use/glsd-stager.ota"
+        plan = build_plan(
+            self.meta,
+            candidate_path=self.path,
+            url=url,
+            production_flash_size=0x80000,
+            production_hw_version=2,
+            current_file_version=0x26013001,
+            production_mcu="TLSR8258",
+            production_revision_proven=False,
+            return_to_stock_spare_passed=True,
+            hardware_evidence_source=HARDWARE_EVIDENCE_EXACT_SPARE,
+            exact_revision_spare_match_passed=True,
+            accept_spare_inference_for_production=True,
+        )
+        self.assertTrue(plan["preflight"]["FLASH_WRITE_PRECONDITIONS_PASS"])
+        self.assertFalse(plan["preflight"]["directProductionGeometryProven"])
+        self.assertTrue(plan["preflight"]["productionGeometryInferredFromExactRevisionSpare"])
+        self.assertTrue(plan["preflight"]["spareInferenceAccepted"])
+        self.assertFalse(plan["authorizationGranted"])
+        self.assertEqual(
+            plan["updateRequest"]["payload"],
+            {"id": TARGET_IEEE, "url": url},
+        )
 
     def test_rejects_local_or_credential_url(self) -> None:
         for url in (
