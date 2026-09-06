@@ -125,8 +125,8 @@ build_bank() {
     if "$TC32_NM" "$elf" | grep -Eai '(^|[[:space:]])(light_|led_|pwm_|factoryRst|factory_reset|bdb_networkSteerStart)'; then
       echo "ERROR: forbidden application light/PWM/reset/steering symbol reachable" >&2; exit 1
     else echo NONE; fi
-    echo PRIVATE_EXTRACTION_WRITE_IMPORT_SCAN
-    if "$TC32_NM" "$dir/obj/app/"*.o | grep -Eai '(flash_write|flash_erase|nv_flashWrite|nv_reset|factory|leave|commission)'; then
+    echo PRIVATE_EXTRACTION_MUTATION_IMPORT_SCAN
+    if "$TC32_NM" -u "$dir/obj/app/"*.o | grep -Eai '(flash_write|flash_erase|nv_flashWrite|nv_reset|factory|leave|commission)'; then
       echo "ERROR: private extraction/app object imports mutation primitive" >&2; exit 1
     else echo NONE; fi
   } | tee "$dir/manifest.txt"
