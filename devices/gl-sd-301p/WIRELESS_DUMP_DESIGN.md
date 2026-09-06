@@ -1,6 +1,6 @@
 # GL-SD-301P wireless stock-firmware recovery design
 
-Status: **host/radio-independent implementation complete offline; TC32 target build blocked; NO LIVE CUSTOM OTA AUTHORIZED**
+Status: **host + target implementation complete offline through real TC32 dual-bank link/finalization; NO LIVE CUSTOM OTA AUTHORIZED**
 
 Target:
 
@@ -17,76 +17,68 @@ endpoint      11
 
 Recover the stock application image from the user's own GL-SD-301P without
 opening the installed enclosure or attaching SWS/UART wires, while preserving a
-bounded physical-recovery fallback.
+separately validated recovery route.
 
 The temporary extraction firmware is deliberately narrower than the eventual
-custom dimmer firmware. Its only job is to boot safely, prove the inactive stock
-application geometry, expose that application through a read-only unicast
-protocol, and retain a separately proven route back to stock/custom firmware.
+custom dimmer firmware. Its only job is to boot on the proven Telink lineage,
+prove the inactive stock application geometry, expose only that application
+through a read-only unicast protocol, and retain standard Zigbee OTA as a
+separate recovery channel.
 
 ## Proven lineage and flash model
 
-Historical same-lineage GLEDOPTO firmware plus the pinned Telink SDK establish
+Historical same-lineage GLEDOPTO firmware plus the public Telink SDK establish
 the TLSR8258/B85 512-KiB dual-bank architecture strongly enough for offline
-implementation:
+implementation and real target compilation:
 
 ```text
 0x00000..0x33FFF  bank A application region
-0x34000...         NV1 / non-application storage
+0x34000...         NV / non-application storage
 0x40000..0x73FFF  bank B application region
-0x76000...         MAC/factory/user/NV areas in the historical 512K lineage
+0x76000...         MAC region in historical 512K lineage
+0x77000...         factory region in historical 512K lineage
+0x80000            512-KiB flash end
 ```
 
-The recovered historical application was built almost to the `0x34000` ceiling
-and contains the 512K-only upper-flash constants. That is strong platform
-lineage evidence, **not permission to assume the installed 2024/2026 module has
-identical silicon without a runtime/physical proof**.
+The historical application contains 512K-only upper-flash constants. This is
+strong lineage evidence, **not permission to assume the installed 2024/2026
+module is the exact same physical revision**.
 
-The extraction core therefore fails closed unless runtime INFO matches exactly:
+The extraction core therefore fails closed at runtime unless:
 
 ```text
-flash size       0x80000
-banks            0x00000 / 0x40000
+flash size       exactly 0x80000
+stager base      exactly 0x00000 or 0x40000
 executing marker 0x544C4E4B
 old marker       0x544C4E00
 old app size     >= 0x20 and < 0x34000
 old app CRC      valid after virtual +0x08 reconstruction
 ```
 
-Only the old application bytes are readable. Network keys, MAC, factory,
-calibration and NV sectors are out of protocol scope.
+Only old-application bytes are readable. MAC, network/factory/calibration/NV
+sectors are outside protocol scope.
 
-## Gate 0 — offline container/CRC proof: PASS
+## Gate 0 — offline OTA/container/CRC forensics: PASS
 
-Completed evidence includes:
+Established:
 
-- structurally valid historical GLEDOPTO Telink OTA;
-- complete OTA sub-element enumeration;
-- exact Telink xcrc32 convention: reflected polynomial, init `0xFFFFFFFF`, no
-  final XOR;
-- broad public corpus validation;
-- no generic assumption that Zigbee outer identity must equal inner Telink
+- historical GLEDOPTO image is a structurally valid Zigbee OTA with a complete
+  upgrade-image sub-element consuming to EOF;
+- Telink xcrc32 is reflected CRC32, init `0xFFFFFFFF`, no final XOR;
+- inner Telink identity is not treated as a universal copy of outer Zigbee OTA
   identity;
-- no assumption that manufacturer code `0x124F` identifies GLEDOPTO uniquely.
+- manufacturer code `0x124F` is not treated as uniquely GLEDOPTO;
+- normal stager index generation is target locked and rejects malformed or
+  deliberately bad-CRC probes.
 
-The normal stager OTA-index builder now additionally requires the target
-`0x124F/0x1416`, version above stock, a boot-valid Telink inner image and the
-exact GL-SD/hwVersion-2 metadata lock.
+## Gate 1 — invalid-CRC acceptance probe: QUARANTINED / LIVE NO-GO
 
-## Gate 1 — download-acceptance probe: IMPLEMENTED OFFLINE / LIVE NO-GO
+`tools/make_ota_acceptance_probe.py` remains an offline diagnostic artifact. It
+must not be served to the production target. The normal stager-index builder
+rejects it by design.
 
-`tools/make_ota_acceptance_probe.py` creates a structurally plausible target
-container with a higher file version but deliberately invalid Telink CRC and
-non-boot marker.
-
-Pinned Telink SDK source shows the normal activation path validates the inactive
-image before changing boot markers, so this probe is expected to fail before a
-bank switch on that lineage. However the installed target's exact revision is
-still gated. **The probe must not be served to production without a separate
-supervisor authorization.**
-
-The normal stager-index generator deliberately rejects this bad-CRC probe so it
-cannot be accidentally promoted through the production packaging path.
+The live acceptance question is no longer a build prerequisite; it is part of
+the later spare-device/live-transition evidence gate.
 
 ## Gate 2 — read-only protocol/core/host: PASS OFFLINE
 
@@ -99,103 +91,169 @@ READ
 ABORT
 ```
 
-There is no flash write, erase, marker-change, reset, bind/group or network
-management command. `STATUS=0x04` is reserved/unsupported, not part of the v1
-wire surface.
+`STATUS=0x04` is reserved/unsupported. There is no private command for flash
+write/erase, OTA, boot-marker change, reset, leave, bind/group or network
+management.
 
-READ payload data is capped at **48 bytes**. The live guarded host permits one
-outstanding READ, persists a strictly increasing protocol sequence before
-transmission and requires exact session/sequence/offset/length agreement before
-persisting a response.
+READ data is capped at 48 bytes. The guarded host permits one outstanding READ,
+persists a strictly increasing application sequence before transmission and
+requires exact session/sequence/offset/length agreement before accepting a
+response.
 
-Host persistence also validates per-chunk CRC, SHA-256 journal records,
-crash-ordering and complete final Telink application CRC after reconstructing
-exactly the old bank marker byte.
+Persistence validates chunk CRC, SHA-256 journal state, crash ordering and the
+complete reconstructed stock Telink CRC before finalization.
 
-## Gate 3 — coordinator/Z2M transport: PASS OFFLINE
+## Gate 3 — coordinator/Zigbee2MQTT transport: PASS OFFLINE
 
-Version-pinned integration is implemented for:
+Pinned integration contract:
 
 ```text
-Zigbee2MQTT               2.14.0
+Zigbee2MQTT                2.14.0
 zigbee-herdsman            10.9.1
 zigbee-herdsman-converters 26.103.0
 ```
 
-The external Z2M extension and Python bridge are compile-time locked to the
-exact production IEEE, endpoint 11 and cluster 0xFC00. The bridge exposes only
+The external extension and Python bridge are compile-time locked to the exact
+production IEEE, endpoint 11 and cluster `0xFC00` and expose only
 PING/INFO/READ/ABORT.
 
-Two independent correlation layers are used:
+Correlation is independent at two layers:
 
-1. herdsman's response waiter matches device/endpoint/cluster/response command
-   and ZCL transaction sequence;
-2. the guarded host matches protocol session/sequence/offset/length.
+1. herdsman waits for exact device/endpoint/cluster/response command/ZCL TSN;
+2. guarded host validates protocol session/sequence/offset/length.
 
-Synthetic end-to-end CI forces a dropped READ response, verifies the replacement
-READ uses a higher persisted sequence, completes the dump, reconstructs only
-byte +0x08 and validates the Telink CRC.
+Synthetic end-to-end CI forces a lost READ response, verifies the retry gets a
+fresh persisted sequence, completes reconstruction and checks final stock CRC.
 
-No production extension has been loaded and no production cluster command has
-been sent.
+No production extension has been loaded and no production private-cluster
+command has been sent.
 
-## Gate 4 — radio adapter boundary: PASS SOURCE/NATIVE, TARGET COMPILE PENDING
+## Gate 4 — Telink radio/application adapter: PASS TARGET COMPILE
 
-The stack-independent transport adapter rejects before dispatch:
+The stack-independent transport rejects before dispatch:
 
 ```text
 non-unicast
 wrong endpoint
 wrong direction
+unsecured APS request
 ```
 
-The pinned Telink SDK gives the real handler the original `apsdeDataInd_t *` and
-the `UNICAST_MSG()` helper, which explicitly excludes broadcasts and groupcast.
-The handler also retains requester short address, endpoint, profile ID, ZCL TSN
-and incoming APS-security state.
+The real Telink adapter compiles under the official TC32 toolchain and uses the
+SDK's actual `zclIncoming_t`/`apsdeDataInd_t` metadata. Replies return to the
+exact requester endpoint/profile with the same ZCL sequence and APS security.
 
-The thin Telink adapter therefore has enough source-level information to:
+The minimal stager application advertises EP11:
 
-- call the pure dispatcher only for unicast client-to-server EP11 requests;
-- send the response to the exact source address/endpoint/profile;
-- reuse the incoming ZCL sequence;
-- request APS ACK;
-- preserve APS security where it was present.
+```text
+input:  Basic 0x0000, private extraction 0xFC00
+output: OTA client 0x0019
+```
 
-Native GCC tests exercise the generic adapter. A build without
-`GLSD_TELINK_SDK` compiles only a deliberate fail-closed stub. The real branch
-must still be compiled by TC32 against the pinned TLSR8258 SDK.
+It does not initialize sample-light LED, button, PWM, power-stage, reporting,
+binding, factory-reset or network-steering application logic.
 
-## Gate 5 — bootable TC32 stager image: BLOCKED
+## Gate 5 — real TLSR8258 TC32 build + dual-bank geometry: PASS OFFLINE
 
-Still required before a real OTA artifact exists:
+GitHub Actions now uses:
 
-1. reproducible TC32 compiler/toolchain with acceptable provenance;
-2. required TLSR8258 low-level SDK support objects/headers;
-3. enough exact installed-module silicon/flash/clock/RF/board facts to avoid
-   guessing target configuration;
-4. minimal target endpoint/simple-descriptor cluster set, including 0xFC00 and
-   the separately designed return/recovery path;
-5. target compile with `GLSD_TELINK_SDK`;
-6. linker-map/symbol/address audit proving application fits its slot and does not
-   reference flash write/erase or forbidden storage paths;
-7. offline OTA packaging validation through `make_glsd_stager_index.py`.
+```text
+SDK        telink-semi/telink_zigbee_sdk V3.7.2.0
+compiler   tc32-elf-gcc 4.5.1.tc32-elf-1.5
+toolchain  SHA256 33b854be3e3db3dba4b4dacdda2cd4ea1c94dfd4d562864a095956de7991b430
+```
 
-The extraction adapter should preserve normal SDK watchdog behavior; it must not
-add an unproven watchdog disable/feed scheme. READ work remains bounded to <=48
-bytes per request.
+All six target translation units compile with the real TC32 compiler. The
+stager links against the public TLSR8258 startup/linker and router library for
+both banks.
 
-## Gate 6 — return path before any bootable deployment: BLOCKING
+Validated mechanics geometry:
 
-A bootable stager must never be a one-way transition. Before serving one to the
-production device, independently prove the return path. Possible mechanisms are
-kept separate from extraction v1 because they involve mutation:
+```text
+BANK A
+  base                     0x00000
+  raw bytes                156692
+  finalized inner bytes    156708
+  physical end exclusive   0x26424
+  slot end                 0x34000
+  .text VMA                0x00001670
+  Telink xcrc32             0x9EB539EB
 
-- an exact recovered stock OTA image; or
-- a separately built/verified OTA-capable recovery image; or
-- a canary-only transactional rollback mechanism whose marker writes and
-  power-loss behavior have been fault-injection tested; plus
-- SWS/spare-device recovery as the physical last resort.
+BANK B
+  base                     0x40000
+  raw bytes                156692
+  finalized inner bytes    156708
+  physical end exclusive   0x66424
+  slot end                 0x74000
+  .text VMA                0x00041670
+  Telink xcrc32             0x1CD95E73
+
+.text delta                0x40000
+reserved geometry           PASS
+```
+
+The `.text` delta is checked explicitly, proving bank B is genuinely linked
+through Telink `__FW_OFFSET=0x40000`, not merely tagged with a different C
+constant.
+
+Final ELF/build safety gates require:
+
+```text
+FINAL_OTP_SYMBOL_SCAN           NONE
+APPLICATION_POWER_STAGE_SCAN    NONE
+APPLICATION_RESET/STEERING_SCAN NONE
+PRIVATE_MUTATION_IMPORT_SCAN    NONE
+```
+
+The whole ELF is intentionally **not** described as write-free: standard Telink
+OTA recovery is a separate mutation-capable subsystem. The private extraction
+surface cannot invoke it.
+
+## Gate 5A — Telink inner-image finalization: PASS OFFLINE
+
+Real TC32 output proved the linker leaves `00 00` at offsets +6..+7. The
+lineage's post-link mechanics are implemented in `tools/telink_app_finalize.py`:
+
+1. validate raw identity, marker and linker-declared size;
+2. accept only raw `00 00` (or already populated `5D 02`) at +6;
+3. pad the body to 16-byte alignment;
+4. write TLSR8258 magic `5D 02`;
+5. patch declared size to include the trailing CRC;
+6. append Telink xcrc32;
+7. revalidate identity, size, slot limit and CRC.
+
+The finalizer runs in Python 3.11 and 3.14 regression CI and against both real
+TC32-linked banks. It creates only an inner Telink application binary; the TC32
+proof **does not create or serve a Zigbee OTA container**.
+
+## Gate 5B — recovery channel: IMPLEMENTED OFFLINE / NOT LIVE-AUTHORIZED
+
+The minimal stager retains Telink's standard OTA client solely as the recovery
+channel. It deliberately never calls `ota_queryStart()`.
+
+Public Telink source proves an incoming Image Notify directly causes Query Next
+Image, so recovery can be coordinator-initiated when explicitly needed without
+periodic OTA-server discovery/polling. On successful validated OTA completion,
+the normal SDK callback reboots through `ota_mcuReboot()`.
+
+This recovery path is separate from private extraction and remains untested on a
+matching spare.
+
+## Gate 6 — production revision + return path: BLOCKING
+
+The remaining blockers are physical/production-specific, not missing host or
+compiler work:
+
+1. identify the exact 2024/2026 GL-SD-301P MCU/package/module and flash part or
+   JEDEC on a matching spare;
+2. confirm the actual unit uses the 512-KiB dual-bank map and determine which
+   bank stock OTA writes first;
+3. obtain the stock application from the spare and validate reconstruction;
+4. construct the return-to-stock image from that recovered stock app;
+5. perform stock -> stager -> dump -> reconstructed-stock recovery on the spare,
+   including reboot/power-loss and Zigbee NV/network-preservation checks;
+6. only then review the exact target-locked OTA provider and decide whether a
+   production live gate can open.
 
 The read-only extraction protocol itself intentionally contains no rollback or
 marker-write command.
@@ -203,24 +261,29 @@ marker-write command.
 ## Current decision
 
 ```text
-OFFLINE_FORENSICS             PASS
-HOST_GUARD                    PASS
-Z2M_TRANSPORT                 PASS
-SYNTHETIC_END_TO_END          PASS
-GENERIC_RADIO_ADAPTER         PASS / native test required on latest head
-TELINK_ADAPTER_SOURCE_PIN     PASS
-TC32_TARGET_BUILD             BLOCKED
-RETURN_PATH                   BLOCKED
-LIVE_ACCEPTANCE_PROBE         NO_GO
-LIVE_BOOTABLE_STAGER          NO_GO
-PRODUCTION_DEVICE_MUTATION    NO_GO
+OFFLINE_FORENSICS              PASS
+HOST_GUARD                     PASS
+Z2M_TRANSPORT                  PASS
+SYNTHETIC_END_TO_END           PASS
+TELINK_TARGET_COMPILE          PASS 6/6
+TC32_BANK_A_LINK               PASS
+TC32_BANK_B_LINK               PASS
+TELINK_INNER_FINALIZER         PASS
+RESERVED_FLASH_GEOMETRY        PASS
+NOTIFY_DRIVEN_RECOVERY_DESIGN  PASS SOURCE/OFFLINE
+PRODUCTION_REVISION            OPEN
+SPARE_RETURN_PATH              OPEN / BLOCKING
+LIVE_ACCEPTANCE_PROBE          NO_GO
+LIVE_BOOTABLE_STAGER           NO_GO
+PRODUCTION_DEVICE_MUTATION     NO_GO
 ```
 
 ## Hard invariants
 
 1. No custom OTA is served to production without a new explicit supervisor gate.
-2. No raw stock dump, Zigbee key, credential or unsanitized secret is committed.
-3. Network-key/factory/MAC/calibration/NV sectors remain outside dump scope.
+2. No stock dump, Zigbee key, credential or unsanitized secret is committed.
+3. Network/factory/MAC/calibration/NV sectors remain outside dump scope.
 4. The old application bank is read-only during extraction.
-5. Unknown target geometry/authentication/toolchain facts fail closed.
-6. Return/recovery is independently proved before a bootable production stager.
+5. Unknown production geometry/revision facts fail closed.
+6. Return/recovery must be proved on a matching sacrificial spare before a
+   bootable production stager is considered.
