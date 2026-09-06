@@ -9,6 +9,15 @@ is not authorization to mutate a device.
 TLSR8258 standard Zigbee OTA is bank-neutral: one logical-0 application can be
 written to either physical boot slot by the SDK's ping-pong OTA engine. Therefore
 active-bank knowledge is deliberately NOT a precondition for the first OTA.
+
+Production hardware evidence is intentionally explicit. The preferred strongest
+mode is ``installed-direct`` (the installed target itself was physically
+identified). A second mode, ``exact-revision-spare``, permits high-confidence
+inference from a sacrificial unit only when that spare matches the complete live
+revision tuple, has the expected MCU/512-KiB geometry, has passed the full
+return-to-stock proof, and the operator explicitly accepts the residual risk that
+a vendor could have shipped a different BOM under identical identifiers.
+Neither mode grants final authorization.
 """
 
 from __future__ import annotations
@@ -28,6 +37,15 @@ BANK_B_BASE = 0x40000
 BANK_A_SLOT_END = 0x34000
 BANK_B_SLOT_END = 0x74000
 
+HARDWARE_EVIDENCE_UNPROVEN = "unproven"
+HARDWARE_EVIDENCE_INSTALLED_DIRECT = "installed-direct"
+HARDWARE_EVIDENCE_EXACT_SPARE = "exact-revision-spare"
+HARDWARE_EVIDENCE_CHOICES = {
+    HARDWARE_EVIDENCE_UNPROVEN,
+    HARDWARE_EVIDENCE_INSTALLED_DIRECT,
+    HARDWARE_EVIDENCE_EXACT_SPARE,
+}
+
 
 class FlashPreflightError(ValueError):
     pass
@@ -42,8 +60,26 @@ def evaluate_preconditions(
     production_mcu: str,
     production_revision_proven: bool,
     return_to_stock_spare_passed: bool,
+    hardware_evidence_source: str = HARDWARE_EVIDENCE_UNPROVEN,
+    exact_revision_spare_match_passed: bool = False,
+    accept_spare_inference_for_production: bool = False,
 ) -> dict:
     blockers: list[str] = []
+
+    if hardware_evidence_source not in HARDWARE_EVIDENCE_CHOICES:
+        raise FlashPreflightError(
+            f"invalid hardware evidence source: {hardware_evidence_source!r}"
+        )
+
+    # Backward-compatible interpretation for older callers that supplied only
+    # --production-revision-proven. New callers should set the evidence source
+    # explicitly so the resulting plan records where the geometry claim came from.
+    effective_hardware_evidence = hardware_evidence_source
+    if (
+        effective_hardware_evidence == HARDWARE_EVIDENCE_UNPROVEN
+        and production_revision_proven
+    ):
+        effective_hardware_evidence = HARDWARE_EVIDENCE_INSTALLED_DIRECT
 
     if metadata.get("DEPLOYABLE") is not False:
         blockers.append("CANDIDATE_NOT_QUARANTINED")
@@ -83,12 +119,48 @@ def evaluate_preconditions(
     ):
         blockers.append("CANDIDATE_GEOMETRY_INVALID")
 
+    # Hardware facts must match the target profile regardless of how they were
+    # obtained. In exact-revision-spare mode these values are corroborated on the
+    # spare and then explicitly treated as an inference for the installed unit.
     if production_mcu != EXPECTED_MCU:
         blockers.append("PRODUCTION_MCU_UNPROVEN")
     if production_flash_size != EXPECTED_FLASH_SIZE:
         blockers.append("PRODUCTION_FLASH_GEOMETRY_UNPROVEN")
-    if not production_revision_proven:
-        blockers.append("PRODUCTION_REVISION_UNPROVEN")
+
+    direct_production_geometry_proven = False
+    production_geometry_inferred_from_spare = False
+
+    if effective_hardware_evidence == HARDWARE_EVIDENCE_INSTALLED_DIRECT:
+        if not production_revision_proven:
+            blockers.append("PRODUCTION_REVISION_UNPROVEN")
+        else:
+            direct_production_geometry_proven = (
+                production_mcu == EXPECTED_MCU
+                and production_flash_size == EXPECTED_FLASH_SIZE
+            )
+
+    elif effective_hardware_evidence == HARDWARE_EVIDENCE_EXACT_SPARE:
+        if production_revision_proven:
+            blockers.append("CONFLICTING_HARDWARE_EVIDENCE_MODE")
+        if not exact_revision_spare_match_passed:
+            blockers.append("EXACT_REVISION_SPARE_MATCH_NOT_PASSED")
+        if not return_to_stock_spare_passed:
+            blockers.append("RETURN_TO_STOCK_SPARE_NOT_PASSED")
+        if not accept_spare_inference_for_production:
+            blockers.append("SPARE_GEOMETRY_INFERENCE_NOT_ACCEPTED")
+        if (
+            exact_revision_spare_match_passed
+            and return_to_stock_spare_passed
+            and accept_spare_inference_for_production
+            and production_mcu == EXPECTED_MCU
+            and production_flash_size == EXPECTED_FLASH_SIZE
+        ):
+            production_geometry_inferred_from_spare = True
+
+    else:
+        if not production_revision_proven:
+            blockers.append("PRODUCTION_REVISION_UNPROVEN")
+
     if production_hw_version != EXPECTED_HW_VERSION:
         blockers.append("LIVE_HW_VERSION_MISMATCH")
     if current_file_version != EXPECTED_STOCK_FILE_VERSION:
@@ -98,6 +170,8 @@ def evaluate_preconditions(
     if not isinstance(candidate_file_version, int) or candidate_file_version <= current_file_version:
         blockers.append("CANDIDATE_VERSION_NOT_NEWER")
 
+    # The return-to-stock canary is always required before production, regardless
+    # of whether installed hardware was inspected directly.
     if not return_to_stock_spare_passed:
         blockers.append("RETURN_TO_STOCK_SPARE_NOT_PASSED")
 
@@ -107,6 +181,12 @@ def evaluate_preconditions(
         "AUTHORIZATION_GRANTED": False,
         "bankNeutral": metadata.get("bankNeutral") is True,
         "activeBankRequiredForFirstOta": False,
+        "hardwareEvidenceSource": effective_hardware_evidence,
+        "directProductionGeometryProven": direct_production_geometry_proven,
+        "productionGeometryInferredFromExactRevisionSpare": (
+            production_geometry_inferred_from_spare
+        ),
+        "spareInferenceAccepted": accept_spare_inference_for_production,
         "blockers": blockers,
     }
 
@@ -124,6 +204,21 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--production-mcu", default="unknown")
     parser.add_argument("--production-revision-proven", action="store_true")
     parser.add_argument("--return-to-stock-spare-passed", action="store_true")
+    parser.add_argument(
+        "--hardware-evidence-source",
+        choices=sorted(HARDWARE_EVIDENCE_CHOICES),
+        default=HARDWARE_EVIDENCE_UNPROVEN,
+        help="where the MCU/flash/revision evidence came from",
+    )
+    parser.add_argument("--exact-revision-spare-match-passed", action="store_true")
+    parser.add_argument(
+        "--accept-spare-inference-for-production",
+        action="store_true",
+        help=(
+            "explicitly accept residual same-identifiers/different-BOM risk when "
+            "using an exact-revision spare instead of opening the installed unit"
+        ),
+    )
     ns = parser.parse_args(argv)
 
     metadata = json.loads(ns.metadata.read_text(encoding="utf-8"))
@@ -135,6 +230,9 @@ def main(argv: list[str] | None = None) -> int:
         production_mcu=ns.production_mcu,
         production_revision_proven=ns.production_revision_proven,
         return_to_stock_spare_passed=ns.return_to_stock_spare_passed,
+        hardware_evidence_source=ns.hardware_evidence_source,
+        exact_revision_spare_match_passed=ns.exact_revision_spare_match_passed,
+        accept_spare_inference_for_production=ns.accept_spare_inference_for_production,
     )
     print(json.dumps(result, indent=2, sort_keys=True))
     return 0 if result["FLASH_WRITE_PRECONDITIONS_PASS"] else 3
