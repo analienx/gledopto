@@ -141,12 +141,20 @@ jobs:
           export OUT_DIR="$RUNNER_TEMP/glsd-tc32-objects"
           bash tools/build_glsd_tc32_objects.sh
           cat "$OUT_DIR/build-manifest.txt"
-      - name: Enforce private extraction read-only import surface
+      - name: Enforce private extraction and recovery call surface
         shell: bash
         run: |
           set -euo pipefail
           manifest="$RUNNER_TEMP/glsd-tc32-objects/build-manifest.txt"
           ! grep -Eai '(^|[^[:alnum:]_])(flash_write|flash_erase|nv_flashWrite|nv_reset|factory|leave|boot.*marker.*write)' "$manifest"
+          ! grep -Eq ' U ota_queryStart$' "$manifest"
+          ! grep -Eq ' U bdb_networkSteerStart$' "$manifest"
+          grep -Eq ' U ota_init$' "$manifest"
+          grep -Eq ' U ota_mcuReboot$' "$manifest"
+          echo 'PRIVATE_EXTRACTION_MUTATION_IMPORTS=NONE'
+          echo 'PERIODIC_OTA_QUERY_IMPORT=NONE'
+          echo 'NETWORK_STEERING_IMPORT=NONE'
+          echo 'NOTIFY_DRIVEN_OTA_RECOVERY_IMPORTS=PRESENT'
       - name: Link and validate non-deployable stager mechanics for both banks
         shell: bash
         run: |
