@@ -182,16 +182,7 @@ jobs:
             python tools/make_glsd_stager_ota.py "$inner" --out "$ota" --offline-build-quarantined
             python tools/telink_ota_forensics.py "$ota" --json > "$root/$bank/ota-analysis.json"
             python tools/make_glsd_stager_index.py "$ota" --url "file:///QUARANTINED/$bank.ota" --out "$index"
-            python - "$index" <<'PY'
-import json, pathlib, sys
-entry = json.loads(pathlib.Path(sys.argv[1]).read_text())[0]
-assert entry['manufacturerCode'] == 0x124F
-assert entry['imageType'] == 0x1416
-assert entry['fileVersion'] == 0x7F010001
-assert entry['hardwareVersionMin'] == 2
-assert entry['hardwareVersionMax'] == 2
-print('QUARANTINED_OTA_INDEX_GATE=PASS')
-PY
+            python -c "import json,pathlib,sys; e=json.loads(pathlib.Path(sys.argv[1]).read_text())[0]; assert e['manufacturerCode']==0x124F and e['imageType']==0x1416 and e['fileVersion']==0x7F010001 and e['hardwareVersionMin']==2 and e['hardwareVersionMax']==2; print('QUARANTINED_OTA_INDEX_GATE=PASS')" "$index"
           done
           echo 'QUARANTINED_REAL_TC32_OTA_WRAPPER=PASS_BOTH_BANKS'
           echo 'NO_ARTIFACT_UPLOAD=YES'
