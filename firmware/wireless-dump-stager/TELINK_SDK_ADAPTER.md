@@ -1,230 +1,230 @@
 # Telink SDK adapter pin — wireless dump stager
 
-Status: **thin adapter implemented from pinned source contracts; target TC32 build still blocked; no live OTA authorization**.
+Status: **real TC32 target objects compile; TLSR8258 bank-A/bank-B mechanics link; no live OTA authorization**.
 
-Pinned upstream SDK:
-
-```text
-repo:   telink-semi/telink_zigbee_sdk
-commit: 09fa2c3483b3aa2f0a6f2e2cc7e267cd6f1f9277
-MCU:    TLSR8258 / B85 path
-```
-
-Implemented files:
+Pinned public build inputs:
 
 ```text
-glsd_transport_adapter.h/.c      stack-independent fail-closed boundary
-glsd_telink_sdk_adapter.h/.c     thin Telink binding behind GLSD_TELINK_SDK
+SDK:       telink-semi/telink_zigbee_sdk tag V3.7.2.0
+SDK commit d5bc2f7b0c1f8536fe21c8127ca680ea8214bc8e
+MCU path:  TLSR8258 / B85
+compiler:  tc32-elf-gcc (Telink TC32 version 2.0 build) 4.5.1.tc32-elf-1.5
+toolchain archive sha256:
+           33b854be3e3db3dba4b4dacdda2cd4ea1c94dfd4d562864a095956de7991b430
 ```
 
-The host/native build compiles a deliberate fail-closed Telink stub. Only a real
-TC32 target build with `GLSD_TELINK_SDK` defined may compile the SDK-facing
-handler.
+The public `boot_8258.link`, `cstartup_8258.S` and `link_cfg.S` are used directly.
+The repository fixture supplies only fail-closed application configuration needed
+to compile/link the public SDK; its sample board header is **not** evidence of the
+GL-SD-301P production PCB.
 
-## 1. Flash read primitive
-
-Pinned source:
+## Implemented target files
 
 ```text
-tl_zigbee_sdk/proj/drivers/drv_flash.c
+glsd_stager_core.[ch]                 read-only old-bank validator/reader
+glsd_stager_dispatch.[ch]             PING/INFO/READ/ABORT protocol dispatcher
+glsd_transport_adapter.[ch]            radio/request safety boundary
+glsd_telink_sdk_adapter.[ch]           Telink ZCL binding
+glsd_telink_stager_app.c               minimal router/EP11 application shell
+glsd_telink_disabled_feature_glue.c    inert optional SDK hooks
+telink_fixture/*                        mechanics-only SDK configuration
 ```
 
-SDK wrapper:
+`tools/build_glsd_tc32_objects.sh` compiles all target translation units with the
+real TC32 compiler. GitHub Actions currently requires:
+
+```text
+GLSD_TC32_OBJECT_COMPILE=PASS_6_OF_6
+```
+
+## Flash read primitive
+
+The extraction core is given only:
 
 ```c
-void flash_read(u32 addr, u32 len, u8 *buf)
-{
-    flash_read_page(addr, len, buf);
-}
+flash_read_page(address, length, dst)
 ```
 
-The extraction image must expose **read only** to `glsd_stager_core_t`:
+There is deliberately no write/erase callback in `glsd_stager_env_t`.
+The private extraction objects are audited through `tc32-elf-nm -u`; imports of
+flash write/erase, NV reset/write, factory reset, leave or commissioning
+primitives fail CI.
 
-```c
-static int telink_flash_read(void *user, uint32_t address, uint8_t *dst, uint32_t length)
-{
-    (void)user;
-    flash_read_page(address, length, dst);
-    return 0;
-}
-```
+This statement is intentionally narrower than "the whole ELF is read-only".
+The standard Telink OTA client remains a separate mutation-capable **recovery
+subsystem** and necessarily contains flash erase/write code. Private cluster
+commands cannot invoke it.
 
-No `flash_write_page`, `flash_erase_sector`, `flash_erase`, boot-marker write,
-NV write or factory write belongs in extraction build v1.
+## Private 0xFC00 transport
 
-## 2. Exact raw cluster receive path
+The pinned SDK's `zclIncoming_t` provides raw command data plus profile, short
+address, endpoints, sequence number, direction and APS-security state. The
+Telink adapter normalizes those values into `glsd_transport_request_t`.
 
-Pinned source:
+Before dispatch the transport requires:
 
 ```text
-tl_zigbee_sdk/stack/zigbee/zcl/zcl.h
+unicast
+endpoint 11
+client -> server direction
+APS-secured request
+known command
+well-formed payload
 ```
 
-The SDK defines:
+Replies are unicast to the exact request source and preserve the incoming ZCL
+sequence. APS ACK is enabled and APS security is retained.
 
-```c
-typedef status_t (*cluster_cmdHdlr_t)(zclIncoming_t *pInHdlrMsg);
-```
-
-and `zclIncoming_t` retains both raw payload and APS/ZCL metadata:
+The private extraction command set remains:
 
 ```text
-msg              apsdeDataInd_t *
-pData            raw command payload
-dataLen           raw payload length
-addrInfo.profileId
-addrInfo.srcAddr
-addrInfo.dstAddr
-addrInfo.srcEp
-addrInfo.dstEp
-addrInfo.seqNum
-addrInfo.dirCluster
-addrInfo.apsSec
-hdr.cmd
+PING
+INFO
+READ
+ABORT
 ```
 
-The adapter therefore does not invent another wire parser. It normalizes those
-fields into `glsd_transport_request_t`, then the pure transport layer invokes the
-existing `glsd_stager_dispatch()`.
+There is no write, erase, NV, reset, leave, binding or boot-marker command.
 
-## 3. Unicast/group/broadcast gate is now source-proven
+## Minimal application surface
 
-The pinned SDK provides this exact helper in `zcl.h`:
-
-```c
-#define UNICAST_MSG(msg) \
-    (((msg)->indInfo.dst_addr < NWK_BROADCAST_ROUTER_COORDINATOR) && \
-     (((msg)->indInfo.dst_addr_mode) != APS_SHORT_GROUPADDR_NOEP))
-```
-
-Because `zclIncoming_t.msg` is the original `apsdeDataInd_t *`, the custom
-cluster handler can call `UNICAST_MSG(incoming->msg)` directly.
-
-`glsd_transport_handle()` then independently requires:
+The stager application advertises EP11 with:
 
 ```text
-is_unicast == true
-destination_endpoint == 11
-client_to_server == true
+input:  Basic (0x0000), private extraction (0xFC00)
+output: OTA client (0x0019)
+profile: HA
 ```
 
-before calling the dispatcher. Group/broadcast traffic therefore cannot reach a
-READ response path.
+It does not initialize the sample light, GPIO/PWM, button, LED, reporting,
+binding or factory-reset application logic.
 
-The native regression proves non-unicast, wrong-endpoint and wrong-direction
-requests do not invoke the response callback.
+The application calls normal `zb_init()` / BDB restore paths so an already
+commissioned router can reuse Zigbee NV. It contains **no network-steering call**;
+a factory-new node therefore remains uncommissioned rather than silently joining
+some network.
 
-## 4. Response route and APS security are pinned
+## OTA recovery is notify-driven only
 
-`zclIncomingAddrInfo_t` supplies the exact requester short address, source
-endpoint, profile ID, ZCL sequence and whether APS security was present.
+`ota_init(OTA_TYPE_CLIENT, ...)` is retained so a recovery image can eventually
+be supplied through standard Zigbee OTA. The stager intentionally does **not**
+call `ota_queryStart()`.
 
-Pinned SDK precedents construct `epInfo_t` as:
+Public Telink `ota_imageNotifyHandler()` directly issues Query Next Image after a
+valid Image Notify. Therefore recovery can be explicitly initiated by the
+coordinator while the stager avoids periodic OTA-server discovery/polling.
+
+On a successfully validated OTA completion the normal SDK callback invokes
+`ota_mcuReboot()`. This recovery path remains outside the private extraction
+protocol and is not authorized for production use yet.
+
+## Disabled TouchLink / Green Power / OTP hooks
+
+The prebuilt router library retains application-owned TouchLink/Green Power hooks
+even when those features are not exposed by this application. The stager supplies
+fail-closed glue:
+
+- TouchLink state disabled; registration returns unsupported;
+- Green Power shared key/type are inert and device-announces are rejected;
+- no optional TouchLink/GP endpoint is advertised.
+
+Several public flash-vendor compatibility source files also carry unused OTP
+wrappers. Their normal flash lock/unlock functions are required by the SDK, so
+non-mutating generic OTP stubs allow those unused sections to link and then be
+removed by `--gc-sections`. The final ELF gate requires:
 
 ```text
-dstAddrMode = APS_SHORT_DSTADDR_WITHEP
-dstAddr.shortAddr = incoming source short address
-dstEp = incoming source endpoint
-profileId = incoming profile ID
-txOptions includes APS_TX_OPT_ACK_TX
-txOptions includes APS_TX_OPT_SECURITY_ENABLED when incoming apsSec is set
+FINAL_OTP_SYMBOL_SCAN=NONE
 ```
 
-The implemented adapter follows that pattern and calls:
+If any OTP path survives GC, the build fails.
 
-```c
-zcl_sendCmd(
-    11,
-    &dst,
-    0xFC00,
-    response_command,
-    TRUE,
-    ZCL_FRAME_SERVER_CLIENT_DIR,
-    TRUE,
-    0,
-    incoming_zcl_sequence,
-    payload_length,
-    payload
-);
-```
+## Dual-bank link and physical geometry proof
 
-The payload is exactly what `glsd_stager_dispatch()` produced; the SDK adapter
-does not rebuild INFO/DATA fields.
-
-## 5. Cluster registration
-
-Pinned API:
-
-```c
-status_t zcl_registerCluster(
-    u8 endpoint,
-    u16 clusterId,
-    u16 manuCode,
-    u8 attrNum,
-    const zclAttrInfo_t *pAttrTbl,
-    cluster_cmdHdlr_t cmdHdlrFn,
-    cluster_forAppCb_t cb
-);
-```
-
-The thin adapter registers:
+`tools/build_glsd_tc32_link_probe.sh` links the same stager for:
 
 ```text
-endpoint:     11
-cluster ID:   0xFC00
-manufacturer: 0
-attributes:   none
+bank A: GLSD_STAGER_LINK_BASE=0x00000
+bank B: GLSD_STAGER_LINK_BASE=0x40000
 ```
 
-Registration is only one part of the final target application. Its simple
-descriptor must also advertise `0xFC00` as an input cluster. The final target
-project must keep its total registered cluster set within the SDK's configured
-`ZCL_CLUSTER_NUM_MAX` rather than inheriting an oversized sample profile.
+The public `link_cfg.S` maps this into `__FW_OFFSET`, consumed by
+`boot_8258.link`. CI also compares `.text` VMAs and requires the bank-B delta to
+be exactly `0x40000`, preventing a fake "bank B" build that merely changes a C
+constant.
 
-## 6. Adapter behavior on errors
-
-`glsd_telink_sdk_adapter.c` returns `ZCL_STA_CMD_HAS_RESP` only when the pure
-transport layer successfully sent the explicit cluster response.
-
-Dropped or invalid requests return normal success to ZCL but produce no private
-payload. The companion host always sets `disableDefaultResponse=true`; this
-avoids accidentally turning malformed READs into a data-bearing alternate path.
-
-If target cluster registration fails, the adapter clears its context and returns
-failure. It never falls back to a different endpoint or cluster.
-
-## 7. Other extraction invariants retained
+Physical-image gates are based on the finalized inner-image byte length:
 
 ```text
-- 512 KiB flash only
-- app banks 0x00000 / 0x40000 only
+bank A must remain below 0x34000
+bank B must remain below 0x74000
+MAC region starts 0x76000
+factory region starts 0x77000
+512 KiB flash ends 0x80000
+```
+
+No generated Zigbee OTA container is produced by this link proof.
+
+## Telink inner-image finalization
+
+Raw TC32 linker output contains:
+
+```text
+FILE_VERSION at +0x02
+raw 00 00 at +0x06
+startup marker 4B 4E 4C 54 at +0x08
+manufacturer at +0x12
+image type at +0x14
+raw linker size at +0x18
+```
+
+`tools/telink_app_finalize.py` implements the separate offline image-finalization
+step used by this SDK lineage:
+
+1. validate raw identity/marker/declared length;
+2. pad body to 16-byte alignment when required;
+3. write `5D 02` at +0x06;
+4. patch declared size to include the trailing CRC;
+5. append Telink xcrc32 (init `0xFFFFFFFF`, reflected polynomial, no final XOR);
+6. re-validate identity, size and CRC.
+
+It refuses malformed identity, unexpected raw magic, size mismatch,
+double-finalization, bad CRC and slot overflow. CI exercises it on synthetic
+regressions and on both real TC32-linked banks. The finalized binary remains a
+**transient mechanics artifact**, not deployment authorization.
+
+## Runtime extraction gates retained
+
+```text
+- runtime flash capacity must resolve to exactly 512 KiB
+- stager base must be exactly 0x00000 or 0x40000
 - executing stager bank marker must be 0x544C4E4B
 - opposite old bank marker must be 0x544C4E00
-- old Telink header must contain 5D 02
-- declared size must be >=0x20 and <0x34000
-- virtual +0x08 reconstruction must pass exact Telink xcrc32
-- READ is relative to old app only
-- READ data length is 1..48 bytes
-- no reads from MAC/NV/factory/calibration regions
-- no flash write/erase callback in extraction build
-- no rollback commands in extraction build
-- unicast only, endpoint 11 only, client-to-server only
-- APS ACK on replies; preserve incoming APS security where present
+- old bank must contain Telink 5D 02 identity
+- old declared application size must be >=0x20 and <0x34000
+- virtual restoration of old +0x08 marker must pass Telink xcrc32
+- READ is relative only to validated old application bytes
+- chunk length is 1..48
+- no extraction access to MAC/NV/factory/calibration ranges
 ```
 
-## 8. What remains before target compilation
+## Remaining live gates
 
-The radio/addressing design is no longer the blocker. Remaining target-build
-gates are:
+Target compilation/linking is no longer the blocker. Before any live stager OTA,
+we still need production-specific evidence that cannot be inferred safely from a
+historical image or the public SDK:
 
-1. obtain a reproducible TC32 compiler/toolchain with acceptable provenance;
-2. obtain/link the required TLSR8258 low-level SDK support objects/headers;
-3. establish the exact production-module silicon/flash/board assumptions needed
-   for the target project;
-4. choose a minimal endpoint/simple-descriptor/cluster set that includes the
-   private dump cluster and the recovery/OTA path without guessing board logic;
-5. compile with `GLSD_TELINK_SDK`, then inspect the map, symbols, flash addresses
-   and forbidden write/erase references before generating any OTA container.
+1. exact 2024/2026 GL-SD-301P MCU/package and flash part/JEDEC or equivalent
+   revision proof;
+2. confidence that the production unit really uses the proven 512-KiB dual-bank
+   layout and that the selected first OTA bank matches stock behavior;
+3. a tested return path, preferably using a sacrificial matching spare and a
+   recovered/reconstructed stock image;
+4. final live target-lock/OTA-provider review and explicit authorization.
 
-None of those steps authorizes loading the extension or serving an image to
-`LivingRoomCircleLightDimmer`.
+Until those gates are closed:
+
+```text
+LIVE_CUSTOM_OTA=NO_GO
+PRODUCTION_DEVICE_MUTATION=NO_GO
+```
