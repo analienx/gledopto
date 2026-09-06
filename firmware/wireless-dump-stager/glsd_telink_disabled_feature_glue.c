@@ -7,8 +7,11 @@
  * initialize those features.  Providing explicit inert definitions is safer
  * and smaller than linking the complete optional feature implementations.
  *
- * None of these definitions writes flash/NV, starts commissioning, changes a
- * key, or registers an optional cluster. Unexpected calls fail closed.
+ * Some public flash-vendor compatibility TUs also contain unused OTP wrappers.
+ * Their normal lock/unlock functions are required by flash_common.c, so the
+ * generic OTP calls are resolved here with non-mutating stubs. Link-time GC
+ * must remove these stubs and every vendor OTP wrapper from the final ELF; CI
+ * enforces that property.
  */
 
 #ifdef GLSD_TELINK_SDK
@@ -52,6 +55,32 @@ status_t zcl_touchlink_register(u8 endpoint, const zcl_touchlinkAppCallbacks_t *
     (void)endpoint;
     (void)cb;
     return ZCL_STA_UNSUP_CLUSTER_COMMAND;
+}
+
+/*
+ * Never mutate flash security/OTP registers. These exist solely to satisfy
+ * references in unused vendor-specific wrapper sections before --gc-sections.
+ * A surviving symbol in the final ELF is treated as a build failure.
+ */
+void flash_read_otp(unsigned long addr, unsigned long len, unsigned char *buf) {
+    unsigned long i;
+    (void)addr;
+    if (buf == NULL) {
+        return;
+    }
+    for (i = 0; i < len; ++i) {
+        buf[i] = 0xFFu;
+    }
+}
+
+void flash_write_otp(unsigned long addr, unsigned long len, unsigned char *buf) {
+    (void)addr;
+    (void)len;
+    (void)buf;
+}
+
+void flash_erase_otp(unsigned long addr) {
+    (void)addr;
 }
 
 #endif /* GLSD_TELINK_SDK */
