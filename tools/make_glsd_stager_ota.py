@@ -3,6 +3,8 @@
 
 This tool wraps an already-finalized Telink inner application. It performs no
 network/device I/O and refuses to run without an explicit quarantine flag.
+The CLI additionally requires the TC32 bank manifest and a target-bank label so
+an image linked for bank A cannot be accidentally labeled or served as bank B.
 The output is a mechanics/test artifact only; it is NOT authorization to serve
 or install firmware on the production device.
 """
@@ -13,6 +15,7 @@ import argparse
 import hashlib
 import json
 from pathlib import Path
+import re
 import struct
 
 from telink_app_finalize import (
@@ -32,10 +35,108 @@ OTA_UPGRADE_TAG = 0x0000
 ZIGBEE_STACK_VERSION = 0x0002
 TARGET_HW_VERSION = 2
 HEADER_STRING = b"GLSD READONLY DUMP STAGER"
+EXPECTED_BANK_BASES = {"bank_a": 0x00000, "bank_b": 0x40000}
+EXPECTED_BANK_SLOT_ENDS = {"bank_a": 0x34000, "bank_b": 0x74000}
 
 
 class StagerOtaError(ValueError):
     pass
+
+
+def _parse_manifest_int(value: str, field: str) -> int:
+    try:
+        return int(value, 0)
+    except ValueError as exc:
+        raise StagerOtaError(f"invalid {field} in bank manifest: {value!r}") from exc
+
+
+def validate_bank_manifest(manifest_path: Path, inner_path: Path, target_bank: str) -> dict:
+    """Bind a finalized inner image to the exact TC32 bank-link proof that built it."""
+    if target_bank not in EXPECTED_BANK_BASES:
+        raise StagerOtaError(f"unsupported target bank: {target_bank}")
+    text = manifest_path.read_text(encoding="utf-8")
+    fields: dict[str, str] = {}
+    hashes: dict[str, str] = {}
+    for raw in text.splitlines():
+        line = raw.strip()
+        if not line:
+            continue
+        match = re.fullmatch(r"([0-9a-fA-F]{64})\s+(.+)", line)
+        if match:
+            hashes[Path(match.group(2)).name] = match.group(1).lower()
+            continue
+        if "=" in line:
+            key, value = line.split("=", 1)
+            fields[key.strip()] = value.strip()
+
+    required = {
+        "MECHANICS_ONLY",
+        "DEPLOYABLE",
+        "BANK",
+        "GLSD_STAGER_LINK_BASE",
+        "FINAL_INNER_BINARY_SIZE",
+        "PHYSICAL_FLASH_START",
+        "PHYSICAL_FLASH_END_EXCLUSIVE",
+        "APP_SLOT_END",
+    }
+    missing = sorted(required - fields.keys())
+    if missing:
+        raise StagerOtaError(f"bank manifest missing fields: {', '.join(missing)}")
+    if fields["MECHANICS_ONLY"] != "YES" or fields["DEPLOYABLE"] != "NO":
+        raise StagerOtaError("bank manifest is not an expected quarantined mechanics build")
+    if fields["BANK"] != target_bank:
+        raise StagerOtaError(
+            f"bank manifest mismatch: {fields['BANK']} != requested {target_bank}"
+        )
+
+    expected_base = EXPECTED_BANK_BASES[target_bank]
+    expected_slot_end = EXPECTED_BANK_SLOT_ENDS[target_bank]
+    link_base = _parse_manifest_int(fields["GLSD_STAGER_LINK_BASE"], "GLSD_STAGER_LINK_BASE")
+    physical_start = _parse_manifest_int(fields["PHYSICAL_FLASH_START"], "PHYSICAL_FLASH_START")
+    physical_end = _parse_manifest_int(
+        fields["PHYSICAL_FLASH_END_EXCLUSIVE"], "PHYSICAL_FLASH_END_EXCLUSIVE"
+    )
+    slot_end = _parse_manifest_int(fields["APP_SLOT_END"], "APP_SLOT_END")
+    declared_inner_size = _parse_manifest_int(
+        fields["FINAL_INNER_BINARY_SIZE"], "FINAL_INNER_BINARY_SIZE"
+    )
+
+    if link_base != expected_base or physical_start != expected_base:
+        raise StagerOtaError(
+            f"target {target_bank} must be linked at 0x{expected_base:05x}"
+        )
+    if slot_end != expected_slot_end:
+        raise StagerOtaError(
+            f"target {target_bank} slot end must be 0x{expected_slot_end:05x}"
+        )
+
+    inner = inner_path.read_bytes()
+    if declared_inner_size != len(inner):
+        raise StagerOtaError(
+            f"bank manifest inner size {declared_inner_size} != file size {len(inner)}"
+        )
+    if physical_end != expected_base + len(inner):
+        raise StagerOtaError("bank manifest physical end does not match inner image length")
+    if physical_end >= slot_end:
+        raise StagerOtaError("bank manifest places finalized image at/inside reserved region")
+
+    inner_sha256 = hashlib.sha256(inner).hexdigest()
+    manifest_hash = hashes.get(inner_path.name)
+    if manifest_hash is None:
+        raise StagerOtaError(f"bank manifest has no SHA-256 entry for {inner_path.name}")
+    if manifest_hash != inner_sha256:
+        raise StagerOtaError("finalized inner image hash does not match bank manifest")
+
+    return {
+        "targetBank": target_bank,
+        "targetLinkBase": expected_base,
+        "physicalFlashStart": physical_start,
+        "physicalFlashEndExclusive": physical_end,
+        "appSlotEnd": slot_end,
+        "innerBytes": len(inner),
+        "innerSha256": inner_sha256,
+        "bankManifestSha256": hashlib.sha256(text.encode("utf-8")).hexdigest(),
+    }
 
 
 def build_stager_ota(
@@ -122,6 +223,8 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("inner", type=Path, help="finalized Telink inner application")
     parser.add_argument("--out", type=Path, required=True)
+    parser.add_argument("--target-bank", choices=tuple(EXPECTED_BANK_BASES), required=True)
+    parser.add_argument("--bank-manifest", type=Path, required=True)
     parser.add_argument(
         "--offline-build-quarantined",
         action="store_true",
@@ -131,6 +234,7 @@ def main(argv: list[str] | None = None) -> int:
     if not ns.offline_build_quarantined:
         parser.error("refusing to build bootable OTA wrapper without --offline-build-quarantined")
 
+    bank = validate_bank_manifest(ns.bank_manifest, ns.inner, ns.target_bank)
     inner = ns.inner.read_bytes()
     ota = build_stager_ota(inner)
     ns.out.write_bytes(ota)
@@ -148,6 +252,7 @@ def main(argv: list[str] | None = None) -> int:
         "hardwareVersionMin": TARGET_HW_VERSION,
         "hardwareVersionMax": TARGET_HW_VERSION,
         "innerValid": bool(report["upgrade_image"]["application_validation"]["valid"]),
+        **bank,
     }
     sidecar = ns.out.with_suffix(ns.out.suffix + ".quarantine.json")
     sidecar.write_text(json.dumps(metadata, indent=2, sort_keys=True) + "\n", encoding="utf-8")
