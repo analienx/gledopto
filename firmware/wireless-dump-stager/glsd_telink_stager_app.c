@@ -7,7 +7,9 @@
  *    path but never starts steering/commissioning for a factory-new node;
  *  - exposes only read-only Basic attributes plus the GL-SD 0xFC00 extraction
  *    cluster;
- *  - retains the standard Telink OTA CLIENT as the recovery channel;
+ *  - retains the standard Telink OTA CLIENT as the recovery channel, but does
+ *    not start periodic OTA discovery/query timers; recovery is explicitly
+ *    initiated by an incoming OTA Image Notify;
  *  - never calls sampleLight LED/GPIO/PWM/light/factory-reset/binding/reporting
  *    routines;
  *  - the private extraction core has only flash_read_page(), never write/erase.
@@ -109,12 +111,13 @@ static ota_preamble_t g_ota_info = {
 };
 
 static void glsd_ota_event(u8 evt, u8 status) {
-    if (evt == OTA_EVT_COMPLETE) {
-        if (status == ZCL_STA_SUCCESS) {
-            ota_mcuReboot();
-        } else if (zb_isDeviceJoinedNwk()) {
-            ota_queryStart(OTA_PERIODIC_QUERY_INTERVAL);
-        }
+    /*
+     * ota_imageNotifyHandler() in the Telink client issues Query Next Image
+     * directly. We intentionally never call ota_queryStart(), so the stager
+     * cannot periodically discover/query arbitrary OTA servers on its own.
+     */
+    if (evt == OTA_EVT_COMPLETE && status == ZCL_STA_SUCCESS) {
+        ota_mcuReboot();
     }
 }
 
@@ -123,10 +126,9 @@ static ota_callBack_t g_ota_cb = {
 };
 
 static void glsd_bdb_init_cb(u8 status, u8 joined_network) {
-    /* Fail closed: never start steering/commissioning here. */
-    if (status == BDB_INIT_STATUS_SUCCESS && joined_network) {
-        ota_queryStart(OTA_PERIODIC_QUERY_INTERVAL);
-    }
+    /* Fail closed: never start steering, commissioning, or periodic OTA query. */
+    (void)status;
+    (void)joined_network;
 }
 
 static bdb_appCb_t g_bdb_callbacks = {
