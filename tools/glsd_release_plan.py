@@ -21,7 +21,11 @@ import json
 from pathlib import Path
 from urllib.parse import urlparse
 
-from glsd_flash_preflight import evaluate_preconditions
+from glsd_flash_preflight import (
+    HARDWARE_EVIDENCE_CHOICES,
+    HARDWARE_EVIDENCE_UNPROVEN,
+    evaluate_preconditions,
+)
 
 TARGET_IEEE = "0xa4c13850cfcdb3a4"
 BASE_TOPIC = "zigbee2mqtt"
@@ -91,6 +95,9 @@ def build_plan(
     production_mcu: str,
     production_revision_proven: bool,
     return_to_stock_spare_passed: bool,
+    hardware_evidence_source: str = HARDWARE_EVIDENCE_UNPROVEN,
+    exact_revision_spare_match_passed: bool = False,
+    accept_spare_inference_for_production: bool = False,
 ) -> dict:
     _validate_url(url)
     byte_attestation = attest_candidate_bytes(metadata, candidate_path)
@@ -102,6 +109,9 @@ def build_plan(
         production_mcu=production_mcu,
         production_revision_proven=production_revision_proven,
         return_to_stock_spare_passed=return_to_stock_spare_passed,
+        hardware_evidence_source=hardware_evidence_source,
+        exact_revision_spare_match_passed=exact_revision_spare_match_passed,
+        accept_spare_inference_for_production=accept_spare_inference_for_production,
     )
 
     check_request = {
@@ -125,7 +135,7 @@ def build_plan(
         }
 
     return {
-        "schemaVersion": 2,
+        "schemaVersion": 3,
         "targetIeee": TARGET_IEEE,
         "usesGlobalOverrideIndex": False,
         "automaticUpdateChecksMustRemainDisabled": True,
@@ -175,6 +185,13 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--production-mcu", default="unknown")
     ap.add_argument("--production-revision-proven", action="store_true")
     ap.add_argument("--return-to-stock-spare-passed", action="store_true")
+    ap.add_argument(
+        "--hardware-evidence-source",
+        choices=sorted(HARDWARE_EVIDENCE_CHOICES),
+        default=HARDWARE_EVIDENCE_UNPROVEN,
+    )
+    ap.add_argument("--exact-revision-spare-match-passed", action="store_true")
+    ap.add_argument("--accept-spare-inference-for-production", action="store_true")
     ns = ap.parse_args(argv)
 
     metadata = json.loads(ns.metadata.read_text(encoding="utf-8"))
@@ -188,6 +205,9 @@ def main(argv: list[str] | None = None) -> int:
         production_mcu=ns.production_mcu,
         production_revision_proven=ns.production_revision_proven,
         return_to_stock_spare_passed=ns.return_to_stock_spare_passed,
+        hardware_evidence_source=ns.hardware_evidence_source,
+        exact_revision_spare_match_passed=ns.exact_revision_spare_match_passed,
+        accept_spare_inference_for_production=ns.accept_spare_inference_for_production,
     )
     encoded = json.dumps(plan, indent=2, sort_keys=True) + "\n"
     if ns.out:
