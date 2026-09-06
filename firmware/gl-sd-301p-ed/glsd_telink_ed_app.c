@@ -1,12 +1,9 @@
 /*
  * GL-SD-301P product Zigbee application.
  *
- * This is a normal mains-powered Zigbee End Device (leaf) which keeps its
- * receiver on while idle. It provides the standard dimmable-light application
- * surface on endpoint 11 and delegates electrical output to glsd_power_stage.*.
- *
- * The Telink sample-light GPIO/PWM implementation is intentionally NOT used:
- * the installed GL-SD power-stage wiring/protocol is a separate adapter.
+ * Normal mains-powered Zigbee End Device (leaf), receiver always on while idle.
+ * Endpoint 11 exposes the standard dimmable-light surface and delegates all
+ * electrical output to glsd_power_stage.*. No sample-board PWM/GPIO is used.
  */
 
 #ifdef GLSD_TELINK_SDK
@@ -47,24 +44,19 @@ static u8 g_basic_model_id[] = {13,'G','L','-','S','D','-','3','0','1','P','-','
 static u8 g_basic_date_code[] = {8,'2','0','2','6','0','9','0','6'};
 static u8 g_basic_sw_build_id[] = {11,'G','L','S','D','-','E','D','-','D','E','V'};
 
+/* Keep application attributes independent of Telink sampleLight private types. */
 static u8 g_group_name_support = 0u;
-
-static zcl_onOffAttr_t g_onoff = {
-    .onOff = ZCL_ONOFF_STATUS_OFF,
-    .globalSceneControl = TRUE,
-    .onTime = 0,
-    .offWaitTime = 0,
-    .startUpOnOff = ZCL_START_UP_ONOFF_SET_ONOFF_TO_PREVIOUS,
-};
-
-static zcl_levelAttr_t g_level = {
-    .curLevel = GLSD_LEVEL_MAX,
-    .remainingTime = 0,
-    .options = 0,
-    .minLevel = GLSD_LEVEL_MIN,
-    .maxLevel = GLSD_LEVEL_MAX,
-    .startUpCurrentLevel = ZCL_START_UP_CURRENT_LEVEL_TO_PREVIOUS,
-};
+static u8 g_onoff_value = ZCL_ONOFF_STATUS_OFF;
+static u8 g_onoff_global_scene = TRUE;
+static u16 g_onoff_on_time = 0;
+static u16 g_onoff_off_wait = 0;
+static u8 g_onoff_startup = ZCL_START_UP_ONOFF_SET_ONOFF_TO_PREVIOUS;
+static u8 g_level_current = GLSD_LEVEL_MAX;
+static u16 g_level_remaining = 0;
+static u8 g_level_min = GLSD_LEVEL_MIN;
+static u8 g_level_max = GLSD_LEVEL_MAX;
+static u8 g_level_options = 0;
+static u8 g_level_startup = ZCL_START_UP_CURRENT_LEVEL_TO_PREVIOUS;
 
 static const zclAttrInfo_t g_basic_attrs[] = {
     {ZCL_ATTRID_BASIC_ZCL_VER,      ZCL_DATA_TYPE_UINT8,    ACCESS_CONTROL_READ, (u8 *)&g_basic_zcl_version},
@@ -87,32 +79,32 @@ static const zclAttrInfo_t g_group_attrs[] = {
 
 static const zclAttrInfo_t g_onoff_attrs[] = {
     {ZCL_ATTRID_ONOFF, ZCL_DATA_TYPE_BOOLEAN,
-     ACCESS_CONTROL_READ | ACCESS_CONTROL_REPORTABLE, (u8 *)&g_onoff.onOff},
+     ACCESS_CONTROL_READ | ACCESS_CONTROL_REPORTABLE, (u8 *)&g_onoff_value},
     {ZCL_ATTRID_GLOBAL_SCENE_CONTROL, ZCL_DATA_TYPE_BOOLEAN,
-     ACCESS_CONTROL_READ, (u8 *)&g_onoff.globalSceneControl},
+     ACCESS_CONTROL_READ, (u8 *)&g_onoff_global_scene},
     {ZCL_ATTRID_ON_TIME, ZCL_DATA_TYPE_UINT16,
-     ACCESS_CONTROL_READ | ACCESS_CONTROL_WRITE, (u8 *)&g_onoff.onTime},
+     ACCESS_CONTROL_READ | ACCESS_CONTROL_WRITE, (u8 *)&g_onoff_on_time},
     {ZCL_ATTRID_OFF_WAIT_TIME, ZCL_DATA_TYPE_UINT16,
-     ACCESS_CONTROL_READ | ACCESS_CONTROL_WRITE, (u8 *)&g_onoff.offWaitTime},
+     ACCESS_CONTROL_READ | ACCESS_CONTROL_WRITE, (u8 *)&g_onoff_off_wait},
     {ZCL_ATTRID_START_UP_ONOFF, ZCL_DATA_TYPE_ENUM8,
-     ACCESS_CONTROL_READ | ACCESS_CONTROL_WRITE, (u8 *)&g_onoff.startUpOnOff},
+     ACCESS_CONTROL_READ | ACCESS_CONTROL_WRITE, (u8 *)&g_onoff_startup},
     {ZCL_ATTRID_GLOBAL_CLUSTER_REVISION, ZCL_DATA_TYPE_UINT16,
      ACCESS_CONTROL_READ, (u8 *)&zcl_attr_global_clusterRevision},
 };
 
 static const zclAttrInfo_t g_level_attrs[] = {
     {ZCL_ATTRID_LEVEL_CURRENT_LEVEL, ZCL_DATA_TYPE_UINT8,
-     ACCESS_CONTROL_READ | ACCESS_CONTROL_REPORTABLE, (u8 *)&g_level.curLevel},
+     ACCESS_CONTROL_READ | ACCESS_CONTROL_REPORTABLE, (u8 *)&g_level_current},
     {ZCL_ATTRID_LEVEL_REMAINING_TIME, ZCL_DATA_TYPE_UINT16,
-     ACCESS_CONTROL_READ, (u8 *)&g_level.remainingTime},
+     ACCESS_CONTROL_READ, (u8 *)&g_level_remaining},
     {ZCL_ATTRID_LEVEL_MIN_LEVEL, ZCL_DATA_TYPE_UINT8,
-     ACCESS_CONTROL_READ, (u8 *)&g_level.minLevel},
+     ACCESS_CONTROL_READ, (u8 *)&g_level_min},
     {ZCL_ATTRID_LEVEL_MAX_LEVEL, ZCL_DATA_TYPE_UINT8,
-     ACCESS_CONTROL_READ, (u8 *)&g_level.maxLevel},
+     ACCESS_CONTROL_READ, (u8 *)&g_level_max},
     {ZCL_ATTRID_LEVEL_OPTIONS, ZCL_DATA_TYPE_BITMAP8,
-     ACCESS_CONTROL_READ | ACCESS_CONTROL_WRITE, (u8 *)&g_level.options},
+     ACCESS_CONTROL_READ | ACCESS_CONTROL_WRITE, (u8 *)&g_level_options},
     {ZCL_ATTRID_LEVEL_START_UP_CURRENT_LEVEL, ZCL_DATA_TYPE_UINT8,
-     ACCESS_CONTROL_READ | ACCESS_CONTROL_WRITE, (u8 *)&g_level.startUpCurrentLevel},
+     ACCESS_CONTROL_READ | ACCESS_CONTROL_WRITE, (u8 *)&g_level_startup},
     {ZCL_ATTRID_GLOBAL_CLUSTER_REVISION, ZCL_DATA_TYPE_UINT16,
      ACCESS_CONTROL_READ, (u8 *)&zcl_attr_global_clusterRevision},
 };
@@ -124,9 +116,7 @@ static const u16 g_in_clusters[] = {
     ZCL_CLUSTER_GEN_LEVEL_CONTROL,
 };
 
-static const u16 g_out_clusters[] = {
-    ZCL_CLUSTER_OTA,
-};
+static const u16 g_out_clusters[] = { ZCL_CLUSTER_OTA };
 
 static const af_simple_descriptor_t g_simple_desc = {
     HA_PROFILE_ID,
@@ -151,8 +141,8 @@ static int glsd_hw_apply(void *user, uint8_t on, uint8_t level)
 
 static void glsd_sync_attrs(void)
 {
-    g_onoff.onOff = g_core.on ? ZCL_ONOFF_STATUS_ON : ZCL_ONOFF_STATUS_OFF;
-    g_level.curLevel = g_core.level;
+    g_onoff_value = g_core.on ? ZCL_ONOFF_STATUS_ON : ZCL_ONOFF_STATUS_OFF;
+    g_level_current = g_core.level;
 }
 
 static status_t glsd_onoff_cb(zclIncomingAddrInfo_t *addr, u8 cmd, void *payload)
@@ -165,17 +155,10 @@ static status_t glsd_onoff_cb(zclIncomingAddrInfo_t *addr, u8 cmd, void *payload
     }
 
     switch (cmd) {
-    case ZCL_CMD_ONOFF_ON:
-        rc = glsd_ed_set_on(&g_core, 1u);
-        break;
-    case ZCL_CMD_ONOFF_OFF:
-        rc = glsd_ed_set_on(&g_core, 0u);
-        break;
-    case ZCL_CMD_ONOFF_TOGGLE:
-        rc = glsd_ed_toggle(&g_core);
-        break;
-    default:
-        return ZCL_STA_UNSUP_CLUSTER_COMMAND;
+    case ZCL_CMD_ONOFF_ON:     rc = glsd_ed_set_on(&g_core, 1u); break;
+    case ZCL_CMD_ONOFF_OFF:    rc = glsd_ed_set_on(&g_core, 0u); break;
+    case ZCL_CMD_ONOFF_TOGGLE: rc = glsd_ed_toggle(&g_core); break;
+    default: return ZCL_STA_UNSUP_CLUSTER_COMMAND;
     }
 
     if (rc != GLSD_ED_OK) {
@@ -191,17 +174,16 @@ static s32 glsd_move_tick(void *arg)
 
     if (!g_move_delta || glsd_ed_step_level(&g_core, g_move_delta, g_move_with_onoff) != GLSD_ED_OK) {
         g_move_timer = NULL;
-        g_level.remainingTime = 0;
+        g_level_remaining = 0;
         return -1;
     }
 
     glsd_sync_attrs();
-    g_level.remainingTime = 0xFFFFu;
-
+    g_level_remaining = 0xFFFFu;
     if ((g_move_delta > 0 && g_core.level >= g_core.max_level) ||
         (g_move_delta < 0 && g_core.level <= g_core.min_level)) {
         g_move_timer = NULL;
-        g_level.remainingTime = 0;
+        g_level_remaining = 0;
         return -1;
     }
     return 0;
@@ -214,7 +196,7 @@ static void glsd_stop_move(void)
     }
     g_move_timer = NULL;
     g_move_delta = 0;
-    g_level.remainingTime = 0;
+    g_level_remaining = 0;
 }
 
 static status_t glsd_level_cb(zclIncomingAddrInfo_t *addr, u8 cmd_id, void *payload)
@@ -251,12 +233,10 @@ static status_t glsd_level_cb(zclIncomingAddrInfo_t *addr, u8 cmd_id, void *payl
         if (per_tick < 1) {
             per_tick = 1;
         }
-        g_move_delta = (cmd->moveMode == LEVEL_MOVE_UP) ? per_tick : -per_tick;
-        g_move_with_onoff = (cmd_id == ZCL_CMD_LEVEL_MOVE_WITH_ON_OFF);
         glsd_stop_move();
         g_move_delta = (cmd->moveMode == LEVEL_MOVE_UP) ? per_tick : -per_tick;
         g_move_with_onoff = (cmd_id == ZCL_CMD_LEVEL_MOVE_WITH_ON_OFF);
-        g_level.remainingTime = 0xFFFFu;
+        g_level_remaining = 0xFFFFu;
         if (glsd_move_tick(NULL) == 0) {
             g_move_timer = TL_ZB_TIMER_SCHEDULE(glsd_move_tick, NULL, GLSD_MOVE_TICK_MS);
         }
@@ -351,7 +331,6 @@ static void glsd_bdb_commission_cb(u8 status, void *arg)
         }
         break;
     case BDB_COMMISSION_STA_REJOIN_FAILURE:
-    case BDB_LOSS_CONNECTIVITY:
         if (!g_rejoin_timer) {
             g_rejoin_timer = TL_ZB_TIMER_SCHEDULE(glsd_rejoin, NULL, 60000);
         }
@@ -382,12 +361,11 @@ static bdb_commissionSetting_t g_bdb_settings = {
 
 static const zdo_appIndCb_t g_zdo_callbacks = {
     bdb_zdoStartDevCnf,
-    NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
+    NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
 };
 
 static void glsd_app_task(void)
 {
-    /* Standard report-table processing; no coordinator/network manipulation. */
     report_handler();
 }
 
@@ -405,14 +383,12 @@ void user_init(bool isRetention)
     zb_init();
     zb_zdoCbRegister((zdo_appIndCb_t *)&g_zdo_callbacks);
     af_nodeDescManuCodeUpdate(GLSD_MANUFACTURER_CODE);
-
     zcl_init(NULL);
     af_endpointRegister(GLSD_ENDPOINT, (af_simple_descriptor_t *)&g_simple_desc, zcl_rx_handler, NULL);
     zcl_reportingTabInit();
     zcl_register(GLSD_ENDPOINT,
                  sizeof(g_cluster_list) / sizeof(g_cluster_list[0]),
                  (zcl_specClusterInfo_t *)g_cluster_list);
-
     ota_init(OTA_TYPE_CLIENT, (af_simple_descriptor_t *)&g_simple_desc, &g_ota_info, &g_ota_cb);
 
     bdb_defaultReportingCfg(GLSD_ENDPOINT, HA_PROFILE_ID,
