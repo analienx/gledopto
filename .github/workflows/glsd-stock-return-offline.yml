@@ -1,0 +1,56 @@
+name: GL-SD stock return offline regression
+
+on:
+  push:
+    branches:
+      - research/wireless-dump-stager
+    paths:
+      - 'tools/make_glsd_stock_return_ota.py'
+      - 'tools/tests/test_glsd_stock_return_ota.py'
+      - 'tools/glsd_wireless_dump_host.py'
+      - 'tools/telink_ota_forensics.py'
+      - 'tools/telink_app_finalize.py'
+      - 'tools/make_glsd_stager_ota.py'
+      - '.github/workflows/glsd-stock-return-offline.yml'
+  pull_request:
+    paths:
+      - 'tools/make_glsd_stock_return_ota.py'
+      - 'tools/tests/test_glsd_stock_return_ota.py'
+      - 'tools/glsd_wireless_dump_host.py'
+      - 'tools/telink_ota_forensics.py'
+      - 'tools/telink_app_finalize.py'
+      - 'tools/make_glsd_stager_ota.py'
+      - '.github/workflows/glsd-stock-return-offline.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  stock-return:
+    name: Python ${{ matrix.python-version }} stock-return quarantine
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version:
+          - '3.11'
+          - '3.14'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Compile recovery tooling
+        run: |
+          python -m py_compile tools/make_glsd_stock_return_ota.py
+          python -m py_compile tools/tests/test_glsd_stock_return_ota.py
+      - name: Run fail-closed stock-return wrapper tests
+        run: python tools/tests/test_glsd_stock_return_ota.py -v
+      - name: Quarantine assertion
+        run: |
+          echo 'NETWORK_DEVICE_IO=NONE'
+          echo 'AUTHORIZATION_GRANTED=NO'
+          echo 'STOCK_PAYLOAD_MUTATION_ALLOWED=NO'
