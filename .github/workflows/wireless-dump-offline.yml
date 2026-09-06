@@ -116,7 +116,7 @@ jobs:
         run: python tools/tests/test_glsd_flash_preflight.py -v
 
   tc32-object-proof:
-    name: Pinned Telink TC32 + TLSR8258 object/link proof
+    name: Pinned Telink TC32 + TLSR8258 bank-neutral link proof
     runs-on: ubuntu-latest
     steps:
       - name: Checkout supervisor branch
@@ -163,43 +163,42 @@ jobs:
           ! grep -Eq ' U bdb_networkSteerStart$' "$manifest"
           grep -Eq ' U ota_init$' "$manifest"
           grep -Eq ' U ota_mcuReboot$' "$manifest"
+          grep -Eq ' U mcuBootAddrGet$' "$manifest"
           echo 'PRIVATE_EXTRACTION_MUTATION_IMPORTS=NONE'
           echo 'PERIODIC_OTA_QUERY_IMPORT=NONE'
           echo 'NETWORK_STEERING_IMPORT=NONE'
           echo 'NOTIFY_DRIVEN_OTA_RECOVERY_IMPORTS=PRESENT'
-      - name: Link and validate non-deployable stager mechanics for both banks
+          echo 'RUNTIME_BOOT_BANK_DETECTION_IMPORT=PRESENT'
+      - name: Link and validate one multi-address stager image for both physical banks
         shell: bash
         run: |
           set -euo pipefail
           export TELINK_SDK_ROOT="$GITHUB_WORKSPACE/telink-sdk/tl_zigbee_sdk"
           export OUT_DIR="$RUNNER_TEMP/glsd-tc32-link"
           bash tools/build_glsd_tc32_link_probe.sh
-          cat "$OUT_DIR/bank_a/manifest.txt"
-          cat "$OUT_DIR/bank_b/manifest.txt"
-      - name: Wrap real banks as quarantined OTA and validate target index
+          cat "$OUT_DIR/neutral/manifest.txt"
+      - name: Wrap bank-neutral image as quarantined OTA and validate target index
         shell: bash
         run: |
           set -euo pipefail
-          root="$RUNNER_TEMP/glsd-tc32-link"
-          for bank in bank_a bank_b; do
-            inner="$root/$bank/glsd-stager-$bank.final.bin"
-            manifest="$root/$bank/manifest.txt"
-            ota="$root/$bank/glsd-stager-$bank.quarantined.ota"
-            sidecar="$ota.quarantine.json"
-            index="$root/$bank/glsd-stager-$bank.index.json"
-            python tools/make_glsd_stager_ota.py "$inner" --out "$ota" --target-bank "$bank" --bank-manifest "$manifest" --offline-build-quarantined
-            python tools/telink_ota_forensics.py "$ota" --json > "$root/$bank/ota-analysis.json"
-            python tools/make_glsd_stager_index.py "$ota" --url "file:///QUARANTINED/$bank.ota" --out "$index"
-            python -c "import json,pathlib,sys; e=json.loads(pathlib.Path(sys.argv[1]).read_text())[0]; assert e['manufacturerCode']==0x124F and e['imageType']==0x1416 and e['fileVersion']==0x7F010001 and e['hardwareVersionMin']==2 and e['hardwareVersionMax']==2; print('QUARANTINED_OTA_INDEX_GATE=PASS')" "$index"
-            python -c "import json,pathlib,sys; m=json.loads(pathlib.Path(sys.argv[1]).read_text()); b=sys.argv[2]; assert m['targetBank']==b; assert m['targetLinkBase']==(0 if b=='bank_a' else 0x40000); assert m['innerValid'] is True; print('BANK_ATTESTATION_GATE=PASS')" "$sidecar" "$bank"
-            set +e
-            python tools/glsd_flash_preflight.py "$sidecar" > "$root/$bank/flash-preflight-current.json"
-            rc=$?
-            set -e
-            test "$rc" -eq 3
-            python -c "import json,pathlib,sys; r=json.loads(pathlib.Path(sys.argv[1]).read_text()); required={'ACTIVE_BANK_UNKNOWN','PRODUCTION_MCU_UNPROVEN','PRODUCTION_FLASH_GEOMETRY_UNPROVEN','PRODUCTION_REVISION_UNPROVEN','RETURN_TO_STOCK_SPARE_NOT_PASSED'}; assert required.issubset(set(r['blockers'])); assert r['FLASH_WRITE_PRECONDITIONS_PASS'] is False; assert r['AUTHORIZATION_GRANTED'] is False; print('CURRENT_FLASH_PREFLIGHT_FAIL_CLOSED=PASS')" "$root/$bank/flash-preflight-current.json"
-          done
-          echo 'QUARANTINED_REAL_TC32_OTA_WRAPPER=PASS_BOTH_BANKS'
-          echo 'BANK_ATTESTATION=PASS_BOTH_BANKS'
+          root="$RUNNER_TEMP/glsd-tc32-link/neutral"
+          inner="$root/glsd-stager-neutral.final.bin"
+          manifest="$root/manifest.txt"
+          ota="$root/glsd-stager-neutral.quarantined.ota"
+          sidecar="$ota.quarantine.json"
+          index="$root/glsd-stager-neutral.index.json"
+          python tools/make_glsd_stager_ota.py "$inner" --out "$ota" --build-manifest "$manifest" --offline-build-quarantined
+          python tools/telink_ota_forensics.py "$ota" --json > "$root/ota-analysis.json"
+          python tools/make_glsd_stager_index.py "$ota" --url "file:///QUARANTINED/glsd-stager-neutral.ota" --out "$index"
+          python -c "import json,pathlib,sys; e=json.loads(pathlib.Path(sys.argv[1]).read_text())[0]; assert e['manufacturerCode']==0x124F and e['imageType']==0x1416 and e['fileVersion']==0x7F010001 and e['hardwareVersionMin']==2 and e['hardwareVersionMax']==2; print('QUARANTINED_OTA_INDEX_GATE=PASS')" "$index"
+          python -c "import json,pathlib,sys; m=json.loads(pathlib.Path(sys.argv[1]).read_text()); assert m['bankNeutral'] is True and m['logicalLinkBase']==0 and m['physicalBootTargets']==[0,0x40000] and m['runtimeBootBankDetection']=='mcuBootAddrGet' and m['innerValid'] is True; print('MULTI_ADDRESS_ATTESTATION_GATE=PASS')" "$sidecar"
+          set +e
+          python tools/glsd_flash_preflight.py "$sidecar" > "$root/flash-preflight-current.json"
+          rc=$?
+          set -e
+          test "$rc" -eq 3
+          python -c "import json,pathlib,sys; r=json.loads(pathlib.Path(sys.argv[1]).read_text()); required={'PRODUCTION_MCU_UNPROVEN','PRODUCTION_FLASH_GEOMETRY_UNPROVEN','PRODUCTION_REVISION_UNPROVEN','RETURN_TO_STOCK_SPARE_NOT_PASSED'}; assert required.issubset(set(r['blockers'])); assert 'ACTIVE_BANK_UNKNOWN' not in r['blockers']; assert r['activeBankRequiredForFirstOta'] is False; assert r['FLASH_WRITE_PRECONDITIONS_PASS'] is False; assert r['AUTHORIZATION_GRANTED'] is False; print('CURRENT_FLASH_PREFLIGHT_FAIL_CLOSED=PASS')" "$root/flash-preflight-current.json"
+          echo 'QUARANTINED_REAL_TC32_OTA_WRAPPER=PASS_BANK_NEUTRAL'
+          echo 'TELINK_MULTI_ADDRESS_FIRST_OTA_ACTIVE_BANK_REQUIRED=NO'
           echo 'FLASH_PREFLIGHT=CURRENTLY_BLOCKED_AS_DESIGNED'
           echo 'NO_ARTIFACT_UPLOAD=YES'
