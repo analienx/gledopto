@@ -2,7 +2,14 @@
 set -euo pipefail
 
 # Full TLSR8258 link mechanics proof for the minimal GL-SD extraction stager.
-# Outputs remain temporary. No Zigbee OTA container is created or served.
+#
+# IMPORTANT: normal TLSR8258 Zigbee OTA uses hardware multi-address startup.
+# The application is linked once at logical address 0 and the same binary may
+# physically boot from 0x00000 or 0x40000. This harness therefore produces ONE
+# bank-neutral inner application and proves that its size fits either physical
+# OTA slot. It must never relink the payload to 0x40000.
+#
+# Outputs remain temporary. No production OTA is served by this script.
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SRC="$ROOT/firmware/wireless-dump-stager"
 FIXTURE="$SRC/telink_fixture"
@@ -22,10 +29,12 @@ COMMON_APP="$SDK/apps/common"
 APP_SLOT_SIZE=0x34000
 BANK_A_BASE=0x00000
 BANK_B_BASE=0x40000
-BANK_B_RESERVED_START=0x74000
+BANK_A_SLOT_END=0x34000
+BANK_B_SLOT_END=0x74000
 MAC_REGION_START=0x76000
 FACTORY_REGION_START=0x77000
 FLASH_END=0x80000
+DIR="$OUT_DIR/neutral"
 mkdir -p "$OUT_DIR"
 
 [[ -f "$SAMPLE_DIR/board_8258_dongle.h" ]] || { echo "ERROR: complete V3.7.2.0-style 8258 fixture required" >&2; exit 2; }
@@ -64,16 +73,15 @@ sdk_sources=(
 app_sources=(glsd_stager_core.c glsd_stager_dispatch.c glsd_transport_adapter.c glsd_telink_sdk_adapter.c glsd_telink_stager_app.c glsd_telink_disabled_feature_glue.c)
 
 compile_one() {
-  local source="$1" obj="$2" base="$3" sdk_source="$4"
-  local d=("${defs[@]}" "-DGLSD_STAGER_LINK_BASE=$base")
+  local source="$1" obj="$2" sdk_source="$3"
   local f=("${cflags[@]}")
   [[ "$sdk_source" == 1 ]] && f+=(-fpack-struct)
   mkdir -p "$(dirname "$obj")"
   case "$source" in
-    *.S) "$TC32_CC" "${asflags[@]}" "${d[@]}" "${includes[@]}" -c "$source" -o "$obj" ;;
+    *.S) "$TC32_CC" "${asflags[@]}" "${defs[@]}" "${includes[@]}" -c "$source" -o "$obj" ;;
     *glsd_telink_sdk_adapter.c|*glsd_telink_stager_app.c|*glsd_telink_disabled_feature_glue.c)
-      "$TC32_CC" "${f[@]}" "${d[@]}" "${telink_first[@]}" "${includes[@]}" -I"$SRC" -c "$source" -o "$obj" ;;
-    *) "$TC32_CC" "${f[@]}" "${d[@]}" "${includes[@]}" -I"$SRC" -c "$source" -o "$obj" ;;
+      "$TC32_CC" "${f[@]}" "${defs[@]}" "${telink_first[@]}" "${includes[@]}" -I"$SRC" -c "$source" -o "$obj" ;;
+    *) "$TC32_CC" "${f[@]}" "${defs[@]}" "${includes[@]}" -I"$SRC" -c "$source" -o "$obj" ;;
   esac
 }
 
@@ -94,107 +102,106 @@ trace_dependency_origins() {
   echo PRELINK_REFERENCE_ORIGINS_END
 }
 
-build_bank() {
-  local label="$1"
-  local base="$2"
-  local dir="$OUT_DIR/$label"
-  local objects=() rel src obj
-  rm -rf "$dir"; mkdir -p "$dir/obj/sdk" "$dir/obj/app"
+rm -rf "$DIR"
+mkdir -p "$DIR/obj/sdk" "$DIR/obj/app"
+objects=()
+for rel in "${sdk_sources[@]}"; do
+  src="$SDK/$rel"
+  [[ -f "$src" ]] || { echo "ERROR: SDK source missing: $rel" >&2; exit 2; }
+  obj="$DIR/obj/sdk/${rel//\//_}.o"
+  compile_one "$src" "$obj" 1
+  objects+=("$obj")
+done
+for rel in "${app_sources[@]}"; do
+  src="$SRC/$rel"
+  obj="$DIR/obj/app/${rel%.c}.o"
+  compile_one "$src" "$obj" 0
+  objects+=("$obj")
+done
 
-  for rel in "${sdk_sources[@]}"; do
-    src="$SDK/$rel"; [[ -f "$src" ]] || { echo "ERROR: SDK source missing: $rel" >&2; exit 2; }
-    obj="$dir/obj/sdk/${rel//\//_}.o"; compile_one "$src" "$obj" "$base" 1; objects+=("$obj")
-  done
-  for rel in "${app_sources[@]}"; do
-    src="$SRC/$rel"; obj="$dir/obj/app/${rel%.c}.o"; compile_one "$src" "$obj" "$base" 0; objects+=("$obj")
-  done
-
-  trace_dependency_origins "${objects[@]}"
-
-  local elf="$dir/glsd-stager-$label.elf"
-  local bin="$dir/glsd-stager-$label.bin"
-  local final_bin="$dir/glsd-stager-$label.final.bin"
-  local map="$dir/glsd-stager-$label.map"
-  "$TC32_LD" --gc-sections -nostartfiles -T"$SDK/platform/boot/8258/boot_8258.link" -Map="$map" \
-    -L"$SDK/zigbee/lib/tc32" -L"$SDK/platform/lib" -o "$elf" "${objects[@]}" -ldrivers_8258 -lzb_router
-  "$TC32_OBJCOPY" -O binary "$elf" "$bin"
-  "$TC32_OBJDUMP" -h -t "$elf" > "$dir/glsd-stager-$label.lst"
-  "$TC32_NM" -u "$elf" > "$dir/unresolved.txt" || true
-  [[ ! -s "$dir/unresolved.txt" ]] || { echo "ERROR: unresolved symbols"; cat "$dir/unresolved.txt"; exit 1; }
-
-  local raw_bytes final_bytes physical_end slot_end text_vma_hex text_vma
-  raw_bytes="$(stat -c %s "$bin")"
-  (( raw_bytes < APP_SLOT_SIZE )) || { echo "ERROR: raw image exceeds mechanics slot" >&2; exit 1; }
-
-  # Prove the raw linker preamble, then produce and validate a transient inner
-  # Telink application image with declared-size + xcrc32 fixed. No OTA wrapper.
-  python3 "$FINALIZER" check-link "$bin" --max-final-size "$APP_SLOT_SIZE"
-  python3 "$FINALIZER" finalize "$bin" "$final_bin" --max-final-size "$APP_SLOT_SIZE"
-  python3 "$FINALIZER" check-final "$final_bin" --max-final-size "$APP_SLOT_SIZE"
-  final_bytes="$(stat -c %s "$final_bin")"
-
-  physical_end=$((base + final_bytes))
-  slot_end=$((base + APP_SLOT_SIZE))
-  (( physical_end < slot_end )) || { echo "ERROR: finalized image reaches reserved area" >&2; exit 1; }
-  (( physical_end <= FLASH_END )) || { echo "ERROR: finalized image exceeds 512K flash" >&2; exit 1; }
-  if (( base == BANK_B_BASE )); then
-    (( physical_end < BANK_B_RESERVED_START )) || { echo "ERROR: bank-B image overlaps 0x74000+ reserved region" >&2; exit 1; }
-    (( physical_end < MAC_REGION_START )) || { echo "ERROR: bank-B image reaches MAC region" >&2; exit 1; }
-    (( physical_end < FACTORY_REGION_START )) || { echo "ERROR: bank-B image reaches factory region" >&2; exit 1; }
-  fi
-
-  # Telink boot_8258.link offsets .text by __FW_OFFSET. Record the VMA and later
-  # require the bank-B .text VMA to be exactly +0x40000 from bank A. This proves
-  # that the two builds are genuinely offset-linked, not just tagged differently.
-  text_vma_hex="$("$TC32_OBJDUMP" -h "$elf" | awk '$2 == ".text" {print $4; exit}')"
-  [[ "$text_vma_hex" =~ ^[0-9A-Fa-f]+$ ]] || { echo "ERROR: cannot parse .text VMA" >&2; exit 1; }
-  text_vma=$((16#$text_vma_hex))
-  (( text_vma >= base && text_vma < base + raw_bytes )) || {
-    printf 'ERROR: .text VMA 0x%x outside expected bank image [0x%x,0x%x)\n' "$text_vma" "$base" "$((base + raw_bytes))" >&2
-    exit 1
-  }
-  printf '%u\n' "$text_vma" > "$dir/text-vma.dec"
-
-  {
-    echo MECHANICS_ONLY=YES
-    echo DEPLOYABLE=NO
-    echo "BANK=$label"
-    printf 'GLSD_STAGER_LINK_BASE=0x%05x\n' "$base"
-    echo "RAW_BINARY_SIZE=$raw_bytes"
-    echo "FINAL_INNER_BINARY_SIZE=$final_bytes"
-    printf 'PHYSICAL_FLASH_START=0x%05x\n' "$base"
-    printf 'PHYSICAL_FLASH_END_EXCLUSIVE=0x%05x\n' "$physical_end"
-    printf 'APP_SLOT_END=0x%05x\n' "$slot_end"
-    printf 'TEXT_VMA=0x%08x\n' "$text_vma"
-    echo "TELINK_PREAMBLE=PASS"
-    echo "TELINK_XCRC32=PASS"
-    "$TC32_SIZE" "$elf"
-    sha256sum "$elf" "$bin" "$final_bin" "$map"
-    echo FINAL_OTP_SYMBOL_SCAN
-    if "$TC32_NM" "$elf" | grep -Eai '(^|[[:space:]_])flash_(read|write|erase|lock)_otp'; then
-      echo "ERROR: OTP path survived section GC" >&2; exit 1
-    else echo NONE; fi
-    echo APPLICATION_POWER_STAGE_AND_RESET_SCAN
-    if "$TC32_NM" "$elf" | grep -Eai '(^|[[:space:]])(light_|led_|pwm_|factoryRst|factory_reset|bdb_networkSteerStart)'; then
-      echo "ERROR: forbidden application light/PWM/reset/steering symbol reachable" >&2; exit 1
-    else echo NONE; fi
-    echo PRIVATE_EXTRACTION_MUTATION_IMPORT_SCAN
-    if "$TC32_NM" -u "$dir/obj/app/"*.o | grep -Eai '(flash_write|flash_erase|nv_flashWrite|nv_reset|factory|leave|commission)'; then
-      echo "ERROR: private extraction/app object imports mutation primitive" >&2; exit 1
-    else echo NONE; fi
-  } | tee "$dir/manifest.txt"
-}
-
-build_bank bank_a "$BANK_A_BASE"
-build_bank bank_b "$BANK_B_BASE"
-
-a_text="$(cat "$OUT_DIR/bank_a/text-vma.dec")"
-b_text="$(cat "$OUT_DIR/bank_b/text-vma.dec")"
-(( b_text - a_text == BANK_B_BASE - BANK_A_BASE )) || {
-  printf 'ERROR: bank .text VMA delta is 0x%x, expected 0x40000\n' "$((b_text - a_text))" >&2
+# Runtime physical-bank detection is mandatory for a bank-neutral image.
+"$TC32_NM" -u "$DIR/obj/app/glsd_telink_stager_app.o" | grep -Eq ' U mcuBootAddrGet$' || {
+  echo "ERROR: stager app does not import mcuBootAddrGet for runtime bank detection" >&2
   exit 1
 }
-printf 'BANK_TEXT_VMA_DELTA=0x%05x\n' "$((b_text - a_text))"
-echo RESERVED_FLASH_GEOMETRY=PASS
-echo GLSD_TC32_FULL_LINK_PROBE=PASS_BOTH_BANKS
-echo 'STOP: mechanics-only outputs are non-deployable and must not be packaged/served as OTA.'
+
+trace_dependency_origins "${objects[@]}"
+
+elf="$DIR/glsd-stager-neutral.elf"
+bin="$DIR/glsd-stager-neutral.bin"
+final_bin="$DIR/glsd-stager-neutral.final.bin"
+map="$DIR/glsd-stager-neutral.map"
+"$TC32_LD" --gc-sections -nostartfiles -T"$SDK/platform/boot/8258/boot_8258.link" -Map="$map" \
+  -L"$SDK/zigbee/lib/tc32" -L"$SDK/platform/lib" -o "$elf" "${objects[@]}" -ldrivers_8258 -lzb_router
+"$TC32_OBJCOPY" -O binary "$elf" "$bin"
+"$TC32_OBJDUMP" -h -t "$elf" > "$DIR/glsd-stager-neutral.lst"
+"$TC32_NM" -u "$elf" > "$DIR/unresolved.txt" || true
+[[ ! -s "$DIR/unresolved.txt" ]] || { echo "ERROR: unresolved symbols"; cat "$DIR/unresolved.txt"; exit 1; }
+
+raw_bytes="$(stat -c %s "$bin")"
+(( raw_bytes < APP_SLOT_SIZE )) || { echo "ERROR: raw image exceeds mechanics slot" >&2; exit 1; }
+python3 "$FINALIZER" check-link "$bin" --max-final-size "$APP_SLOT_SIZE"
+python3 "$FINALIZER" finalize "$bin" "$final_bin" --max-final-size "$APP_SLOT_SIZE"
+python3 "$FINALIZER" check-final "$final_bin" --max-final-size "$APP_SLOT_SIZE"
+final_bytes="$(stat -c %s "$final_bin")"
+
+physical_a_end=$((BANK_A_BASE + final_bytes))
+physical_b_end=$((BANK_B_BASE + final_bytes))
+(( physical_a_end < BANK_A_SLOT_END )) || { echo "ERROR: neutral image does not fit bank A" >&2; exit 1; }
+(( physical_b_end < BANK_B_SLOT_END )) || { echo "ERROR: neutral image does not fit bank B" >&2; exit 1; }
+(( physical_b_end < MAC_REGION_START )) || { echo "ERROR: bank-B placement reaches MAC region" >&2; exit 1; }
+(( physical_b_end < FACTORY_REGION_START )) || { echo "ERROR: bank-B placement reaches factory region" >&2; exit 1; }
+(( physical_b_end <= FLASH_END )) || { echo "ERROR: bank-B placement exceeds 512K flash" >&2; exit 1; }
+
+# A standard normal-mode Telink image must remain logically linked at address 0.
+text_vma_hex="$("$TC32_OBJDUMP" -h "$elf" | awk '$2 == ".text" {print $4; exit}')"
+[[ "$text_vma_hex" =~ ^[0-9A-Fa-f]+$ ]] || { echo "ERROR: cannot parse .text VMA" >&2; exit 1; }
+text_vma=$((16#$text_vma_hex))
+(( text_vma < raw_bytes )) || {
+  printf 'ERROR: neutral .text VMA 0x%x is not inside logical image [0,0x%x)\n' "$text_vma" "$raw_bytes" >&2
+  exit 1
+}
+(( text_vma < BANK_B_BASE )) || {
+  echo "ERROR: image appears physically relinked instead of multi-address neutral" >&2
+  exit 1
+}
+
+{
+  echo MECHANICS_ONLY=YES
+  echo DEPLOYABLE=NO
+  echo BANK_NEUTRAL=YES
+  echo LOGICAL_LINK_BASE=0x00000
+  echo RUNTIME_BOOT_BANK_DETECTION=mcuBootAddrGet
+  printf 'PHYSICAL_BOOT_TARGET_A=0x%05x\n' "$BANK_A_BASE"
+  printf 'PHYSICAL_BOOT_TARGET_B=0x%05x\n' "$BANK_B_BASE"
+  echo "RAW_BINARY_SIZE=$raw_bytes"
+  echo "FINAL_INNER_BINARY_SIZE=$final_bytes"
+  printf 'PHYSICAL_A_END_EXCLUSIVE=0x%05x\n' "$physical_a_end"
+  printf 'PHYSICAL_B_END_EXCLUSIVE=0x%05x\n' "$physical_b_end"
+  printf 'BANK_A_SLOT_END=0x%05x\n' "$BANK_A_SLOT_END"
+  printf 'BANK_B_SLOT_END=0x%05x\n' "$BANK_B_SLOT_END"
+  printf 'TEXT_VMA=0x%08x\n' "$text_vma"
+  echo TELINK_MULTI_ADDRESS_MODEL=PASS
+  echo TELINK_PREAMBLE=PASS
+  echo TELINK_XCRC32=PASS
+  "$TC32_SIZE" "$elf"
+  sha256sum "$elf" "$bin" "$final_bin" "$map"
+  echo FINAL_OTP_SYMBOL_SCAN
+  if "$TC32_NM" "$elf" | grep -Eai '(^|[[:space:]_])flash_(read|write|erase|lock)_otp'; then
+    echo "ERROR: OTP path survived section GC" >&2; exit 1
+  else echo NONE; fi
+  echo APPLICATION_POWER_STAGE_AND_RESET_SCAN
+  if "$TC32_NM" "$elf" | grep -Eai '(^|[[:space:]])(light_|led_|pwm_|factoryRst|factory_reset|bdb_networkSteerStart)'; then
+    echo "ERROR: forbidden application light/PWM/reset/steering symbol reachable" >&2; exit 1
+  else echo NONE; fi
+  echo PRIVATE_EXTRACTION_MUTATION_IMPORT_SCAN
+  if "$TC32_NM" -u "$DIR/obj/app/"*.o | grep -Eai '(flash_write|flash_erase|nv_flashWrite|nv_reset|factory|leave|commission)'; then
+    echo "ERROR: private extraction/app object imports mutation primitive" >&2; exit 1
+  else echo NONE; fi
+  echo EXPECTED_STACK_RECOVERY_MUTATOR_INVENTORY
+  "$TC32_NM" "$elf" | grep -Eai '([[:space:]])(flash_write|flash_writeWithCheck|flash_write_page|flash_erase|flash_erase_sector|nv_write_item|nv_resetToFactoryNew)$' || true
+} | tee "$DIR/manifest.txt"
+
+echo GLSD_TC32_NEUTRAL_LINK_PROBE=PASS
+echo TELINK_MULTI_ADDRESS_FITS_BOTH_PHYSICAL_BANKS=PASS
+echo 'STOP: mechanics-only output remains quarantined; this script does not authorize or serve OTA.'
