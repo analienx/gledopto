@@ -13,6 +13,7 @@ on:
       - 'tools/glsd_z2m_bridge.py'
       - 'tools/glsd_z2m_dump.py'
       - 'tools/telink_ota_forensics.py'
+      - 'tools/telink_app_finalize.py'
       - 'tools/make_ota_acceptance_probe.py'
       - 'tools/make_glsd_stager_index.py'
       - 'tools/build_glsd_tc32_objects.sh'
@@ -21,6 +22,7 @@ on:
       - 'tools/tests/test_wireless_dump_guard.py'
       - 'tools/tests/test_z2m_dump_integration.py'
       - 'tools/tests/test_glsd_stager_index.py'
+      - 'tools/tests/test_telink_app_finalize.py'
       - 'tools/tests/test_transport_adapter.py'
       - '.github/workflows/wireless-dump-offline.yml'
   pull_request:
@@ -33,6 +35,7 @@ on:
       - 'tools/glsd_z2m_bridge.py'
       - 'tools/glsd_z2m_dump.py'
       - 'tools/telink_ota_forensics.py'
+      - 'tools/telink_app_finalize.py'
       - 'tools/make_ota_acceptance_probe.py'
       - 'tools/make_glsd_stager_index.py'
       - 'tools/build_glsd_tc32_objects.sh'
@@ -41,6 +44,7 @@ on:
       - 'tools/tests/test_wireless_dump_guard.py'
       - 'tools/tests/test_z2m_dump_integration.py'
       - 'tools/tests/test_glsd_stager_index.py'
+      - 'tools/tests/test_telink_app_finalize.py'
       - 'tools/tests/test_transport_adapter.py'
       - '.github/workflows/wireless-dump-offline.yml'
   workflow_dispatch:
@@ -96,6 +100,8 @@ jobs:
         run: python tools/tests/test_z2m_dump_integration.py -v
       - name: Run fail-closed OTA index tests
         run: python tools/tests/test_glsd_stager_index.py -v
+      - name: Run Telink inner-image finalizer tests
+        run: python tools/tests/test_telink_app_finalize.py -v
 
   tc32-object-proof:
     name: Pinned Telink TC32 + TLSR8258 object/link proof
@@ -141,7 +147,7 @@ jobs:
           set -euo pipefail
           manifest="$RUNNER_TEMP/glsd-tc32-objects/build-manifest.txt"
           ! grep -Eai '(^|[^[:alnum:]_])(flash_write|flash_erase|nv_flashWrite|nv_reset|factory|leave|boot.*marker.*write)' "$manifest"
-      - name: Link non-deployable stager mechanics for both banks
+      - name: Link and validate non-deployable stager mechanics for both banks
         shell: bash
         run: |
           set -euo pipefail
