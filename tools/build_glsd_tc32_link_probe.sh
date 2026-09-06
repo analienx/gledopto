@@ -43,11 +43,11 @@ sdk_sources=(
  proj/drivers/drv_timer.c proj/drivers/drv_uart.c proj/drivers/drv_calibration.c proj/drivers/drv_flash.c proj/drivers/drv_hw.c proj/drivers/drv_security.c
  proj/os/ev.c proj/os/ev_buffer.c proj/os/ev_poll.c proj/os/ev_queue.c proj/os/ev_timer.c proj/os/ev_rtc.c
  zigbee/bdb/bdb.c zigbee/aps/aps_group.c zigbee/mac/mac_phy.c zigbee/mac/mac_pib.c zigbee/zdo/zdp.c
- zigbee/zcl/zcl.c zigbee/zcl/zcl_nv.c zigbee/zcl/zcl_reporting.c zigbee/zcl/general/zcl_basic.c
+ zigbee/zcl/zcl.c zigbee/zcl/zcl_nv.c zigbee/zcl/zcl_reporting.c zigbee/zcl/general/zcl_basic.c zigbee/zcl/general/zcl_identify.c
  zigbee/zcl/ota_upgrading/zcl_ota.c zigbee/zcl/ota_upgrading/zcl_ota_attr.c zigbee/common/zb_config.c zigbee/af/zb_af.c
  zigbee/ss/ss_nv.c zigbee/ota/ota.c zigbee/ota/otaEpCfg.c apps/common/main.c
 )
-app_sources=(glsd_stager_core.c glsd_stager_dispatch.c glsd_transport_adapter.c glsd_telink_sdk_adapter.c glsd_telink_stager_app.c)
+app_sources=(glsd_stager_core.c glsd_stager_dispatch.c glsd_transport_adapter.c glsd_telink_sdk_adapter.c glsd_telink_stager_app.c glsd_telink_disabled_feature_glue.c)
 
 compile_one() {
   local source="$1" obj="$2" base="$3" sdk_source="$4"
@@ -57,7 +57,7 @@ compile_one() {
   mkdir -p "$(dirname "$obj")"
   case "$source" in
     *.S) "$TC32_CC" "${asflags[@]}" "${d[@]}" "${includes[@]}" -c "$source" -o "$obj" ;;
-    *glsd_telink_sdk_adapter.c|*glsd_telink_stager_app.c)
+    *glsd_telink_sdk_adapter.c|*glsd_telink_stager_app.c|*glsd_telink_disabled_feature_glue.c)
       "$TC32_CC" "${f[@]}" "${d[@]}" "${telink_first[@]}" "${includes[@]}" -I"$SRC" -c "$source" -o "$obj" ;;
     *) "$TC32_CC" "${f[@]}" "${d[@]}" "${includes[@]}" -I"$SRC" -c "$source" -o "$obj" ;;
   esac
