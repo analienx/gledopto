@@ -32,7 +32,7 @@ done
 command -v "$TC32_CC" >/dev/null 2>&1 || { echo "ERROR: TC32 compiler not found: $TC32_CC" >&2; exit 2; }
 
 mkdir -p "$OUT_DIR"
-rm -f "$OUT_DIR"/*.o "$OUT_DIR"/build-manifest.txt
+rm -f "$OUT_DIR"/*.o "$OUT_DIR"/build-manifest.txt "$OUT_DIR"/role_assert.c
 
 base_defines=(
   -DGLSD_TELINK_SDK
@@ -85,6 +85,30 @@ for name in "${sources[@]}"; do
     "$TC32_NM" -u "$obj" >> "$OUT_DIR/build-manifest.txt" || true
   fi
 done
+
+# Compile a dedicated translation unit through the exact same pinned SDK headers.
+# This proves the effective build configuration, instead of relying on source-path
+# greps that vary between SDK packaging revisions.
+cat > "$OUT_DIR/role_assert.c" <<'EOF'
+#include "app_cfg.h"
+#if !defined(ZB_ED_ROLE) || (ZB_ED_ROLE != 1)
+#error "GL-SD product firmware must compile as Zigbee End Device"
+#endif
+#if defined(ZB_ROUTER_ROLE) && (ZB_ROUTER_ROLE != 0)
+#error "GL-SD product firmware must not compile as Router"
+#endif
+#if !defined(ZB_MAC_RX_ON_WHEN_IDLE) || (ZB_MAC_RX_ON_WHEN_IDLE != 1)
+#error "GL-SD mains End Device must keep MAC RX on while idle"
+#endif
+#if PM_ENABLE != 0
+#error "GL-SD mains End Device must not enter PM sleep"
+#endif
+int glsd_ed_role_assert_translation_unit(void) { return 0; }
+EOF
+
+"$TC32_CC" "${cflags[@]}" "${base_defines[@]}" "${telink_first_defines[@]}" \
+  "${includes[@]}" -I"$SRC" -c "$OUT_DIR/role_assert.c" -o "$OUT_DIR/role_assert.o"
+echo "GLSD_ED_EFFECTIVE_ROLE_ASSERT=PASS" | tee -a "$OUT_DIR/build-manifest.txt"
 
 # Fail if the application object itself reaches router-only primitives. End-device
 # joining/rejoining and standard OTA client calls are expected.
