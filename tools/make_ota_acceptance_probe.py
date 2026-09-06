@@ -1,15 +1,17 @@
 #!/usr/bin/env python3
-"""Build an OFFLINE-ONLY GL-SD OTA acceptance probe.
+"""Build a deliberately non-bootable GL-SD OTA acceptance probe.
 
-The generated file intentionally has a wrong Telink payload trailer and is not
-an executable firmware. It exists to exercise parsers/server tooling offline.
-Do not serve it to hardware until the live-probe gate has been separately
-approved after matching a real GLEDOPTO image's verification convention.
+The probe is structurally Telink-shaped and intentionally carries exactly one
+fatal validation defect: its embedded Telink xcrc32 trailer is wrong by one bit.
+The startup marker, 0x5D02 preamble, inner identity and declared size are valid.
+
+This allows a live acceptance experiment to exercise the stock client's final
+Telink image validator rather than relying on an obviously malformed startup
+marker. Live use still requires separate explicit supervisor/operator approval.
 """
 from __future__ import annotations
 
 import argparse
-import binascii
 import hashlib
 import json
 from pathlib import Path
@@ -19,31 +21,54 @@ OTA_MAGIC = 0x0BEEF11E
 MFG = 0x124F
 IMAGE = 0x1416
 BASE_VERSION = 0x26013001
-HEADER_STRING = b'GLSD ACCEPTANCE PROBE - NO BOOT'
+HEADER_STRING = b'GLSD CRC-REJECT PROBE - NO BOOT'
+TELINK_STARTUP_FLAG = 0x544C4E4B
+TELINK_VALID_PATTERN = b'\x5D\x02'
 
 
-def build_payload(version: int, size: int) -> bytes:
+def telink_xcrc32(data: bytes, initial: int = 0xFFFFFFFF) -> int:
+    """Telink reflected CRC-32: init FFFFFFFF, polynomial EDB88320, no final xor."""
+    crc = initial & 0xFFFFFFFF
+    for byte in data:
+        crc ^= byte
+        for _ in range(8):
+            crc = (crc >> 1) ^ (0xEDB88320 if crc & 1 else 0)
+    return crc & 0xFFFFFFFF
+
+
+def build_payload(version: int, size: int) -> tuple[bytes, dict[str, int]]:
     if size < 64:
         raise ValueError('payload must be >=64 bytes')
+
     b = bytearray([0xA5] * size)
-    b[0:2] = b'PR'
+    struct.pack_into('<H', b, 0x00, 0x0000)
     struct.pack_into('<I', b, 0x02, version)
-    b[0x06:0x08] = b'\x5D\x02'
-    struct.pack_into('<I', b, 0x08, 0x214F4E44)
+    b[0x06:0x08] = TELINK_VALID_PATTERN
+    struct.pack_into('<I', b, 0x08, TELINK_STARTUP_FLAG)
     struct.pack_into('<H', b, 0x12, MFG)
     struct.pack_into('<H', b, 0x14, IMAGE)
     struct.pack_into('<I', b, 0x18, size)
-    banner = b'NON-EXECUTABLE OFFLINE OTA ACCEPTANCE PROBE'
+
+    banner = b'NON-BOOTABLE: INTENTIONAL TELINK XCRC32 FAILURE'
     b[0x20:0x20 + len(banner)] = banner
-    crc = binascii.crc32(b[:-4]) & 0xFFFFFFFF
-    bad = crc ^ 0x01010101
-    struct.pack_into('<I', b, size - 4, bad)
-    assert (binascii.crc32(b[:-4]) & 0xFFFFFFFF) != int.from_bytes(b[-4:], 'little')
-    return bytes(b)
+
+    good_crc = telink_xcrc32(bytes(b[:-4]))
+    bad_crc = good_crc ^ 0x00000001
+    struct.pack_into('<I', b, size - 4, bad_crc)
+
+    # Prove the intended single fatal condition locally.
+    assert int.from_bytes(b[0x08:0x0C], 'little') == TELINK_STARTUP_FLAG
+    assert b[0x06:0x08] == TELINK_VALID_PATTERN
+    assert int.from_bytes(b[0x18:0x1C], 'little') == size
+    assert telink_xcrc32(bytes(b[:-4])) == good_crc
+    assert int.from_bytes(b[-4:], 'little') == bad_crc
+    assert bad_crc != good_crc
+
+    return bytes(b), {'expected_telink_xcrc32': good_crc, 'stored_bad_xcrc32': bad_crc}
 
 
-def build_ota(version: int, payload_size: int) -> bytes:
-    payload = build_payload(version, payload_size)
+def build_ota(version: int, payload_size: int) -> tuple[bytes, dict[str, int]]:
+    payload, crc_meta = build_payload(version, payload_size)
     header_len = 56
     sub = struct.pack('<HI', 0x0000, len(payload)) + payload
     total = header_len + len(sub)
@@ -52,7 +77,7 @@ def build_ota(version: int, payload_size: int) -> bytes:
         '<IHHHHHIH32sI', OTA_MAGIC, 0x0100, header_len, 0,
         MFG, IMAGE, version, 0x0002, name, total,
     )
-    return header + sub
+    return header + sub, crc_meta
 
 
 def main() -> int:
@@ -62,13 +87,28 @@ def main() -> int:
     ap.add_argument('--out', type=Path, required=True)
     ap.add_argument('--unsafe-create-probe', action='store_true')
     ns = ap.parse_args()
+
     if not ns.unsafe_create_probe:
         ap.error('refusing to create probe without --unsafe-create-probe acknowledgment')
     if ns.version <= BASE_VERSION:
         ap.error('probe version must be higher than stock 0x26013001')
-    data = build_ota(ns.version, ns.payload_size)
+
+    data, crc_meta = build_ota(ns.version, ns.payload_size)
     ns.out.write_bytes(data)
-    meta = {'DO_NOT_SERVE_TO_DEVICE': True, 'sha256': hashlib.sha256(data).hexdigest()}
+    meta = {
+        'LIVE_USE_REQUIRES_EXPLICIT_AUTHORIZATION': True,
+        'INTENTIONALLY_NON_BOOTABLE': True,
+        'failure_mode': 'telink_xcrc32_mismatch',
+        'startup_marker_valid': True,
+        'preamble_5d02_valid': True,
+        'inner_identity_matches_outer': True,
+        'version': ns.version,
+        'size': len(data),
+        'sha256': hashlib.sha256(data).hexdigest(),
+        'sha512': hashlib.sha512(data).hexdigest(),
+        'expected_telink_xcrc32': f"0x{crc_meta['expected_telink_xcrc32']:08X}",
+        'stored_bad_xcrc32': f"0x{crc_meta['stored_bad_xcrc32']:08X}",
+    }
     ns.out.with_suffix(ns.out.suffix + '.json').write_text(json.dumps(meta, indent=2) + '\n')
     print(json.dumps(meta, indent=2))
     return 0
