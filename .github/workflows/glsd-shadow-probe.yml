@@ -1,0 +1,141 @@
+name: GL-SD full-size shadow probe regression
+
+on:
+  push:
+    branches:
+      - research/wireless-dump-stager
+    paths:
+      - 'tools/make_glsd_stager_shadow_probe.py'
+      - 'tools/tests/test_glsd_stager_shadow_probe.py'
+      - '.github/workflows/glsd-shadow-probe.yml'
+      - 'firmware/wireless-dump-stager/**'
+      - 'tools/make_glsd_stager_ota.py'
+      - 'tools/telink_ota_forensics.py'
+      - 'tools/telink_app_finalize.py'
+      - 'tools/build_glsd_tc32_link_probe.sh'
+  pull_request:
+    paths:
+      - 'tools/make_glsd_stager_shadow_probe.py'
+      - 'tools/tests/test_glsd_stager_shadow_probe.py'
+      - '.github/workflows/glsd-shadow-probe.yml'
+      - 'firmware/wireless-dump-stager/**'
+      - 'tools/make_glsd_stager_ota.py'
+      - 'tools/telink_ota_forensics.py'
+      - 'tools/telink_app_finalize.py'
+      - 'tools/build_glsd_tc32_link_probe.sh'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  full-size-shadow:
+    name: Exact TC32 candidate -> CRC-invalid full-size shadow
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout supervisor branch
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Run shadow-probe unit tests
+        run: python tools/tests/test_glsd_stager_shadow_probe.py -v
+
+      - name: Checkout pinned public TLSR8258 mechanics fixture
+        uses: actions/checkout@v4
+        with:
+          repository: telink-semi/telink_zigbee_sdk
+          ref: V3.7.2.0
+          path: telink-sdk
+
+      - name: Acquire hash-pinned official TC32 toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          url='https://shyboy.oss-cn-shenzhen.aliyuncs.com/readonly/tc32_gcc_v2.0.tar.bz2'
+          expected='33b854be3e3db3dba4b4dacdda2cd4ea1c94dfd4d562864a095956de7991b430'
+          archive="$RUNNER_TEMP/tc32_gcc_v2.0.tar.bz2"
+          root="$RUNNER_TEMP/tc32"
+          curl --fail --location --retry 3 --output "$archive" "$url"
+          echo "$expected  $archive" | sha256sum --check --strict
+          mkdir -p "$root"
+          tar -xjf "$archive" -C "$root"
+          bindir="$(dirname "$(find "$root" -type f -name tc32-elf-gcc -print -quit)")"
+          test -x "$bindir/tc32-elf-gcc"
+          chmod +x "$bindir"/* || true
+          echo "TC32_CC=$bindir/tc32-elf-gcc" >> "$GITHUB_ENV"
+          echo "TC32_NM=$bindir/tc32-elf-nm" >> "$GITHUB_ENV"
+          "$bindir/tc32-elf-gcc" --version | head -n 1
+
+      - name: Rebuild exact bank-neutral TC32 candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          export TELINK_SDK_ROOT="$GITHUB_WORKSPACE/telink-sdk/tl_zigbee_sdk"
+          export OUT_DIR="$RUNNER_TEMP/glsd-shadow-build"
+          bash tools/build_glsd_tc32_link_probe.sh
+          root="$OUT_DIR/neutral"
+          inner="$root/glsd-stager-neutral.final.bin"
+          manifest="$root/manifest.txt"
+          candidate="$root/glsd-stager-neutral.quarantined.ota"
+          python tools/make_glsd_stager_ota.py "$inner" \
+            --out "$candidate" \
+            --build-manifest "$manifest" \
+            --offline-build-quarantined
+          test "$(stat -c %s "$inner")" -eq 156740
+          test "$(stat -c %s "$candidate")" -eq 156806
+          echo '1b05e890fdebf753f8d588286bd67c956fbd24e48c8df1eaa16fd6d4477b50f8  '"$candidate" | sha256sum --check --strict
+          echo 'EXACT_REAL_STAGER_CANDIDATE=PASS'
+
+      - name: Derive and independently validate full-size shadow
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="$RUNNER_TEMP/glsd-shadow-build/neutral"
+          candidate="$root/glsd-stager-neutral.quarantined.ota"
+          shadow="$root/glsd-stager-neutral.shadow-crc-reject.ota"
+          python tools/make_glsd_stager_shadow_probe.py "$candidate" \
+            --out "$shadow" \
+            --offline-build-shadow-probe
+          python tools/telink_ota_forensics.py "$shadow" --json > "$root/shadow-forensics.json"
+          python - "$candidate" "$shadow" "$shadow.json" "$root/shadow-forensics.json" <<'PY'
+          import hashlib, json, pathlib, sys
+          candidate = pathlib.Path(sys.argv[1]).read_bytes()
+          shadow = pathlib.Path(sys.argv[2]).read_bytes()
+          meta = json.loads(pathlib.Path(sys.argv[3]).read_text())
+          report = json.loads(pathlib.Path(sys.argv[4]).read_text())
+          assert len(candidate) == 156806 == len(shadow)
+          assert hashlib.sha256(candidate).hexdigest() == '1b05e890fdebf753f8d588286bd67c956fbd24e48c8df1eaa16fd6d4477b50f8'
+          assert meta['candidate_sha256'] == '1b05e890fdebf753f8d588286bd67c956fbd24e48c8df1eaa16fd6d4477b50f8'
+          assert meta['bytes'] == 156806
+          assert meta['innerBytes'] == 156740
+          assert meta['fileVersion'] == 0x7F00FFFF
+          assert meta['hardwareVersionMin'] == 2 and meta['hardwareVersionMax'] == 2
+          assert meta['forensics_reason'] == 'telink_crc_mismatch'
+          assert meta['INTENTIONALLY_NON_BOOTABLE'] is True
+          app = report['upgrade_image']['application_validation']
+          assert app['valid'] is False
+          assert app['reason'] == 'telink_crc_mismatch'
+          assert app['valid_pattern_5d02'] is True
+          assert app['marker_valid'] is True
+          h = report['header']
+          assert h['manufacturer_code'] == 0x124F
+          assert h['image_type'] == 0x1416
+          assert h['file_version'] == 0x7F00FFFF
+          assert h['minimum_hardware_version'] == 2
+          assert h['maximum_hardware_version'] == 2
+          assert report['upgrade_image']['outer_identity_matches_inner'] is True
+          print('FULL_SIZE_SHADOW_PROBE=PASS_EXACT_CANDIDATE_RANGE_CRC_ONLY_REJECT')
+          print('SHADOW_SHA256=' + meta['shadow_sha256'])
+          print('SHADOW_SHA512=' + meta['shadow_sha512'])
+          print('BYTE_DIFF_OFFSETS=' + ','.join(hex(x) for x in meta['byte_diff_offsets']))
+          PY
+
+      - name: Quarantine assertion
+        run: |
+          echo 'NO_ARTIFACT_UPLOAD=YES'
+          echo 'LIVE_DEVICE_IO=NONE'
+          echo 'SHADOW_LIVE_USE_REQUIRES_SEPARATE_AUTHORIZATION=YES'
