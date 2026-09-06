@@ -14,6 +14,11 @@
  *    routines;
  *  - the private extraction core has only flash_read_page(), never write/erase.
  *
+ * TLSR8258 standard OTA uses hardware multi-address startup. This application
+ * is linked once at logical address 0 and may physically boot from 0x00000 or
+ * 0x40000. The physical running bank is therefore obtained from mcuBootAddrGet()
+ * at runtime and is never inferred from the link VMA.
+ *
  * This source being linkable is NOT authorization to deploy it. Runtime flash
  * geometry, production MCU/revision and a validated return image remain gates.
  */
@@ -38,10 +43,6 @@
 
 #ifndef GLSD_STAGER_BUILD_ID
 #define GLSD_STAGER_BUILD_ID             0x00010000u
-#endif
-
-#ifndef GLSD_STAGER_LINK_BASE
-#define GLSD_STAGER_LINK_BASE            0x00000000u
 #endif
 
 static glsd_stager_core_t g_glsd_core;
@@ -192,12 +193,12 @@ static void glsd_try_enable_extraction(void) {
     glsd_stager_env_t env;
     uint32_t mid = (uint32_t)flash_read_mid();
     uint32_t flash_size = glsd_flash_size_from_mid(mid);
+    uint32_t boot_base = mcuBootAddrGet();
 
     memset(&env, 0, sizeof(env));
     env.read = glsd_flash_read_only;
     env.flash_jedec_id = mid;
     env.flash_size = flash_size;
-    env.stager_base = (uint32_t)GLSD_STAGER_LINK_BASE;
     env.stager_build_id = GLSD_STAGER_BUILD_ID;
     env.session_id = glsd_new_session_id();
 
@@ -205,6 +206,10 @@ static void glsd_try_enable_extraction(void) {
     if (flash_size != GLSD_FLASH_SIZE_512K_BYTES) {
         return;
     }
+    if (boot_base != GLSD_BANK_A_BASE && boot_base != GLSD_BANK_B_BASE) {
+        return;
+    }
+    env.stager_base = boot_base;
     if (glsd_stager_core_init(&g_glsd_core, &env) != GLSD_STAGER_OK) {
         return;
     }
