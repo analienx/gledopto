@@ -1,5 +1,69 @@
 # STATUS — gl-sd-301p
 
+## 2026-09-06 — Supervisor TC32 build/link/finalization milestone
+
+The host-side extraction architecture is no longer waiting on a hypothetical
+Telink target build. The supervisor moved the official TC32 toolchain and public
+TLSR8258 SDK into GitHub Actions and iterated against the real compiler/linker.
+
+Current proven offline state:
+
+```text
+HOST / Z2M DUMP STACK             = IMPLEMENTED / VERIFIED
+CRASH-SAFE SESSION GUARD          = PASS
+REAL TC32 TOOLCHAIN               = PASS
+TC32 TARGET OBJECTS               = PASS 6/6
+TLSR8258 BANK-A LINK              = PASS
+TLSR8258 BANK-B LINK              = PASS
+PRIVATE EXTRACTION MUTATION SCAN  = NONE
+FINAL OTP SYMBOL SCAN             = NONE
+POWER-STAGE/RESET/STEERING SCAN   = NONE
+TELINK INNER-IMAGE FINALIZER      = IMPLEMENTED / TESTED
+OTA RECOVERY MODE                 = IMAGE-NOTIFY-DRIVEN ONLY
+PRODUCTION REVISION PROOF         = OPEN
+RETURN-TO-STOCK SPARE TEST        = OPEN
+LIVE_CUSTOM_OTA                   = NO_GO
+PRODUCTION_DEVICE_MUTATION        = NO_GO
+```
+
+Important implementation facts:
+
+- official Telink TC32 v2.0 compiler archive is SHA-256 pinned;
+- public SDK tag `V3.7.2.0` supplies `cstartup_8258.S`, `link_cfg.S`,
+  `boot_8258.link`, Zigbee router library and TLSR8258 platform code;
+- minimal stager application compiles as a real router/EP11 Telink application;
+- bank A is linked with `__FW_OFFSET=0x00000`; bank B with `0x40000`;
+- the link proof requires both banks and compares `.text` VMAs so bank B must
+  actually be offset-linked by exactly `0x40000`;
+- finalized physical image size is constrained to each `<0x34000` application
+  slot; bank B must stay below `0x74000`, before MAC `0x76000` and factory
+  `0x77000` regions;
+- the raw TC32 binary has `00 00` at +0x06; the new offline finalizer performs
+  the real lineage post-link transition to `5D 02`, patches declared size and
+  appends Telink xcrc32;
+- no Zigbee OTA container is produced by the TC32 mechanics job;
+- extraction commands remain read-only; whole-ELF flash writes exist only in
+  the separate standard Telink OTA recovery subsystem;
+- periodic `ota_queryStart()` was removed. The public Telink Image Notify
+  handler directly issues Query Next Image, so recovery remains available when
+  explicitly initiated without automatic OTA-server discovery/polling.
+
+The previous real dual-bank link before geometry/finalizer hardening produced a
+157,440-byte raw payload in each bank with no surviving OTP or application
+power-stage/reset/steering symbols. Current CI additionally validates raw-to-final
+Telink image mechanics and reserved-region geometry.
+
+Remaining live blockers are now deliberately narrow:
+
+1. exact production 2024/2026 GL-SD-301P MCU/package/flash/PCB revision evidence;
+2. production confirmation of the 512-KiB dual-bank assumptions and which bank
+   the first stock-to-stager OTA would populate;
+3. a sacrificial matching spare to prove the recovery/reconstructed-stock path;
+4. final target-locked OTA-provider review and explicit live authorization.
+
+No private `0xFC00` traffic, OTA image, reset, binding/group/reporting change or
+other production-device mutation has been performed.
+
 ## 2026-09-05 — Batch 4 + supervisor host/integration implementation
 
 - Executor Batch 4 large evidence pass accepted as **PARTIAL / high-value**:
@@ -31,7 +95,7 @@
   behavior; do not add a stager-specific disable/feed path without the exact
   target SDK/toolchain implementation. READs remain bounded to <=48 bytes.
 
-Current gates:
+Historical gates at the end of Batch 4 were:
 
 ```text
 OTA_CONTAINER_FORENSICS       = PASS
@@ -41,22 +105,10 @@ HOST_PERSISTENCE_GUARD        = PASS (offline CI)
 Z2M_PRIVATE_CLUSTER_TRANSPORT = PASS (source-pinned + offline contract CI)
 SYNTHETIC_END_TO_END_DUMP     = PASS
 STAGER_OTA_INDEX_GUARD        = PASS
-BOOTABLE_TC32_STAGER_BUILD    = BLOCKED
+BOOTABLE_TC32_STAGER_BUILD    = BLOCKED (now superseded by 2026-09-06 result)
 LIVE_CUSTOM_OTA               = NO_GO
 PRODUCTION_DEVICE_MUTATION    = NO_GO
 ```
-
-Remaining device-side blockers before a bootable stager can be treated as a
-real target image:
-
-1. acquire/verify a usable TC32 compiler + required 8258 low-level SDK support
-   libraries/headers under acceptable provenance;
-2. prove the production 2024/2026 module's exact flash/silicon profile before
-   relying on the historical 512-KiB lineage at runtime;
-3. establish enough current board/module configuration to build a Zigbee image
-   without guessing RF/clock/board definitions;
-4. only after those gates, build the stager and audit its linker map/forbidden
-   address references before any live acceptance decision.
 
 No new live-device mutation was authorized or performed in this phase.
 
@@ -130,12 +182,10 @@ No new live-device mutation was authorized or performed in this phase.
 
 ## Next
 
-1. Acquire/prove the TC32 build toolchain and exact 8258 low-level support needed
-   to link a minimal Zigbee image; record hashes/provenance and do not install
-   unknown binaries on the HA host.
+1. Keep closing supervisor-owned offline build/geometry/packaging gates in CI.
 2. Resolve production-module exact silicon/flash/board facts with read-only
-   evidence if possible; otherwise the sacrificial-spare gate remains.
-3. Build and statically audit the read-only stager only after 1–2 are satisfied.
+   evidence if possible; otherwise keep the sacrificial-spare gate.
+3. Prove return-to-stock on a matching spare before considering production OTA.
 4. Keep the current host/Z2M stack offline until a separate live gate is opened.
 5. Firmware product plan after recovery remains RX-on-when-idle End Device
    (`ZB_ED_ROLE=1`, `ZB_ROUTER_ROLE=0`, `RX_ON_WHEN_IDLE=1`, `PM_ENABLE=0`).
