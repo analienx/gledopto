@@ -5,6 +5,10 @@ This tool performs no device/network I/O and cannot flash or serve firmware. It
 turns the remaining production unknowns into explicit fail-closed release gates.
 A PASS means only that the stated preconditions are internally consistent; it
 is not authorization to mutate a device.
+
+TLSR8258 standard Zigbee OTA is bank-neutral: one logical-0 application can be
+written to either physical boot slot by the SDK's ping-pong OTA engine. Therefore
+active-bank knowledge is deliberately NOT a precondition for the first OTA.
 """
 
 from __future__ import annotations
@@ -19,8 +23,10 @@ EXPECTED_HW_VERSION = 2
 EXPECTED_FLASH_SIZE = 0x80000
 EXPECTED_STOCK_FILE_VERSION = 0x26013001
 EXPECTED_MCU = "TLSR8258"
-EXPECTED_BANKS = {"bank_a", "bank_b"}
-OPPOSITE_BANK = {"bank_a": "bank_b", "bank_b": "bank_a"}
+BANK_A_BASE = 0x00000
+BANK_B_BASE = 0x40000
+BANK_A_SLOT_END = 0x34000
+BANK_B_SLOT_END = 0x74000
 
 
 class FlashPreflightError(ValueError):
@@ -30,7 +36,6 @@ class FlashPreflightError(ValueError):
 def evaluate_preconditions(
     metadata: dict,
     *,
-    active_bank: str,
     production_flash_size: int | None,
     production_hw_version: int,
     current_file_version: int,
@@ -55,13 +60,28 @@ def evaluate_preconditions(
     if not metadata.get("innerValid"):
         blockers.append("INNER_IMAGE_NOT_VALIDATED")
 
-    target_bank = metadata.get("targetBank")
-    if target_bank not in EXPECTED_BANKS:
-        blockers.append("TARGET_BANK_UNATTESTED")
-    if active_bank not in EXPECTED_BANKS:
-        blockers.append("ACTIVE_BANK_UNKNOWN")
-    elif target_bank in EXPECTED_BANKS and target_bank != OPPOSITE_BANK[active_bank]:
-        blockers.append("TARGET_BANK_IS_NOT_INACTIVE_BANK")
+    # A standard Telink OTA payload must be one logical-0 multi-address image.
+    if metadata.get("bankNeutral") is not True:
+        blockers.append("BANK_NEUTRAL_ATTESTATION_MISSING")
+    if metadata.get("logicalLinkBase") != 0:
+        blockers.append("LOGICAL_LINK_BASE_NOT_ZERO")
+    if metadata.get("runtimeBootBankDetection") != "mcuBootAddrGet":
+        blockers.append("RUNTIME_BOOT_BANK_DETECTION_MISSING")
+    if metadata.get("physicalBootTargets") != [BANK_A_BASE, BANK_B_BASE]:
+        blockers.append("MULTI_ADDRESS_BOOT_TARGETS_MISMATCH")
+
+    end_a = metadata.get("physicalAEndExclusive")
+    end_b = metadata.get("physicalBEndExclusive")
+    slot_a = metadata.get("bankASlotEnd")
+    slot_b = metadata.get("bankBSlotEnd")
+    if not all(isinstance(v, int) for v in (end_a, end_b, slot_a, slot_b)):
+        blockers.append("CANDIDATE_GEOMETRY_MISSING")
+    elif not (
+        BANK_A_BASE < end_a < slot_a == BANK_A_SLOT_END
+        and BANK_B_BASE < end_b < slot_b == BANK_B_SLOT_END
+        and end_b <= EXPECTED_FLASH_SIZE
+    ):
+        blockers.append("CANDIDATE_GEOMETRY_INVALID")
 
     if production_mcu != EXPECTED_MCU:
         blockers.append("PRODUCTION_MCU_UNPROVEN")
@@ -78,19 +98,6 @@ def evaluate_preconditions(
     if not isinstance(candidate_file_version, int) or candidate_file_version <= current_file_version:
         blockers.append("CANDIDATE_VERSION_NOT_NEWER")
 
-    target_link_base = metadata.get("targetLinkBase")
-    expected_link_base = 0x00000 if target_bank == "bank_a" else 0x40000 if target_bank == "bank_b" else None
-    if expected_link_base is None or target_link_base != expected_link_base:
-        blockers.append("TARGET_LINK_BASE_MISMATCH")
-
-    start = metadata.get("physicalFlashStart")
-    end = metadata.get("physicalFlashEndExclusive")
-    slot_end = metadata.get("appSlotEnd")
-    if not all(isinstance(v, int) for v in (start, end, slot_end)):
-        blockers.append("CANDIDATE_GEOMETRY_MISSING")
-    elif not (start == expected_link_base and start < end < slot_end <= EXPECTED_FLASH_SIZE):
-        blockers.append("CANDIDATE_GEOMETRY_INVALID")
-
     if not return_to_stock_spare_passed:
         blockers.append("RETURN_TO_STOCK_SPARE_NOT_PASSED")
 
@@ -98,9 +105,8 @@ def evaluate_preconditions(
     return {
         "FLASH_WRITE_PRECONDITIONS_PASS": not blockers,
         "AUTHORIZATION_GRANTED": False,
-        "candidateTargetBank": target_bank,
-        "activeBank": active_bank,
-        "expectedInactiveBank": OPPOSITE_BANK.get(active_bank),
+        "bankNeutral": metadata.get("bankNeutral") is True,
+        "activeBankRequiredForFirstOta": False,
         "blockers": blockers,
     }
 
@@ -112,7 +118,6 @@ def _int_auto(value: str) -> int:
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("metadata", type=Path, help="*.quarantine.json sidecar from make_glsd_stager_ota.py")
-    parser.add_argument("--active-bank", choices=("bank_a", "bank_b", "unknown"), default="unknown")
     parser.add_argument("--production-flash-size", type=_int_auto)
     parser.add_argument("--production-hw-version", type=_int_auto, default=EXPECTED_HW_VERSION)
     parser.add_argument("--current-file-version", type=_int_auto, default=EXPECTED_STOCK_FILE_VERSION)
@@ -124,7 +129,6 @@ def main(argv: list[str] | None = None) -> int:
     metadata = json.loads(ns.metadata.read_text(encoding="utf-8"))
     result = evaluate_preconditions(
         metadata,
-        active_bank=ns.active_bank,
         production_flash_size=ns.production_flash_size,
         production_hw_version=ns.production_hw_version,
         current_file_version=ns.current_file_version,
