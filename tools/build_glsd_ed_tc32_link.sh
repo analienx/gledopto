@@ -161,9 +161,12 @@ final_bin="$DIR/glsd-ed.final.bin"
 map="$DIR/glsd-ed.map"
 lst="$DIR/glsd-ed.lst"
 
+# The Telink driver and End Device stack archives contain cross-archive
+# dependencies. Use a linker group so the archives are rescanned to a fixed
+# point; do not replace genuine stack/security functions with application stubs.
 "$TC32_LD" --gc-sections -nostartfiles -T"$SDK/platform/boot/8258/boot_8258.link" -Map="$map" \
   -L"$SDK/zigbee/lib/tc32" -L"$SDK/platform/lib" \
-  -o "$elf" "${objects[@]}" -ldrivers_8258 -lzb_ed
+  -o "$elf" "${objects[@]}" --start-group -ldrivers_8258 -lzb_ed --end-group
 
 "$TC32_OBJCOPY" -O binary "$elf" "$bin"
 "$TC32_OBJDUMP" -h -t "$elf" > "$lst"
