@@ -1,18 +1,19 @@
 #!/usr/bin/env python3
 """Offline Telink TLSR8258 inner-application finalizer and validator.
 
-This tool operates on raw linker binaries only.  It does not create a Zigbee
-OTA container, contact Zigbee2MQTT, or serve firmware to a device.
+This tool operates on raw linker binaries only. It does not create a Zigbee OTA
+container, contact Zigbee2MQTT, or serve firmware to a device.
 
-The public Telink 8258 startup emits the application preamble but the raw linked
-binary does not contain the trailing Telink xcrc32.  Finalization therefore:
+Telink's public 8258 startup leaves bytes 6..7 as zero in the raw link image.
+The post-link image step supplies the 5D 02 MCU magic, fixes the declared size,
+and appends the trailing Telink xcrc32. Finalization therefore:
 
-1. validates the expected 8258/GLEDOPTO-lineage preamble;
+1. validates the raw linker preamble, allowing only 00 00 or 5D 02 at 6..7;
 2. requires the raw linker-declared size to equal the input byte length;
 3. pads the body to a 16-byte boundary with 0xFF if required;
-4. patches the declared size to include the four-byte trailing CRC;
+4. writes the 5D 02 MCU magic and patches size to include the trailing CRC;
 5. appends Telink reflected xcrc32 (init 0xFFFFFFFF, no final XOR);
-6. re-validates the complete result.
+6. re-validates the complete finalized inner image.
 
 A finalized inner image is still NOT authorization to package or deploy it.
 """
@@ -26,6 +27,7 @@ import struct
 import sys
 
 TELINK_8258_MAGIC = b"\x5d\x02"
+TELINK_RAW_MAGIC = b"\x00\x00"
 TELINK_STARTUP_FLAG = 0x544C4E4B
 TELINK_STARTUP_FLAG_BYTES = b"\x4b\x4e\x4c\x54"
 TELINK_MARKER_OFFSET = 0x08
@@ -67,12 +69,22 @@ def telink_xcrc32(data: bytes | bytearray) -> int:
     return crc & 0xFFFFFFFF
 
 
-def parse_preamble(data: bytes | bytearray) -> TelinkPreamble:
+def parse_preamble(
+    data: bytes | bytearray,
+    *,
+    require_final_magic: bool = True,
+) -> TelinkPreamble:
     if len(data) < TELINK_MIN_HEADER:
         raise TelinkImageError("image is shorter than the Telink preamble")
-    if bytes(data[6:8]) != TELINK_8258_MAGIC:
+    magic = bytes(data[6:8])
+    if require_final_magic:
+        if magic != TELINK_8258_MAGIC:
+            raise TelinkImageError(
+                f"unexpected MCU magic {magic.hex()}; expected {TELINK_8258_MAGIC.hex()}"
+            )
+    elif magic not in (TELINK_RAW_MAGIC, TELINK_8258_MAGIC):
         raise TelinkImageError(
-            f"unexpected MCU magic {bytes(data[6:8]).hex()}; expected {TELINK_8258_MAGIC.hex()}"
+            f"unexpected raw linker magic {magic.hex()}; expected 0000 or {TELINK_8258_MAGIC.hex()}"
         )
     if bytes(data[TELINK_MARKER_OFFSET : TELINK_MARKER_OFFSET + 4]) != TELINK_STARTUP_FLAG_BYTES:
         raise TelinkImageError("Telink startup marker is not 4B 4E 4C 54")
@@ -107,7 +119,7 @@ def validate_identity(
 
 def is_valid_finalized_image(data: bytes | bytearray) -> bool:
     try:
-        preamble = parse_preamble(data)
+        preamble = parse_preamble(data, require_final_magic=True)
     except TelinkImageError:
         return False
     if len(data) < TELINK_MIN_HEADER + 4 or preamble.declared_size != len(data):
@@ -124,7 +136,7 @@ def validate_link_binary(
     file_version: int | None = DEFAULT_FILE_VERSION,
     max_final_size: int = 0x34000,
 ) -> TelinkPreamble:
-    preamble = parse_preamble(data)
+    preamble = parse_preamble(data, require_final_magic=False)
     validate_identity(
         preamble,
         manufacturer_code=manufacturer_code,
@@ -164,6 +176,7 @@ def finalize_link_binary(
     padding = (-len(body)) % 16
     if padding:
         body.extend(b"\xff" * padding)
+    body[6:8] = TELINK_8258_MAGIC
     final_size = len(body) + 4
     struct.pack_into("<I", body, TELINK_DECLARED_SIZE_OFFSET, final_size)
     crc = telink_xcrc32(body)
@@ -186,7 +199,7 @@ def validate_finalized_image(
     file_version: int | None = DEFAULT_FILE_VERSION,
     max_final_size: int = 0x34000,
 ) -> TelinkPreamble:
-    preamble = parse_preamble(data)
+    preamble = parse_preamble(data, require_final_magic=True)
     validate_identity(
         preamble,
         manufacturer_code=manufacturer_code,
@@ -236,8 +249,9 @@ def main(argv: list[str] | None = None) -> int:
         if args.mode == "check-link":
             preamble = validate_link_binary(data, **kwargs)
             print(
-                f"TELINK_LINK_IMAGE=PASS bytes={len(data)} fileVersion=0x{preamble.file_version:08x} "
-                f"manufacturer=0x{preamble.manufacturer_code:04x} imageType=0x{preamble.image_type:04x}"
+                f"TELINK_LINK_IMAGE=PASS bytes={len(data)} rawMagic={data[6:8].hex()} "
+                f"fileVersion=0x{preamble.file_version:08x} manufacturer=0x{preamble.manufacturer_code:04x} "
+                f"imageType=0x{preamble.image_type:04x}"
             )
         elif args.mode == "finalize":
             if args.output is None:
@@ -245,7 +259,7 @@ def main(argv: list[str] | None = None) -> int:
             result = finalize_link_binary(data, **kwargs)
             args.output.write_bytes(result)
             crc = _u32le(result, len(result) - 4)
-            print(f"TELINK_FINALIZE=PASS bytes={len(result)} xcrc32=0x{crc:08x}")
+            print(f"TELINK_FINALIZE=PASS bytes={len(result)} magic={result[6:8].hex()} xcrc32=0x{crc:08x}")
         else:
             preamble = validate_finalized_image(data, **kwargs)
             crc = _u32le(data, len(data) - 4)
