@@ -7,11 +7,13 @@ on:
     paths:
       - 'firmware/gl-sd-301p-ed/**'
       - 'tools/build_glsd_ed_tc32_objects.sh'
+      - 'tools/build_glsd_ed_tc32_link.sh'
       - '.github/workflows/glsd-ed-firmware.yml'
   pull_request:
     paths:
       - 'firmware/gl-sd-301p-ed/**'
       - 'tools/build_glsd_ed_tc32_objects.sh'
+      - 'tools/build_glsd_ed_tc32_link.sh'
       - '.github/workflows/glsd-ed-firmware.yml'
   workflow_dispatch:
 
@@ -46,8 +48,8 @@ jobs:
           ! grep -Eq '^#define[[:space:]]+ZB_ROUTER_ROLE[[:space:]]+1$' firmware/gl-sd-301p-ed/telink_fixture/stack_cfg.h
           echo 'GLSD_ED_ROLE_INVARIANTS=PASS'
 
-  tc32-product-objects:
-    name: Pinned TC32 product compile
+  tc32-product:
+    name: Pinned TC32 End Device product build
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -94,3 +96,21 @@ jobs:
           grep -q '^PM_ENABLE=0$' "$manifest"
           grep -q '^GLSD_ED_TC32_OBJECT_COMPILE=PASS_3_OF_3$' "$manifest"
           echo 'GLSD_ED_EFFECTIVE_ROLE=PASS'
+      - name: Link and finalize complete End Device product image
+        shell: bash
+        run: |
+          set -euo pipefail
+          export TELINK_SDK_ROOT="$GITHUB_WORKSPACE/telink-sdk/tl_zigbee_sdk"
+          export OUT_DIR="$RUNNER_TEMP/glsd-ed-link"
+          bash tools/build_glsd_ed_tc32_link.sh
+          manifest="$OUT_DIR/product/manifest.txt"
+          cat "$manifest"
+          grep -q '^ZIGBEE_STACK_ARCHIVE=libzb_ed.a$' "$manifest"
+          grep -q '^ZIGBEE_ROLE=END_DEVICE$' "$manifest"
+          grep -q '^BANK_NEUTRAL=YES$' "$manifest"
+          grep -q '^TELINK_MULTI_ADDRESS_FIT=PASS$' "$manifest"
+          grep -q '^TELINK_PREAMBLE=PASS$' "$manifest"
+          grep -q '^TELINK_XCRC32=PASS$' "$manifest"
+          grep -q '^DEPLOYABLE=NO$' "$manifest"
+          grep -q '^DEPLOYABLE_BLOCKER=POWER_STAGE_DRIVER_STUB$' "$manifest"
+          echo 'GLSD_ED_COMPLETE_PRODUCT_LINK=PASS_NONDEPLOYABLE'
