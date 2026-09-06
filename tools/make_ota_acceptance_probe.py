@@ -36,7 +36,7 @@ def telink_xcrc32(data: bytes, initial: int = 0xFFFFFFFF) -> int:
     return crc & 0xFFFFFFFF
 
 
-def build_payload(version: int, size: int) -> tuple[bytes, dict[str, int]]:
+def build_payload(version: int, size: int) -> bytes:
     if size < 64:
         raise ValueError('payload must be >=64 bytes')
 
@@ -64,11 +64,13 @@ def build_payload(version: int, size: int) -> tuple[bytes, dict[str, int]]:
     assert int.from_bytes(b[-4:], 'little') == bad_crc
     assert bad_crc != good_crc
 
-    return bytes(b), {'expected_telink_xcrc32': good_crc, 'stored_bad_xcrc32': bad_crc}
+    return bytes(b)
 
 
-def build_ota(version: int, payload_size: int) -> tuple[bytes, dict[str, int]]:
-    payload, crc_meta = build_payload(version, payload_size)
+def build_ota(version: int, payload_size: int) -> bytes:
+    # Keep the historical public builder API returning bytes; tests and offline
+    # callers already depend on this shape.
+    payload = build_payload(version, payload_size)
     header_len = 56
     sub = struct.pack('<HI', 0x0000, len(payload)) + payload
     total = header_len + len(sub)
@@ -77,7 +79,7 @@ def build_ota(version: int, payload_size: int) -> tuple[bytes, dict[str, int]]:
         '<IHHHHHIH32sI', OTA_MAGIC, 0x0100, header_len, 0,
         MFG, IMAGE, version, 0x0002, name, total,
     )
-    return header + sub, crc_meta
+    return header + sub
 
 
 def main() -> int:
@@ -93,7 +95,11 @@ def main() -> int:
     if ns.version <= BASE_VERSION:
         ap.error('probe version must be higher than stock 0x26013001')
 
-    data, crc_meta = build_ota(ns.version, ns.payload_size)
+    data = build_ota(ns.version, ns.payload_size)
+    payload = data[56 + 6:]
+    expected_crc = telink_xcrc32(payload[:-4])
+    stored_bad_crc = int.from_bytes(payload[-4:], 'little')
+
     ns.out.write_bytes(data)
     meta = {
         'LIVE_USE_REQUIRES_EXPLICIT_AUTHORIZATION': True,
@@ -106,8 +112,8 @@ def main() -> int:
         'size': len(data),
         'sha256': hashlib.sha256(data).hexdigest(),
         'sha512': hashlib.sha512(data).hexdigest(),
-        'expected_telink_xcrc32': f"0x{crc_meta['expected_telink_xcrc32']:08X}",
-        'stored_bad_xcrc32': f"0x{crc_meta['stored_bad_xcrc32']:08X}",
+        'expected_telink_xcrc32': f'0x{expected_crc:08X}',
+        'stored_bad_xcrc32': f'0x{stored_bad_crc:08X}',
     }
     ns.out.with_suffix(ns.out.suffix + '.json').write_text(json.dumps(meta, indent=2) + '\n')
     print(json.dumps(meta, indent=2))
