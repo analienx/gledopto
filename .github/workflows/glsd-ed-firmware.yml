@@ -1,0 +1,94 @@
+name: GL-SD End Device firmware
+
+on:
+  push:
+    branches:
+      - research/wireless-dump-stager
+    paths:
+      - 'firmware/gl-sd-301p-ed/**'
+      - 'tools/build_glsd_ed_tc32_objects.sh'
+      - '.github/workflows/glsd-ed-firmware.yml'
+  pull_request:
+    paths:
+      - 'firmware/gl-sd-301p-ed/**'
+      - 'tools/build_glsd_ed_tc32_objects.sh'
+      - '.github/workflows/glsd-ed-firmware.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  host-core:
+    name: End Device product core
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compile and test state core
+        shell: bash
+        run: |
+          set -euo pipefail
+          gcc -std=c99 -Wall -Wextra -Werror \
+            firmware/gl-sd-301p-ed/glsd_ed_core.c \
+            firmware/gl-sd-301p-ed/tests/ed_core_test.c \
+            -o "$RUNNER_TEMP/glsd-ed-core-test"
+          "$RUNNER_TEMP/glsd-ed-core-test"
+      - name: Enforce End Device fixture invariants
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -Eq '^#define PM_ENABLE[[:space:]]+0$' firmware/gl-sd-301p-ed/telink_fixture/app_cfg.h
+          grep -Eq '^#define ZB_MAC_RX_ON_WHEN_IDLE[[:space:]]+1$' firmware/gl-sd-301p-ed/telink_fixture/stack_cfg.h
+          grep -Eq '^#define ZCL_ON_OFF_SUPPORT[[:space:]]+1$' firmware/gl-sd-301p-ed/telink_fixture/app_cfg.h
+          grep -Eq '^#define ZCL_LEVEL_CTRL_SUPPORT[[:space:]]+1$' firmware/gl-sd-301p-ed/telink_fixture/app_cfg.h
+          grep -Eq '^#define ZCL_GROUP_SUPPORT[[:space:]]+1$' firmware/gl-sd-301p-ed/telink_fixture/app_cfg.h
+          grep -Eq '^#define ZCL_OTA_SUPPORT[[:space:]]+1$' firmware/gl-sd-301p-ed/telink_fixture/app_cfg.h
+          ! grep -Eq '^#define[[:space:]]+ZB_ROUTER_ROLE[[:space:]]+1$' firmware/gl-sd-301p-ed/telink_fixture/stack_cfg.h
+          echo 'GLSD_ED_ROLE_INVARIANTS=PASS'
+
+  tc32-product-objects:
+    name: Pinned TC32 product compile
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Checkout pinned Telink SDK
+        uses: actions/checkout@v4
+        with:
+          repository: telink-semi/telink_zigbee_sdk
+          ref: V3.7.2.0
+          path: telink-sdk
+      - name: Acquire hash-pinned TC32 toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          url='https://shyboy.oss-cn-shenzhen.aliyuncs.com/readonly/tc32_gcc_v2.0.tar.bz2'
+          expected='33b854be3e3db3dba4b4dacdda2cd4ea1c94dfd4d562864a095956de7991b430'
+          archive="$RUNNER_TEMP/tc32_gcc_v2.0.tar.bz2"
+          root="$RUNNER_TEMP/tc32"
+          curl --fail --location --retry 3 --output "$archive" "$url"
+          echo "$expected  $archive" | sha256sum --check --strict
+          mkdir -p "$root"
+          tar -xjf "$archive" -C "$root"
+          bindir="$(dirname "$(find "$root" -type f -name tc32-elf-gcc -print -quit)")"
+          test -x "$bindir/tc32-elf-gcc"
+          chmod +x "$bindir"/* || true
+          echo "TC32_CC=$bindir/tc32-elf-gcc" >> "$GITHUB_ENV"
+          echo "TC32_NM=$bindir/tc32-elf-nm" >> "$GITHUB_ENV"
+          "$bindir/tc32-elf-gcc" --version | head -n 1
+      - name: Compile product objects as RX-on-idle End Device
+        shell: bash
+        run: |
+          set -euo pipefail
+          export TELINK_SDK_ROOT="$GITHUB_WORKSPACE/telink-sdk/tl_zigbee_sdk"
+          export OUT_DIR="$RUNNER_TEMP/glsd-ed-objects"
+          bash tools/build_glsd_ed_tc32_objects.sh
+          cat "$OUT_DIR/build-manifest.txt"
+      - name: Confirm pinned SDK role semantics
+        shell: bash
+        run: |
+          set -euo pipefail
+          af="$GITHUB_WORKSPACE/telink-sdk/tl_zigbee_sdk/stack/zigbee/af/zb_af.c"
+          cfg="$GITHUB_WORKSPACE/telink-sdk/tl_zigbee_sdk/stack/zigbee/common/zb_config.c"
+          grep -q 'MAC_CAP_RX_ON_WHEN_IDLE' "$af"
+          grep -q 'rxOnWhenIdle.*ZB_MAC_RX_ON_WHEN_IDLE' "$cfg"
+          echo 'TELINK_RX_ON_IDLE_END_DEVICE_SEMANTICS=PASS'
