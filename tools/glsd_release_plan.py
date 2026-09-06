@@ -8,13 +8,15 @@ device.
 
 A read-only/check request may be shown while production blockers remain. The
 mutating update request is emitted only when the machine-readable flash
-preflight passes. Even then `authorizationGranted` remains false: the final
-operator authorization is intentionally outside this tool.
+preflight passes *and* the exact local OTA bytes match the quarantined sidecar.
+Even then `authorizationGranted` remains false: the final operator authorization
+is intentionally outside this tool.
 """
 
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 from pathlib import Path
 from urllib.parse import urlparse
@@ -43,9 +45,45 @@ def _validate_url(url: str) -> None:
         raise ReleasePlanError("do not embed credentials in the candidate URL")
 
 
+def attest_candidate_bytes(metadata: dict, candidate_path: Path) -> dict:
+    """Cryptographically bind the release plan to the exact local OTA bytes."""
+    try:
+        data = candidate_path.read_bytes()
+    except OSError as exc:
+        raise ReleasePlanError(f"cannot read candidate OTA: {candidate_path}") from exc
+
+    sha256 = hashlib.sha256(data).hexdigest()
+    sha512 = hashlib.sha512(data).hexdigest()
+    expected_sha256 = metadata.get("sha256")
+    expected_sha512 = metadata.get("sha512")
+    expected_bytes = metadata.get("bytes")
+    expected_file = metadata.get("file")
+
+    failures: list[str] = []
+    if not isinstance(expected_sha256, str) or sha256 != expected_sha256.lower():
+        failures.append("SHA256_MISMATCH")
+    if not isinstance(expected_sha512, str) or sha512 != expected_sha512.lower():
+        failures.append("SHA512_MISMATCH")
+    if expected_bytes != len(data):
+        failures.append("SIZE_MISMATCH")
+    if not isinstance(expected_file, str) or candidate_path.name != expected_file:
+        failures.append("FILENAME_MISMATCH")
+    if failures:
+        raise ReleasePlanError("candidate byte attestation failed: " + ",".join(failures))
+
+    return {
+        "pathName": candidate_path.name,
+        "bytes": len(data),
+        "sha256": sha256,
+        "sha512": sha512,
+        "matchesQuarantineSidecar": True,
+    }
+
+
 def build_plan(
     metadata: dict,
     *,
+    candidate_path: Path,
     url: str,
     production_flash_size: int | None,
     production_hw_version: int,
@@ -55,6 +93,7 @@ def build_plan(
     return_to_stock_spare_passed: bool,
 ) -> dict:
     _validate_url(url)
+    byte_attestation = attest_candidate_bytes(metadata, candidate_path)
     preflight = evaluate_preconditions(
         metadata,
         production_flash_size=production_flash_size,
@@ -76,7 +115,9 @@ def build_plan(
         "mutatesFirmware": False,
     }
     update_request = None
-    if preflight["FLASH_WRITE_PRECONDITIONS_PASS"]:
+    if preflight["FLASH_WRITE_PRECONDITIONS_PASS"] and byte_attestation[
+        "matchesQuarantineSidecar"
+    ]:
         update_request = {
             "topic": UPDATE_TOPIC,
             "payload": {"id": TARGET_IEEE, "url": url},
@@ -84,18 +125,21 @@ def build_plan(
         }
 
     return {
-        "schemaVersion": 1,
+        "schemaVersion": 2,
         "targetIeee": TARGET_IEEE,
         "usesGlobalOverrideIndex": False,
         "automaticUpdateChecksMustRemainDisabled": True,
         "scheduledOtaMustBeEmpty": True,
         "authorizationGranted": False,
         "preflight": preflight,
+        "candidateByteAttestation": byte_attestation,
         "checkRequest": check_request,
         "updateRequest": update_request,
         "abortRequest": abort_request,
         "candidate": {
             "url": url,
+            "file": metadata.get("file"),
+            "bytes": metadata.get("bytes"),
             "sha256": metadata.get("sha256"),
             "sha512": metadata.get("sha512"),
             "fileVersion": metadata.get("fileVersion"),
@@ -105,6 +149,7 @@ def build_plan(
             "hardwareVersionMax": metadata.get("hardwareVersionMax"),
             "bankNeutral": metadata.get("bankNeutral"),
             "innerSha256": metadata.get("innerSha256"),
+            "buildManifestSha256": metadata.get("buildManifestSha256"),
         },
     }
 
@@ -116,6 +161,12 @@ def _int_auto(value: str) -> int:
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("metadata", type=Path, help="quarantine sidecar from make_glsd_stager_ota.py")
+    ap.add_argument(
+        "--candidate",
+        type=Path,
+        required=True,
+        help="exact local OTA bytes; must match sidecar size/name/SHA-256/SHA-512",
+    )
     ap.add_argument("--url", required=True)
     ap.add_argument("--out", type=Path)
     ap.add_argument("--production-flash-size", type=_int_auto)
@@ -129,6 +180,7 @@ def main(argv: list[str] | None = None) -> int:
     metadata = json.loads(ns.metadata.read_text(encoding="utf-8"))
     plan = build_plan(
         metadata,
+        candidate_path=ns.candidate,
         url=ns.url,
         production_flash_size=ns.production_flash_size,
         production_hw_version=ns.production_hw_version,
