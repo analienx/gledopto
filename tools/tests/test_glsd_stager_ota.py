@@ -14,6 +14,10 @@ if str(TOOLS) not in sys.path:
     sys.path.insert(0, str(TOOLS))
 
 from make_glsd_stager_ota import (  # noqa: E402
+    BANK_A_BASE,
+    BANK_A_SLOT_END,
+    BANK_B_BASE,
+    BANK_B_SLOT_END,
     DEFAULT_FILE_VERSION,
     DEFAULT_IMAGE_TYPE,
     DEFAULT_MANUFACTURER,
@@ -21,7 +25,7 @@ from make_glsd_stager_ota import (  # noqa: E402
     TARGET_HW_VERSION,
     StagerOtaError,
     build_stager_ota,
-    validate_bank_manifest,
+    validate_neutral_manifest,
     validate_stager_ota,
 )
 from telink_app_finalize import (  # noqa: E402
@@ -43,21 +47,24 @@ def make_finalized_inner(size: int = 256) -> bytes:
     return finalize_link_binary(bytes(raw))
 
 
-def make_bank_manifest(path: pathlib.Path, inner_path: pathlib.Path, bank: str) -> pathlib.Path:
-    base = 0 if bank == "bank_a" else 0x40000
-    slot_end = base + 0x34000
+def make_neutral_manifest(path: pathlib.Path, inner_path: pathlib.Path) -> pathlib.Path:
     data = inner_path.read_bytes()
     digest = hashlib.sha256(data).hexdigest()
     text = "\n".join(
         [
             "MECHANICS_ONLY=YES",
             "DEPLOYABLE=NO",
-            f"BANK={bank}",
-            f"GLSD_STAGER_LINK_BASE=0x{base:05x}",
+            "BANK_NEUTRAL=YES",
+            "LOGICAL_LINK_BASE=0x00000",
+            "RUNTIME_BOOT_BANK_DETECTION=mcuBootAddrGet",
+            f"PHYSICAL_BOOT_TARGET_A=0x{BANK_A_BASE:05x}",
+            f"PHYSICAL_BOOT_TARGET_B=0x{BANK_B_BASE:05x}",
             f"FINAL_INNER_BINARY_SIZE={len(data)}",
-            f"PHYSICAL_FLASH_START=0x{base:05x}",
-            f"PHYSICAL_FLASH_END_EXCLUSIVE=0x{base + len(data):05x}",
-            f"APP_SLOT_END=0x{slot_end:05x}",
+            f"PHYSICAL_A_END_EXCLUSIVE=0x{BANK_A_BASE + len(data):05x}",
+            f"PHYSICAL_B_END_EXCLUSIVE=0x{BANK_B_BASE + len(data):05x}",
+            f"BANK_A_SLOT_END=0x{BANK_A_SLOT_END:05x}",
+            f"BANK_B_SLOT_END=0x{BANK_B_SLOT_END:05x}",
+            "TELINK_MULTI_ADDRESS_MODEL=PASS",
             f"{digest}  {inner_path}",
             "",
         ]
@@ -86,38 +93,42 @@ class StagerOtaTests(unittest.TestCase):
         self.assertEqual(report["subelements"][0]["tag_id"], 0)
         self.assertEqual(report["subelements"][0]["data_end"], len(ota))
 
-    def test_bank_manifest_attests_exact_inner_and_bank(self) -> None:
+    def test_neutral_manifest_attests_exact_inner_and_both_physical_slots(self) -> None:
         inner = make_finalized_inner()
         with tempfile.TemporaryDirectory() as td:
             root = pathlib.Path(td)
-            inner_path = root / "glsd-stager-bank_b.final.bin"
+            inner_path = root / "glsd-stager-neutral.final.bin"
             inner_path.write_bytes(inner)
-            manifest = make_bank_manifest(root / "manifest.txt", inner_path, "bank_b")
-            attestation = validate_bank_manifest(manifest, inner_path, "bank_b")
-            self.assertEqual(attestation["targetBank"], "bank_b")
-            self.assertEqual(attestation["targetLinkBase"], 0x40000)
+            manifest = make_neutral_manifest(root / "manifest.txt", inner_path)
+            attestation = validate_neutral_manifest(manifest, inner_path)
+            self.assertTrue(attestation["bankNeutral"])
+            self.assertEqual(attestation["logicalLinkBase"], 0)
+            self.assertEqual(attestation["physicalBootTargets"], [0, 0x40000])
+            self.assertEqual(attestation["runtimeBootBankDetection"], "mcuBootAddrGet")
             self.assertEqual(attestation["innerSha256"], hashlib.sha256(inner).hexdigest())
 
-    def test_bank_manifest_rejects_cross_bank_label(self) -> None:
+    def test_neutral_manifest_rejects_physical_relink(self) -> None:
         inner = make_finalized_inner()
         with tempfile.TemporaryDirectory() as td:
             root = pathlib.Path(td)
-            inner_path = root / "glsd-stager-bank_a.final.bin"
+            inner_path = root / "glsd-stager-neutral.final.bin"
             inner_path.write_bytes(inner)
-            manifest = make_bank_manifest(root / "manifest.txt", inner_path, "bank_a")
+            manifest = make_neutral_manifest(root / "manifest.txt", inner_path)
+            text = manifest.read_text().replace("LOGICAL_LINK_BASE=0x00000", "LOGICAL_LINK_BASE=0x40000")
+            manifest.write_text(text)
             with self.assertRaises(StagerOtaError):
-                validate_bank_manifest(manifest, inner_path, "bank_b")
+                validate_neutral_manifest(manifest, inner_path)
 
-    def test_bank_manifest_rejects_tampered_inner(self) -> None:
+    def test_neutral_manifest_rejects_tampered_inner(self) -> None:
         inner = make_finalized_inner()
         with tempfile.TemporaryDirectory() as td:
             root = pathlib.Path(td)
-            inner_path = root / "glsd-stager-bank_a.final.bin"
+            inner_path = root / "glsd-stager-neutral.final.bin"
             inner_path.write_bytes(inner)
-            manifest = make_bank_manifest(root / "manifest.txt", inner_path, "bank_a")
+            manifest = make_neutral_manifest(root / "manifest.txt", inner_path)
             inner_path.write_bytes(inner[:-1] + bytes([inner[-1] ^ 0x01]))
             with self.assertRaises(StagerOtaError):
-                validate_bank_manifest(manifest, inner_path, "bank_a")
+                validate_neutral_manifest(manifest, inner_path)
 
     def test_reject_non_hw2_wrapper(self) -> None:
         with self.assertRaises(StagerOtaError):
