@@ -63,6 +63,23 @@ compile_one() {
   esac
 }
 
+trace_dependency_origins() {
+  local pattern='flash_erase_otp|flash_read_otp|flash_write_otp|touchlink_keyModeSet|touchlink_lqiThresholdSet|zclGpAttr_gpSharedSecKey|zclGpAttr_gpSharedSecKeyType|zcl_touchlink_register'
+  local obj refs lib
+  echo PRELINK_REFERENCE_ORIGINS
+  for obj in "$@"; do
+    refs="$($TC32_NM -u "$obj" 2>/dev/null | grep -E "$pattern" || true)"
+    [[ -z "$refs" ]] || { echo "OBJECT=$obj"; printf '%s\n' "$refs"; }
+  done
+  for lib in "$SDK/platform/lib/libdrivers_8258.a" "$SDK/zigbee/lib/tc32/libzb_router.a"; do
+    if [[ -f "$lib" ]]; then
+      refs="$($TC32_NM -A -u "$lib" 2>/dev/null | grep -E "$pattern" || true)"
+      [[ -z "$refs" ]] || { echo "ARCHIVE=$lib"; printf '%s\n' "$refs"; }
+    fi
+  done
+  echo PRELINK_REFERENCE_ORIGINS_END
+}
+
 build_bank() {
   local label="$1"
   local base="$2"
@@ -77,6 +94,8 @@ build_bank() {
   for rel in "${app_sources[@]}"; do
     src="$SRC/$rel"; obj="$dir/obj/app/${rel%.c}.o"; compile_one "$src" "$obj" "$base" 0; objects+=("$obj")
   done
+
+  trace_dependency_origins "${objects[@]}"
 
   local elf="$dir/glsd-stager-$label.elf"
   local bin="$dir/glsd-stager-$label.bin"
