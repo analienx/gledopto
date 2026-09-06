@@ -63,6 +63,7 @@ sources=(
   glsd_transport_adapter.c
   glsd_telink_sdk_adapter.c
   glsd_telink_stager_app.c
+  glsd_telink_disabled_feature_glue.c
 )
 
 {
@@ -86,7 +87,7 @@ for name in "${sources[@]}"; do
   obj="$OUT_DIR/${name%.c}.o"
   defines=("${base_defines[@]}")
   case "$name" in
-    glsd_telink_sdk_adapter.c|glsd_telink_stager_app.c) defines+=("${telink_first_defines[@]}") ;;
+    glsd_telink_sdk_adapter.c|glsd_telink_stager_app.c|glsd_telink_disabled_feature_glue.c) defines+=("${telink_first_defines[@]}") ;;
   esac
   echo "[TC32] $name"
   "$TC32_CC" "${cflags[@]}" "${defines[@]}" "${includes[@]}" -I"$SRC" -c "$src" -o "$obj"
@@ -97,6 +98,6 @@ for name in "${sources[@]}"; do
   fi
 done
 
-echo "GLSD_TC32_OBJECT_COMPILE=PASS_5_OF_5" | tee -a "$OUT_DIR/build-manifest.txt"
+echo "GLSD_TC32_OBJECT_COMPILE=PASS_6_OF_6" | tee -a "$OUT_DIR/build-manifest.txt"
 echo "Objects and manifest: $OUT_DIR"
 echo "STOP: this harness does not establish production geometry, board wiring, OTA, or deployment safety."
