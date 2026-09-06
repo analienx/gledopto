@@ -83,12 +83,14 @@ jobs:
           export OUT_DIR="$RUNNER_TEMP/glsd-ed-objects"
           bash tools/build_glsd_ed_tc32_objects.sh
           cat "$OUT_DIR/build-manifest.txt"
-      - name: Confirm pinned SDK role semantics
+      - name: Confirm effective product role from compiled assertion
         shell: bash
         run: |
           set -euo pipefail
-          af="$GITHUB_WORKSPACE/telink-sdk/tl_zigbee_sdk/stack/zigbee/af/zb_af.c"
-          cfg="$GITHUB_WORKSPACE/telink-sdk/tl_zigbee_sdk/stack/zigbee/common/zb_config.c"
-          grep -q 'MAC_CAP_RX_ON_WHEN_IDLE' "$af"
-          grep -q 'rxOnWhenIdle.*ZB_MAC_RX_ON_WHEN_IDLE' "$cfg"
-          echo 'TELINK_RX_ON_IDLE_END_DEVICE_SEMANTICS=PASS'
+          manifest="$RUNNER_TEMP/glsd-ed-objects/build-manifest.txt"
+          grep -q '^GLSD_ED_EFFECTIVE_ROLE_ASSERT=PASS$' "$manifest"
+          grep -q '^ZIGBEE_ROLE=END_DEVICE$' "$manifest"
+          grep -q '^ZB_MAC_RX_ON_WHEN_IDLE=1$' "$manifest"
+          grep -q '^PM_ENABLE=0$' "$manifest"
+          grep -q '^GLSD_ED_TC32_OBJECT_COMPILE=PASS_3_OF_3$' "$manifest"
+          echo 'GLSD_ED_EFFECTIVE_ROLE=PASS'
