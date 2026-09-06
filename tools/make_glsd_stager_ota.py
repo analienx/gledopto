@@ -1,12 +1,14 @@
 #!/usr/bin/env python3
 """Build a quarantined GL-SD-301P Zigbee OTA container offline.
 
-This tool wraps an already-finalized Telink inner application. It performs no
-network/device I/O and refuses to run without an explicit quarantine flag.
-The CLI additionally requires the TC32 bank manifest and a target-bank label so
-an image linked for bank A cannot be accidentally labeled or served as bank B.
-The output is a mechanics/test artifact only; it is NOT authorization to serve
-or install firmware on the production device.
+TLSR8258 normal OTA uses hardware multi-address startup: one application linked
+at logical address 0 can physically boot from bank A (0x00000) or bank B
+(0x40000). This tool therefore accepts only a bank-neutral TC32 build manifest
+and cryptographically binds the OTA sidecar to that exact finalized inner image.
+
+The tool performs no network/device I/O and refuses to run without an explicit
+quarantine flag. Output is a mechanics/test artifact only; it is NOT
+authorization to serve or install firmware on the production device.
 """
 
 from __future__ import annotations
@@ -29,14 +31,15 @@ import telink_ota_forensics as forensics
 OTA_MAGIC = 0x0BEEF11E
 OTA_HEADER_VERSION = 0x0100
 OTA_FIELD_HW_RANGE = 0x0004
-OTA_BASE_HEADER_LEN = 56
 OTA_HW_HEADER_LEN = 60
 OTA_UPGRADE_TAG = 0x0000
 ZIGBEE_STACK_VERSION = 0x0002
 TARGET_HW_VERSION = 2
 HEADER_STRING = b"GLSD READONLY DUMP STAGER"
-EXPECTED_BANK_BASES = {"bank_a": 0x00000, "bank_b": 0x40000}
-EXPECTED_BANK_SLOT_ENDS = {"bank_a": 0x34000, "bank_b": 0x74000}
+BANK_A_BASE = 0x00000
+BANK_B_BASE = 0x40000
+BANK_A_SLOT_END = 0x34000
+BANK_B_SLOT_END = 0x74000
 
 
 class StagerOtaError(ValueError):
@@ -47,13 +50,11 @@ def _parse_manifest_int(value: str, field: str) -> int:
     try:
         return int(value, 0)
     except ValueError as exc:
-        raise StagerOtaError(f"invalid {field} in bank manifest: {value!r}") from exc
+        raise StagerOtaError(f"invalid {field} in build manifest: {value!r}") from exc
 
 
-def validate_bank_manifest(manifest_path: Path, inner_path: Path, target_bank: str) -> dict:
-    """Bind a finalized inner image to the exact TC32 bank-link proof that built it."""
-    if target_bank not in EXPECTED_BANK_BASES:
-        raise StagerOtaError(f"unsupported target bank: {target_bank}")
+def validate_neutral_manifest(manifest_path: Path, inner_path: Path) -> dict:
+    """Bind the OTA to the exact logical-0 multi-address TC32 link proof."""
     text = manifest_path.read_text(encoding="utf-8")
     fields: dict[str, str] = {}
     hashes: dict[str, str] = {}
@@ -72,70 +73,75 @@ def validate_bank_manifest(manifest_path: Path, inner_path: Path, target_bank: s
     required = {
         "MECHANICS_ONLY",
         "DEPLOYABLE",
-        "BANK",
-        "GLSD_STAGER_LINK_BASE",
+        "BANK_NEUTRAL",
+        "LOGICAL_LINK_BASE",
+        "RUNTIME_BOOT_BANK_DETECTION",
+        "PHYSICAL_BOOT_TARGET_A",
+        "PHYSICAL_BOOT_TARGET_B",
         "FINAL_INNER_BINARY_SIZE",
-        "PHYSICAL_FLASH_START",
-        "PHYSICAL_FLASH_END_EXCLUSIVE",
-        "APP_SLOT_END",
+        "PHYSICAL_A_END_EXCLUSIVE",
+        "PHYSICAL_B_END_EXCLUSIVE",
+        "BANK_A_SLOT_END",
+        "BANK_B_SLOT_END",
+        "TELINK_MULTI_ADDRESS_MODEL",
     }
     missing = sorted(required - fields.keys())
     if missing:
-        raise StagerOtaError(f"bank manifest missing fields: {', '.join(missing)}")
+        raise StagerOtaError(f"build manifest missing fields: {', '.join(missing)}")
     if fields["MECHANICS_ONLY"] != "YES" or fields["DEPLOYABLE"] != "NO":
-        raise StagerOtaError("bank manifest is not an expected quarantined mechanics build")
-    if fields["BANK"] != target_bank:
-        raise StagerOtaError(
-            f"bank manifest mismatch: {fields['BANK']} != requested {target_bank}"
-        )
+        raise StagerOtaError("build manifest is not an expected quarantined mechanics build")
+    if fields["BANK_NEUTRAL"] != "YES" or fields["TELINK_MULTI_ADDRESS_MODEL"] != "PASS":
+        raise StagerOtaError("build manifest does not prove the Telink multi-address model")
+    if fields["RUNTIME_BOOT_BANK_DETECTION"] != "mcuBootAddrGet":
+        raise StagerOtaError("runtime physical-bank detection is not mcuBootAddrGet")
 
-    expected_base = EXPECTED_BANK_BASES[target_bank]
-    expected_slot_end = EXPECTED_BANK_SLOT_ENDS[target_bank]
-    link_base = _parse_manifest_int(fields["GLSD_STAGER_LINK_BASE"], "GLSD_STAGER_LINK_BASE")
-    physical_start = _parse_manifest_int(fields["PHYSICAL_FLASH_START"], "PHYSICAL_FLASH_START")
-    physical_end = _parse_manifest_int(
-        fields["PHYSICAL_FLASH_END_EXCLUSIVE"], "PHYSICAL_FLASH_END_EXCLUSIVE"
-    )
-    slot_end = _parse_manifest_int(fields["APP_SLOT_END"], "APP_SLOT_END")
+    logical_base = _parse_manifest_int(fields["LOGICAL_LINK_BASE"], "LOGICAL_LINK_BASE")
+    target_a = _parse_manifest_int(fields["PHYSICAL_BOOT_TARGET_A"], "PHYSICAL_BOOT_TARGET_A")
+    target_b = _parse_manifest_int(fields["PHYSICAL_BOOT_TARGET_B"], "PHYSICAL_BOOT_TARGET_B")
+    end_a = _parse_manifest_int(fields["PHYSICAL_A_END_EXCLUSIVE"], "PHYSICAL_A_END_EXCLUSIVE")
+    end_b = _parse_manifest_int(fields["PHYSICAL_B_END_EXCLUSIVE"], "PHYSICAL_B_END_EXCLUSIVE")
+    slot_a = _parse_manifest_int(fields["BANK_A_SLOT_END"], "BANK_A_SLOT_END")
+    slot_b = _parse_manifest_int(fields["BANK_B_SLOT_END"], "BANK_B_SLOT_END")
     declared_inner_size = _parse_manifest_int(
         fields["FINAL_INNER_BINARY_SIZE"], "FINAL_INNER_BINARY_SIZE"
     )
 
-    if link_base != expected_base or physical_start != expected_base:
-        raise StagerOtaError(
-            f"target {target_bank} must be linked at 0x{expected_base:05x}"
-        )
-    if slot_end != expected_slot_end:
-        raise StagerOtaError(
-            f"target {target_bank} slot end must be 0x{expected_slot_end:05x}"
-        )
+    if logical_base != 0:
+        raise StagerOtaError("standard TLSR8258 OTA inner image must be linked at logical address 0")
+    if target_a != BANK_A_BASE or target_b != BANK_B_BASE:
+        raise StagerOtaError("unexpected TLSR8258 multi-address physical boot targets")
+    if slot_a != BANK_A_SLOT_END or slot_b != BANK_B_SLOT_END:
+        raise StagerOtaError("unexpected TLSR8258 512K application-slot geometry")
 
     inner = inner_path.read_bytes()
     if declared_inner_size != len(inner):
         raise StagerOtaError(
-            f"bank manifest inner size {declared_inner_size} != file size {len(inner)}"
+            f"build manifest inner size {declared_inner_size} != file size {len(inner)}"
         )
-    if physical_end != expected_base + len(inner):
-        raise StagerOtaError("bank manifest physical end does not match inner image length")
-    if physical_end >= slot_end:
-        raise StagerOtaError("bank manifest places finalized image at/inside reserved region")
+    if end_a != BANK_A_BASE + len(inner) or end_b != BANK_B_BASE + len(inner):
+        raise StagerOtaError("physical placement end does not match neutral image length")
+    if not (end_a < slot_a and end_b < slot_b):
+        raise StagerOtaError("neutral image would reach a reserved region")
 
     inner_sha256 = hashlib.sha256(inner).hexdigest()
     manifest_hash = hashes.get(inner_path.name)
     if manifest_hash is None:
-        raise StagerOtaError(f"bank manifest has no SHA-256 entry for {inner_path.name}")
+        raise StagerOtaError(f"build manifest has no SHA-256 entry for {inner_path.name}")
     if manifest_hash != inner_sha256:
-        raise StagerOtaError("finalized inner image hash does not match bank manifest")
+        raise StagerOtaError("finalized inner image hash does not match build manifest")
 
     return {
-        "targetBank": target_bank,
-        "targetLinkBase": expected_base,
-        "physicalFlashStart": physical_start,
-        "physicalFlashEndExclusive": physical_end,
-        "appSlotEnd": slot_end,
+        "bankNeutral": True,
+        "logicalLinkBase": 0,
+        "runtimeBootBankDetection": "mcuBootAddrGet",
+        "physicalBootTargets": [BANK_A_BASE, BANK_B_BASE],
+        "physicalAEndExclusive": end_a,
+        "physicalBEndExclusive": end_b,
+        "bankASlotEnd": slot_a,
+        "bankBSlotEnd": slot_b,
         "innerBytes": len(inner),
         "innerSha256": inner_sha256,
-        "bankManifestSha256": hashlib.sha256(text.encode("utf-8")).hexdigest(),
+        "buildManifestSha256": hashlib.sha256(text.encode("utf-8")).hexdigest(),
     }
 
 
@@ -221,10 +227,9 @@ def validate_stager_ota(path: Path) -> dict:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("inner", type=Path, help="finalized Telink inner application")
+    parser.add_argument("inner", type=Path, help="finalized bank-neutral Telink inner application")
     parser.add_argument("--out", type=Path, required=True)
-    parser.add_argument("--target-bank", choices=tuple(EXPECTED_BANK_BASES), required=True)
-    parser.add_argument("--bank-manifest", type=Path, required=True)
+    parser.add_argument("--build-manifest", type=Path, required=True)
     parser.add_argument(
         "--offline-build-quarantined",
         action="store_true",
@@ -234,7 +239,7 @@ def main(argv: list[str] | None = None) -> int:
     if not ns.offline_build_quarantined:
         parser.error("refusing to build bootable OTA wrapper without --offline-build-quarantined")
 
-    bank = validate_bank_manifest(ns.bank_manifest, ns.inner, ns.target_bank)
+    placement = validate_neutral_manifest(ns.build_manifest, ns.inner)
     inner = ns.inner.read_bytes()
     ota = build_stager_ota(inner)
     ns.out.write_bytes(ota)
@@ -252,7 +257,7 @@ def main(argv: list[str] | None = None) -> int:
         "hardwareVersionMin": TARGET_HW_VERSION,
         "hardwareVersionMax": TARGET_HW_VERSION,
         "innerValid": bool(report["upgrade_image"]["application_validation"]["valid"]),
-        **bank,
+        **placement,
     }
     sidecar = ns.out.with_suffix(ns.out.suffix + ".quarantine.json")
     sidecar.write_text(json.dumps(metadata, indent=2, sort_keys=True) + "\n", encoding="utf-8")
