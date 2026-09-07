@@ -1,5 +1,5 @@
 {
-  "schema": 7,
+  "schema": 8,
   "device": "GL-SD-301P",
   "purpose": "EU/Czech interoperability; independently written Zigbee End Device client",
   "architecture": {
@@ -153,6 +153,23 @@
     "state_commit_occurs_only_after_guarded_encode_success": true,
     "telink_target_glue_ready": false
   },
+  "target_compile_contract": {
+    "implementation": "firmware/glsd301p-ed/glsd301p_target_contract.h",
+    "architecture_firewall_ready": true,
+    "requires_mcu_core_8258": true,
+    "requires_end_device": true,
+    "rejects_router": true,
+    "rejects_coordinator": true,
+    "requires_pm_disabled": true,
+    "requires_rx_on_when_idle": true,
+    "requires_endpoint_11": true,
+    "requires_onoff": true,
+    "requires_level_control": true,
+    "requires_group_support": true,
+    "requires_nonempty_group_table": true,
+    "adversarial_compile_matrix": "tests/test_glsd301p_target_contract.sh",
+    "real_telink_target_link_ready": false
+  },
   "core_capabilities": {
     "raw_control_encoder_ready": true,
     "normal_off_encoder_ready": true,
@@ -163,7 +180,8 @@
     "physical_push_decoder_ready": true,
     "pb4_aux_compatibility_ready": true,
     "output_guard_ready": true,
-    "host_runtime_core_ready": true
+    "host_runtime_core_ready": true,
+    "target_architecture_firewall_ready": true
   },
   "full_stock_parity_unknowns": [
     "0x02 auxiliary operation/pattern value names",
@@ -178,7 +196,9 @@
   "pb4_aux_behavior_ready": true,
   "runtime_safety_guard_ready": true,
   "host_runtime_core_ready": true,
+  "target_architecture_firewall_ready": true,
   "telink_target_glue_ready": false,
+  "real_telink_target_link_ready": false,
   "full_feature_parity_ready": false,
   "production_encoder_ready": false,
   "first_flashable_canary_allowed": false
