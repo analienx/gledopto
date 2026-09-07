@@ -2,7 +2,6 @@
 #define GLSD301P_UART_FRAME_H
 
 #include <stdbool.h>
-#include <stddef.h>
 #include <stdint.h>
 
 #ifdef __cplusplus
