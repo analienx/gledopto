@@ -6,17 +6,23 @@
 extern "C" {
 #endif
 
-/*
- * The Zigbee/product layer only depends on this boundary. The implementation
- * must eventually map the logical (on, level) pair to the installed GL-SD
- * hardware, either by direct Telink phase-control GPIO/timers or by the
- * protocol of a secondary power-stage MCU.
+/* Initialize the confirmed GL-SD-301P hardware boundary:
+ * - 9600 8N1 UART, TX=PB1, RX=PA0;
+ * - PC2 external PUSH sense input;
+ * - PB4 auxiliary compatibility input.
  */
 int glsd_power_stage_init(void);
+
+/* Apply the normal logical On/Off + Level state through family 0x01. */
 int glsd_power_stage_apply(uint8_t on, uint8_t level);
 
-/* Optional physical PUSH input. Return 1 while pressed, 0 while released. */
-int glsd_power_stage_push_pressed(void);
+/* Apply the stock PB4 auxiliary half-scale request without changing logical
+ * Zigbee Level state. */
+int glsd_power_stage_apply_pb4_aux(uint8_t logical_level);
+
+/* Raw input samples for the independently tested semantic decoders. */
+int glsd_power_stage_pc2_high(void);
+int glsd_power_stage_pb4_high(void);
 
 #ifdef __cplusplus
 }
