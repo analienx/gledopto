@@ -9,6 +9,7 @@ No vendor firmware, disassembly, decompiled code or translated implementation be
 ## Confidence vocabulary
 
 - `CONFIRMED` — supported by multiple consistent software/interface observations or a public authoritative hardware/SDK definition.
+- `HIGH` — strongly supported, with one final black-box/physical confirmation still useful.
 - `INFERRED` — best explanation of confirmed evidence, but not yet independently measured at the electrical boundary.
 - `UNKNOWN` — implementation must not guess.
 
@@ -20,15 +21,15 @@ No vendor firmware, disassembly, decompiled code or translated implementation be
 | Exact candidate | TLSR8258F512ET32 | HIGH |
 | Power-stage control classification | `SECOND_MCU_UART` | HIGH / software-confirmed |
 | Physical PCB destination of UART | secondary dimmer/power-stage controller | INFERRED; spare trace pending |
-| TLSR directly generates phase-cut brightness timing | no supporting evidence found | NOT ESTABLISHED |
+| TLSR directly generates phase-cut brightness timing | no supporting variable-duty path established | NOT ESTABLISHED |
 
 ### Basis for `SECOND_MCU_UART`
 
 The product application has a live lighting/control path which transmits fixed-length control messages through the Telink UART driver. The same firmware configures a dedicated 9600-baud UART and invokes its transmit path from level/transition-related application operations.
 
-By contrast, TLSR8258 PWM references found in the same application are limited to channel enable/disable control. No evidence of the PWM compare/cycle writes that would establish a continuously variable duty value was identified in the relevant application. This is not proof that PWM hardware is never used; it is sufficient to avoid designing the new firmware around an unproven direct phase-cut implementation.
+By contrast, TLSR8258 PWM references found in the application are limited to channel enable/disable control. No corresponding PWM compare/cycle writes establishing the variable output level were identified in the relevant application path. This is not proof that PWM hardware is never used; it is sufficient to avoid designing the new firmware around an unproven direct phase-cut implementation.
 
-**Implementation consequence:** the first independent firmware must treat the attached serial controller as the existing power-stage abstraction. Do not independently invent mains phase-cut timing.
+**Implementation consequence:** preserve the serial power-controller boundary. Do not independently invent mains phase-cut timing.
 
 ## UART electrical/digital interface
 
@@ -39,79 +40,97 @@ By contrast, TLSR8258 PWM references found in the same application are limited t
 | Data bits | 8 | CONFIRMED |
 | Parity | none | CONFIRMED |
 | Stop bits | 1 | CONFIRMED |
-| TX pin | PB1 | CONFIRMED/HIGH |
-| RX pin | PA0 | CONFIRMED/HIGH |
+| TX pin | PB1 | HIGH |
+| RX pin | PA0 | HIGH |
 | Vendor transport implementation | DMA TX + RX configured | CONFIRMED but not a compatibility requirement |
-| Application RX handling | no meaningful receive callback observed in the analyzed path | CONFIRMED for analyzed firmware; do not assume protocol is permanently TX-only |
+| Application RX handling | no meaningful receive callback observed in the analyzed control path | CONFIRMED for analyzed firmware; do not assume protocol is permanently TX-only |
 
-The vendor-side SDK driver internally creates a four-byte DMA length prefix before the application payload. That prefix is **driver metadata, not part of the six bytes transmitted on the UART wire**.
+The public Telink TLSR8258 SDK defines PB1 as a valid UART TX pin and PA0 as a valid UART RX pin. The application configures those encoded pin values immediately before UART initialization.
+
+The Telink SDK driver internally creates a four-byte DMA length prefix before the application payload. That prefix is **driver metadata, not part of the bytes transmitted on the UART wire**.
 
 An independent implementation may use DMA or non-DMA UART as convenient, provided the wire behaviour is equivalent.
 
-## Wire transaction size
+## Control frame — confirmed wire structure
 
-`CONTROL_PAYLOAD_BYTES = 6` — **CONFIRMED**.
+The shared power-control message is exactly six application bytes:
 
-Multiple live lighting/control transmit paths send exactly six application bytes.
+```text
+A5 5A CC VV 04 AA
+```
 
-Do not append the SDK's internal four-byte DMA buffer prefix to the wire message.
+where:
 
-## Six-byte frame knowledge
-
-Byte numbering is zero-based.
-
-| Byte | Known behaviour | State |
+| Byte | Value / meaning | State |
 |---:|---|---|
-| 0 | not yet semantically resolved | UNKNOWN |
-| 1 | not yet semantically resolved | UNKNOWN |
-| 2 | command-family discriminator in control paths | CONFIRMED |
-| 3 | dynamic command value associated with family in byte 2 | CONFIRMED |
-| 4 | not yet semantically resolved | UNKNOWN |
-| 5 | not yet semantically resolved | UNKNOWN |
+| 0 | `0xA5` fixed prefix | CONFIRMED |
+| 1 | `0x5A` fixed prefix | CONFIRMED |
+| 2 | `CC` command family | CONFIRMED |
+| 3 | `VV` family-specific value | CONFIRMED |
+| 4 | `0x04` fixed control-frame field | CONFIRMED; semantic name UNKNOWN |
+| 5 | `0xAA` fixed suffix | CONFIRMED |
 
-### Family `0x01`
+The initialized control buffer contains these fixed framing bytes and every identified live sender using that buffer changes only bytes 2 and 3 before transmitting six bytes.
 
-Observed in a level-related control path:
+Consequently there is no varying checksum byte in this control-frame form: bytes 0, 1, 4 and 5 stay constant while command/value change. Do not infer what `0x04` *means* merely from its position.
 
-```text
-byte[2] = 0x01
-byte[3] = dynamic level/state-derived value
-```
+## Command family `0x01` — output level
 
-`byte[3]` is demonstrably derived from the application's changing level/state, but the exact canonical mapping from Zigbee `currentLevel` (1..254) to wire value is **UNKNOWN**. At least two control paths transform/select the value differently, so a single shift/clamp formula must not be assumed from static analysis alone.
-
-### Family `0x02`
-
-Observed in transition/mode control paths:
+Canonical control-frame form:
 
 ```text
-byte[2] = 0x02
-byte[3] = dynamic operation/mode value
+A5 5A 01 LL 04 AA
 ```
 
-Values observed in the application path include `0`, `1`, `2`, `3`, `4`, and `15`. Their complete behavioural mapping is **UNKNOWN**. They must not yet be named `on`, `off`, `leading-edge`, `trailing-edge`, etc. without an independent black-box correlation.
+The main level-output path uses `LL` as follows:
 
-### Configuration/status frame
+- when the application's output-enabled/on state is false, `LL = 0`;
+- otherwise `LL` is the current Zigbee Level Control `currentLevel` value;
+- if that level is below the configured minimum output level, the application either resolves the exceptional state or clamps to the configured minimum before sending.
 
-A separate six-byte transmission path populates all six bytes from device configuration/state. Its field semantics are **UNKNOWN**. It proves that six bytes is a general controller transaction width, not that every transaction uses the same two-field layout.
+Identification of the level source is strengthened by a direct match between the application's level-update arithmetic and the public Telink `light_applyUpdate()` behaviour for `currentLevel` (1..254).
 
-## What is deliberately not specified yet
+**State: HIGH.** This is sufficient to implement and host-test the raw family-`0x01` encoder, but the minimum-level policy and one special physical/control path still require black-box correlation before the high-level power-stage API is release-ready.
 
-The following are blockers for a production power-stage encoder and are intentionally `UNKNOWN`:
+### Special family-`0x01` path
 
-- bytes 0, 1, 4 and 5 for each command family;
-- checksum/CRC presence or absence;
-- sequence/counter semantics;
-- exact level-to-wire mapping;
-- exact `0x02` operation mapping;
-- whether configuration frames require acknowledgement;
-- receiver response/telemetry semantics;
-- controller startup handshake, if any;
-- minimum-brightness translation at the serial boundary;
-- electrical OFF command sequence;
-- power-on synchronization sequence.
+A separate normal application path intentionally sends a value derived as `currentLevel >> 1`. It is not yet proven whether this is a physical-control calibration/action, controller configuration operation, or another output mode. Therefore the independent implementation must not globally apply either `level` or `level >> 1` without knowing which high-level operation is being reproduced.
 
-**No flashable implementation may manufacture values for these fields.**
+## Command family `0x02` — operation/transition control
+
+Canonical frame form:
+
+```text
+A5 5A 02 MM 04 AA
+```
+
+Values confirmed in live application paths include:
+
+```text
+00 01 02 03 04 0F
+```
+
+The value participates in transition/operation state handling. The exact semantic map is still **UNKNOWN**. In particular, do not name these values `on`, `off`, `leading-edge`, `trailing-edge`, etc. until correlated against black-box UART traffic and externally observed behavior.
+
+## Separate six-byte configuration/state transmission
+
+A separate UART transmission path constructs another six-byte payload directly from configuration/state bytes rather than using the `A5 5A .. 04 AA` control buffer.
+
+This proves that the UART transports more than one six-byte message form. Its field semantics and whether it is required during startup synchronization are **UNKNOWN**.
+
+## Remaining blockers
+
+The raw control-frame encoder itself is now structurally known. The blockers are higher-level protocol semantics and startup/safety behavior:
+
+- exact semantic map for family `0x02` values;
+- exact purpose/trigger for the special `currentLevel >> 1` family-`0x01` path;
+- minimum-brightness policy expected by the secondary controller across all modes;
+- controller startup/configuration six-byte message semantics;
+- electrical OFF sequence and whether family `0x01` level 0 alone is sufficient;
+- power-on synchronization order;
+- controller-to-TLSR response/telemetry semantics, if operationally relevant.
+
+**No flashable implementation may invent these values or sequences.**
 
 ## Next engineering experiment
 
@@ -119,17 +138,17 @@ The shortest remaining path is black-box capture on the sacrificial spare:
 
 1. identify PB1/PA0 on the low-voltage module/controller boundary by continuity with the unit unpowered;
 2. capture UART traffic with appropriately isolated instrumentation while exercising only known normal controls;
-3. record exactly one variable at a time: OFF, ON, then stable levels (1, 10, 25, 50, 75, 100%), then one controlled transition;
-4. correlate six on-wire bytes with the commanded/read-back Zigbee state;
-5. repeat each state to distinguish constants from counters/checksums;
-6. capture controller-to-TLSR traffic separately on PA0;
-7. publish only the resulting interface table/test vectors, not raw proprietary firmware material.
+3. record exactly one variable at a time: OFF, ON, stable levels (1, 10, 25, 50, 75, 100%), then one controlled transition;
+4. include physical PUSH short/hold operations to resolve the special `level >> 1` path;
+5. repeat each state to distinguish control frames from startup/configuration frames;
+6. capture PA0/controller-to-TLSR traffic separately;
+7. publish only sanitized input/output vectors and semantic conclusions.
 
-This experiment should resolve the encoder without requiring reconstruction of the vendor's internal control algorithm.
+This should finish the controller protocol without reconstructing the vendor's internal implementation.
 
-## Firmware boundary
+## Independent firmware boundary
 
-The independent firmware should expose a small abstraction such as:
+The independent firmware should expose:
 
 ```text
 glsd_power_stage_init()
@@ -139,6 +158,12 @@ glsd_power_stage_stop()
 glsd_power_stage_sync()
 ```
 
-The Zigbee/ZCL implementation owns Zigbee semantics. The power-stage adapter owns only the confirmed serial interoperability protocol. This keeps the Zigbee End Device role conversion independent from proprietary dimmer-controller details.
+Below that API, a small raw control-frame encoder may already be independently implemented from the confirmed interface:
 
-Until the unresolved frame fields are measured, `glsd_power_stage_*` must remain behind a compile/test gate and must not produce a flashable canary image.
+```text
+encode_control(CC, VV) -> A5 5A CC VV 04 AA
+```
+
+The Zigbee/ZCL implementation owns Zigbee semantics. The power-stage adapter owns only confirmed serial interoperability behavior.
+
+Until the remaining semantic/startup blockers are measured, the high-level `glsd_power_stage_*` implementation remains release-gated and must not produce a flashable canary image.
