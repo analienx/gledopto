@@ -69,3 +69,7 @@ jobs:
           build/host-tests/test_glsd301p_pb4_compat
           build/host-tests/test_glsd301p_output_guard
           build/host-tests/test_glsd301p_runtime_core
+
+      - name: Adversarially verify End Device architecture firewall
+        shell: bash
+        run: bash tests/test_glsd301p_target_contract.sh
