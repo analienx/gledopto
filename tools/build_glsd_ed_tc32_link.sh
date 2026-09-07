@@ -161,12 +161,17 @@ final_bin="$DIR/glsd-ed.final.bin"
 map="$DIR/glsd-ed.map"
 lst="$DIR/glsd-ed.lst"
 
-# The Telink driver and End Device stack archives contain cross-archive
-# dependencies. Use a linker group so the archives are rescanned to a fixed
-# point; do not replace genuine stack/security functions with application stubs.
-"$TC32_LD" --gc-sections -nostartfiles -T"$SDK/platform/boot/8258/boot_8258.link" -Map="$map" \
+# Match the proven romasku/telink End Device link recipe exactly: application
+# and SDK objects first, then drivers, then libzb_ed. Do not add the router or
+# coordinator stack, and do not hide genuine stack/security references behind
+# application stubs.
+if ! "$TC32_LD" --gc-sections -nostartfiles -T"$SDK/platform/boot/8258/boot_8258.link" -Map="$map" \
   -L"$SDK/zigbee/lib/tc32" -L"$SDK/platform/lib" \
-  -o "$elf" "${objects[@]}" --start-group -ldrivers_8258 -lzb_ed --end-group
+  -o "$elf" "${objects[@]}" -ldrivers_8258 -lzb_ed; then
+  echo 'ERROR: End Device link failed; archive inclusion map follows' >&2
+  sed -n '1,220p' "$map" >&2 || true
+  exit 1
+fi
 
 "$TC32_OBJCOPY" -O binary "$elf" "$bin"
 "$TC32_OBJDUMP" -h -t "$elf" > "$lst"
@@ -194,14 +199,11 @@ text_vma=$((16#$text_vma_hex))
 (( text_vma < raw_bytes )) || { echo "ERROR: .text is outside logical image" >&2; exit 1; }
 (( text_vma < BANK_B_BASE )) || { echo "ERROR: product image was physically relinked instead of logical-address-0" >&2; exit 1; }
 
-# Product must be linked against the End Device archive only. Fail if obvious
-# coordinator/router application primitives survive into the final image.
 if "$TC32_NM" "$elf" | grep -E '([[:space:]])(zb_nwkFormation|bdb_networkFormationStart|zb_setPermitJoin)$'; then
   echo "ERROR: router/coordinator formation primitive survived product link" >&2
   exit 1
 fi
 
-# Generic flash-vendor OTP wrappers may exist pre-link but must be removed by GC.
 if "$TC32_NM" "$elf" | grep -Eai '(^|[[:space:]_])flash_(read|write|erase|lock)_otp'; then
   echo "ERROR: OTP wrapper survived product link" >&2
   exit 1
