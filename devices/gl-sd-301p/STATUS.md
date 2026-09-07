@@ -1,35 +1,59 @@
 # STATUS — gl-sd-301p
 
-## 2026-09-07 — Power-stage architecture resolved + clean-room implementation gate
+## 2026-09-07 — Core power-stage + PUSH + PB4 behavior solved offline
 
-- Exact support-supplied GL-SD-301P firmware was analyzed in a private/research
-  context solely to determine hardware interoperability information. The public
-  implementation repository now retains only sanitized interface facts; vendor
-  firmware and reconstructable chunks are prohibited by `CLEAN_ROOM.md` + CI.
+- The exact support-supplied GLEDOPTO OTA is retained as a third-party reference
+  artifact with provenance/hashes and is explicitly outside the project licence.
+  Implementation code remains independently authored from the interoperability
+  contract rather than copied/translated vendor implementation expression.
 - `POWER_STAGE_CONTROL = SECOND_MCU_UART`, **HIGH software confidence**.
-- Confirmed interface required by the independent implementation:
+- Confirmed transport required by the independent implementation:
   - TLSR8258 UART;
   - 9600 baud, 8 data bits, no parity, 1 stop bit;
   - TX = PB1, RX = PA0;
-  - lighting/control application emits six-byte UART payloads;
-  - the Telink SDK driver's internal 4-byte DMA length prefix is not wire data.
-- Live lighting/transition control paths call the UART transmitter, so UART is
-  not merely an unused/debug initialization path.
-- TLSR PWM references in the analyzed application resolve to enable/disable
-  control only; no corresponding variable PWM compare/cycle path was established.
-  Therefore the new firmware will preserve the serial power-controller boundary
-  rather than inventing mains phase-cut timing.
-- Six-byte protocol is **PARTIAL**:
-  - byte 2 is a command-family discriminator;
-  - byte 3 is a dynamic family-specific value;
-  - families 0x01 and 0x02 are confirmed in level/transition-related paths;
-  - exact bytes 0/1/4/5, level mapping, mode mapping, checksum/counter semantics,
-    startup sync and electrical-OFF sequence remain UNKNOWN.
-- `PRODUCTION_ENCODER_READY = false`.
+  - six application bytes on the UART wire;
+  - Telink's internal 4-byte DMA length prefix is not wire data;
+  - stock RX callback is effectively a no-op for the analyzed control path.
+- Confirmed control frame:
+
+  ```text
+  A5 5A CC VV 04 AA
+  ```
+
+- Normal lamp output is family `0x01`:
+  - OFF = `A5 5A 01 00 04 AA`;
+  - ON/Level = `A5 5A 01 LL 04 AA`, where `LL` is normal Zigbee
+    `currentLevel` after configured minimum-output handling;
+  - stock startup re-sync uses the same normal family-`0x01` refresh.
+- PC2 physical PUSH behavior is solved without wiring:
+  - external PUSH sense path, ~1 ms pulse decoder;
+  - short activation toggles normal On/Off;
+  - long activation performs standard Level steps;
+  - direction reverses after long release;
+  - independently implemented and host-tested.
+- Onboard keyboard mapping is separated from PC2/PB4:
+  - PC4 / keycode 1 = RESET path (HIGH confidence);
+  - PC3 / keycode 2 = LEVEL path (HIGH confidence);
+  - Telink `kb_scan_key(0,1)` compatible scanner.
+- The formerly unexplained `currentLevel >> 1` path is now tied to PB4:
+  - PB4 (`0x0110`) is an active-high auxiliary input with stock 100 kΩ pulldown;
+  - after 11 consecutive high ~1 ms polls, stock requests
+    `A5 5A 01 (currentLevel >> 1) 04 AA` on every poll while PB4 stays high;
+  - logical Zigbee `currentLevel` is not changed;
+  - a low sample resets qualification;
+  - exact physical/business role remains `UNKNOWN` and must not be guessed;
+  - independent compatibility module + golden-vector tests are green.
+- Family `0x02` (`00,01,02,03,04,0F`) is outside ordinary On/Off/Level and the
+  solved PC2/PB4 family-`0x01` behavior. Individual semantic names remain optional
+  full-parity work rather than blockers for core dimming.
+- Repository/host CI enforces the vendor-reference/implementation boundary and
+  the solved UART/PC2/PB4 contract.
+- `CORE_ONOFF_LEVEL_ENCODER_READY = true`.
+- `PHYSICAL_PUSH_BEHAVIOR_READY = true`.
+- `PB4_AUX_BEHAVIOR_READY = true`.
+- `PRODUCTION_ENCODER_READY = false` only because the independent Telink firmware
+  tree has not yet been converged with these now-solved hardware adapters.
 - `FIRST_FLASHABLE_CANARY_ALLOWED = false`.
-- Shortest remaining engineering step: isolated black-box UART capture on the
-  sacrificial spare, varying one normal control at a time, followed by publication
-  of sanitized wire test vectors only.
 - Canonical interface: `devices/gl-sd-301p/interoperability/INTERFACE.md`.
 
 ## 2026-09-03 — Flash-size forensic (supervisor 5524449062): 512K confirmed
@@ -88,16 +112,14 @@
 
 ## Next
 
-1. **Clean-room protocol completion on sacrificial spare:** trace PB1/PA0 at the
-   low-voltage controller boundary and capture six-byte UART transactions for
-   OFF, ON, stable levels and one controlled transition. Publish sanitized
-   input/output vectors only.
-2. Complete the independent `glsd_power_stage_*` UART adapter from the confirmed
-   interface specification once the blocking fields are measured.
-3. Build the RX-on-when-idle Zigbee End Device independently from public Telink
-   SDK/standards: `ZB_ED_ROLE=1`, `ZB_ROUTER_ROLE=0`, `RX_ON_WHEN_IDLE=1`,
-   `PM_ENABLE=0`, mains power.
-4. Preserve endpoint/OnOff/Level/reporting/direct-binding behaviour and add
-   regression tests before any canary image exists.
-5. **Only after protocol + CI + spare hardware gates pass:** authorize the first
-   sacrificial canary. The installed production unit remains out of scope.
+1. Converge the independently written UART frame/output policy, PC2 PUSH decoder,
+   and PB4 auxiliary compatibility module into the clean Telink End Device build.
+2. Rebuild with pinned Telink SDK/toolchain and require the End Device role,
+   no-router capability, endpoint/cluster/reporting/direct-binding regressions,
+   and the host interoperability tests to pass on the same SHA.
+3. Keep family-`0x02`, vendor configuration-state fields, and PB4 physical-role
+   naming as optional/full-parity work unless a concrete required feature depends
+   on them; do not guess them into the runtime path.
+4. After the integrated firmware artifact is reproducible and all software gates
+   pass, perform the first flash only on a sacrificial spare. The installed
+   production unit remains out of scope until that gate succeeds.
