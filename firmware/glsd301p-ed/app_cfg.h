@@ -75,4 +75,5 @@ typedef enum {
     EV_POLL_MAX,
 } ev_poll_e;
 
+#define GLSD301P_ENDPOINT                       0x0B
 #include "glsd301p_target_contract.h"
