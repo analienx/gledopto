@@ -27,7 +27,6 @@ FILE_VERSION=0x7F020001
 [[ -f "$SDK/zigbee/lib/tc32/libzb_router.a" ]] || { echo 'ERROR: SDK provenance check expects router archive to exist but never be linked' >&2; exit 2; }
 [[ -f "$FINALIZER" ]] || { echo 'ERROR: Telink finalizer missing' >&2; exit 2; }
 
-# The target app_cfg must win every include lookup for tl_common.h -> app_cfg.h.
 roots=("$SDK/proj" "$SDK/platform" "$SDK/zigbee" "$SDK/apps/common")
 includes=(-I"$TARGET" -I"$CORE" -I"$SDK/proj")
 while IFS= read -r -d '' d; do includes+=("-I$d"); done < <(find "${roots[@]}" -type d -print0 | sort -zu)
@@ -137,9 +136,17 @@ grep -q 'UART_TX_PB1, UART_RX_PA0' "$TARGET/glsd301p_telink_target.c"
 [[ "$(grep -c 'drv_uart_tx_start' "$TARGET/glsd301p_telink_target.c")" -eq 1 ]] || {
   echo 'ERROR: target must have exactly one UART transmit choke point' >&2; exit 1;
 }
-if grep -E 'GLSD301P_CONTROL_FAMILY_OPERATION|glsd301p_control_frame_encode' \
-    "$TARGET/glsd301p_telink_target.c" "$CORE/glsd301p_runtime_core.c" "$CORE/glsd301p_output_guard.c"; then
-  echo 'ERROR: family-0x02/raw-frame bypass reached core target runtime' >&2
+# The generic encoder remains capable of representing observed family 0x02 for
+# forensic/full-parity work. Production core paths are rejected only if they
+# actually name that family. The target itself must never call the raw encoder.
+if grep -E 'GLSD301P_CONTROL_FAMILY_OPERATION' \
+    "$TARGET/glsd301p_telink_target.c" "$CORE/glsd301p_runtime_core.c" \
+    "$CORE/glsd301p_output_guard.c" "$CORE/glsd301p_power_stage_policy.c"; then
+  echo 'ERROR: family-0x02 reached core target runtime' >&2
+  exit 1
+fi
+if grep -q 'glsd301p_control_frame_encode' "$TARGET/glsd301p_telink_target.c"; then
+  echo 'ERROR: Telink application bypasses guarded output APIs' >&2
   exit 1
 fi
 
@@ -176,7 +183,6 @@ final="$DIR/glsd301p-ed.final.bin"
 map="$DIR/glsd301p-ed.map"
 lst="$DIR/glsd301p-ed.lst"
 
-# Deliberately name only the End Device stack archive. Router linkage is forbidden.
 "$TC32_LD" --gc-sections -nostartfiles \
   -T"$SDK/platform/boot/8258/boot_8258.link" -Map="$map" \
   -L"$SDK/zigbee/lib/tc32" -L"$SDK/platform/lib" \
@@ -202,8 +208,6 @@ text_vma_hex="$("$TC32_OBJDUMP" -h "$elf" | awk '$2 == ".text" {print $4; exit}'
 text_vma=$((16#$text_vma_hex))
 (( text_vma < BANK_B_BASE )) || { echo 'ERROR: target appears physically relinked to bank B' >&2; exit 1; }
 
-# Link/symbol invariants. We intentionally do NOT call the whole ELF mutation-free:
-# normal Zigbee NV and OTA code legitimately contains flash mutation paths.
 "$TC32_NM" "$elf" | grep -Eq ' T glsd301p_target_runtime_ready$' || { echo 'ERROR: target runtime symbol GCd/missing' >&2; exit 1; }
 "$TC32_NM" "$elf" | grep -Eq ' T glsd301p_runtime_core_apply_state$' || { echo 'ERROR: guarded runtime not linked' >&2; exit 1; }
 if grep -q 'libzb_router' "$map"; then
