@@ -1,0 +1,135 @@
+name: GL-SD-301P power-stage reverse engineering
+
+on:
+  push:
+    branches:
+      - research/glsd301p-powerstage-20260907
+    paths:
+      - '.github/workflows/glsd301p-powerstage-analysis.yml'
+      - 'tools/analyze_glsd301p_powerstage.py'
+      - 'devices/gl-sd-301p/vendor-firmware/.incoming/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  analyze-power-stage:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout research branch
+        uses: actions/checkout@v4
+
+      - name: Checkout pinned Telink SDK register reference
+        uses: actions/checkout@v4
+        with:
+          repository: telink-semi/telink_zigbee_sdk
+          ref: V3.7.2.0
+          path: telink-sdk
+
+      - name: Reconstruct and verify support-supplied OTA
+        shell: bash
+        run: |
+          set -euo pipefail
+          incoming='devices/gl-sd-301p/vendor-firmware/.incoming'
+          mkdir -p out
+          count=$(find "$incoming" -maxdepth 1 -type f -name 'GL-SD-301P_V20851203_20251230.ota.xz.b64.part*' | wc -l)
+          echo "PART_COUNT=$count"
+          test "$count" = 21
+          cat "$incoming"/GL-SD-301P_V20851203_20251230.ota.xz.b64.part* | tr -d '\r\n' | base64 -d > out/vendor.ota.xz
+          echo 'b0ff5e95767b2e39548e853cc1220891775e8e3b5bcc932b43c08e770f722637  out/vendor.ota.xz' | sha256sum -c -
+          xz -dc out/vendor.ota.xz > out/vendor.ota
+          test "$(stat -c%s out/vendor.ota)" = 208946
+          echo '16595a38ab9783d3afc4eb58ab4ec32625249bd569c1fa6dbaf468bddc76dd72  out/vendor.ota' | sha256sum -c -
+          python3 - <<'PY'
+          from pathlib import Path
+          import hashlib, struct
+          d = Path('out/vendor.ota').read_bytes()
+          magic, = struct.unpack_from('<I', d, 0)
+          header_version, header_length = struct.unpack_from('<HH', d, 4)
+          manufacturer, image_type = struct.unpack_from('<HH', d, 10)
+          file_version, = struct.unpack_from('<I', d, 14)
+          stack_version, = struct.unpack_from('<H', d, 18)
+          total_size, = struct.unpack_from('<I', d, 52)
+          assert magic == 0x0BEEF11E
+          assert header_version == 0x0100
+          assert header_length == 56
+          assert manufacturer == 0x124F
+          assert image_type == 0x1416
+          assert file_version == 0x28013001
+          assert stack_version == 2
+          assert total_size == len(d) == 208946
+          tag, length = struct.unpack_from('<HI', d, header_length)
+          assert tag == 0x0000
+          assert length == 208884
+          inner = d[header_length + 6: header_length + 6 + length]
+          assert len(inner) == length
+          digest = hashlib.sha256(inner).hexdigest()
+          assert digest == '7ba122f1ebc9f6ec419d9ea6b27676d55c2a2aad864a03e90b896546248c4b48'
+          assert inner[6:8] == b'\x5d\x02'
+          assert inner[8:12] == b'KNLT'
+          assert struct.unpack_from('<I', inner, 2)[0] == 0x28013001
+          assert struct.unpack_from('<H', inner, 0x12)[0] == 0x124F
+          assert struct.unpack_from('<H', inner, 0x14)[0] == 0x1416
+          assert struct.unpack_from('<I', inner, 0x18)[0] == len(inner)
+          Path('out/glsd301p.inner.bin').write_bytes(inner)
+          print(f'OTA_HEADER=PASS fileVersion=0x{file_version:08x} innerBytes={len(inner)} innerSha256={digest}')
+          PY
+
+      - name: Acquire hash-pinned TC32 toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          url='https://shyboy.oss-cn-shenzhen.aliyuncs.com/readonly/tc32_gcc_v2.0.tar.bz2'
+          expected='33b854be3e3db3dba4b4dacdda2cd4ea1c94dfd4d562864a095956de7991b430'
+          archive="$RUNNER_TEMP/tc32_gcc_v2.0.tar.bz2"
+          root="$RUNNER_TEMP/tc32"
+          curl --fail --location --retry 3 --output "$archive" "$url"
+          echo "$expected  $archive" | sha256sum --check --strict
+          mkdir -p "$root"
+          tar -xjf "$archive" -C "$root"
+          bindir="$(dirname "$(find "$root" -type f -name tc32-elf-objdump -print -quit)")"
+          test -x "$bindir/tc32-elf-objdump"
+          chmod +x "$bindir"/* || true
+          echo "TC32_BIN=$bindir" >> "$GITHUB_ENV"
+          "$bindir/tc32-elf-objdump" -i | sed -n '1,45p'
+
+      - name: Disassemble complete inner application
+        shell: bash
+        run: |
+          set -euo pipefail
+          "$TC32_BIN/tc32-elf-objdump" -D -b binary -m tc32 out/glsd301p.inner.bin > out/glsd301p.disasm.txt
+          strings -a -t x out/glsd301p.inner.bin > out/glsd301p.strings.txt
+          echo "DISASM_LINES=$(wc -l < out/glsd301p.disasm.txt)"
+          echo "STRINGS_LINES=$(wc -l < out/glsd301p.strings.txt)"
+          sed -n '1,80p' out/glsd301p.disasm.txt
+
+      - name: Resolve and classify peripheral MMIO references
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/analyze_glsd301p_powerstage.py \
+            out/glsd301p.inner.bin \
+            out/glsd301p.disasm.txt \
+            --out-dir out/analysis
+          echo '=== MMIO XREF SUMMARY ==='
+          cat out/analysis/mmio-summary.json
+          echo '=== RESOLVED PWM/TIMER/GPIO/UART XREFS ==='
+          awk -F '\t' 'NR==1 || $1=="pwm" || $1=="timer" || $1=="gpio" || $1=="uart" || $1=="uart_dma" || $1=="pwm_dma" {print}' out/analysis/mmio-xrefs.tsv | head -n 240
+          echo '=== INTERESTING HUMAN-READABLE STRINGS ==='
+          grep -Eai 'pwm|uart|serial|baud|dimm|level|phase|zero.?cross|triac|mosfet|gpio|timer' out/glsd301p.strings.txt | head -n 120 || true
+          echo "TELINK_SDK_GIT_HEAD=$(git -C telink-sdk rev-parse HEAD)"
+
+      - name: Upload text-only reverse-engineering evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: glsd301p-powerstage-analysis
+          if-no-files-found: error
+          retention-days: 14
+          path: |
+            out/glsd301p.disasm.txt
+            out/glsd301p.strings.txt
+            out/analysis/mmio-summary.json
+            out/analysis/mmio-xrefs.tsv
+            out/analysis/mmio-context.md
+            out/analysis/raw-mmio-literals.tsv
