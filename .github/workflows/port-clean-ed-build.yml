@@ -1,0 +1,73 @@
+name: Port clean GL-SD End Device sources
+
+on:
+  push:
+    branches:
+      - build/glsd301p-clean-interop-integration-20260907
+    paths:
+      - '.github/workflows/port-clean-ed-build.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  port-independent-build:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: build/glsd301p-clean-interop-integration-20260907
+          fetch-depth: 0
+
+      - name: Fetch prior independent End Device build branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin \
+            build/glsd-ed-client-revalidate-20260907:refs/remotes/origin/build/glsd-ed-client-revalidate-20260907
+
+      - name: Copy allowlisted independently-authored build files
+        shell: bash
+        run: |
+          set -euo pipefail
+          ref='origin/build/glsd-ed-client-revalidate-20260907'
+          files=(
+            firmware/gl-sd-301p-ed/README.md
+            firmware/gl-sd-301p-ed/BUILD_REVALIDATION_20260907.md
+            firmware/gl-sd-301p-ed/glsd_ed_core.c
+            firmware/gl-sd-301p-ed/glsd_ed_core.h
+            firmware/gl-sd-301p-ed/glsd_power_stage.h
+            firmware/gl-sd-301p-ed/glsd_power_stage_stub.c
+            firmware/gl-sd-301p-ed/glsd_telink_disabled_feature_glue.c
+            firmware/gl-sd-301p-ed/glsd_telink_ed_app.c
+            firmware/gl-sd-301p-ed/telink_fixture/app_cfg.h
+            firmware/gl-sd-301p-ed/telink_fixture/stack_cfg.h
+            firmware/gl-sd-301p-ed/telink_fixture/version_cfg.h
+            firmware/gl-sd-301p-ed/tests/ed_core_test.c
+            tools/build_glsd_ed_tc32_objects.sh
+            tools/build_glsd_ed_tc32_link.sh
+            tools/telink_app_finalize.py
+            .github/workflows/glsd-ed-firmware.yml
+          )
+          for path in "${files[@]}"; do
+            mkdir -p "$(dirname "$path")"
+            git show "$ref:$path" > "$path"
+          done
+
+      - name: Verify repository boundary after port
+        run: python3 tools/check_cleanroom.py
+
+      - name: Commit allowlisted port
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add firmware/gl-sd-301p-ed tools/build_glsd_ed_tc32_objects.sh tools/build_glsd_ed_tc32_link.sh tools/telink_app_finalize.py .github/workflows/glsd-ed-firmware.yml
+          if git diff --cached --quiet; then
+            echo 'Nothing to port.'
+            exit 0
+          fi
+          git commit -m 'Port independently authored GL-SD End Device build onto clean branch'
+          git push origin HEAD:build/glsd301p-clean-interop-integration-20260907
