@@ -20,13 +20,13 @@ jobs:
           ref: build/glsd301p-clean-interop-integration-20260907
           fetch-depth: 0
 
-      - name: Apply deterministic integration patch
-        run: python3 tools/integrate_clean_power_stage.py
+      - name: Apply deterministic source integration patch
+        run: python3 tools/apply_clean_power_stage_sources.py
 
       - name: Validate clean-room boundary after integration
         run: python3 tools/check_cleanroom.py
 
-      - name: Commit integration
+      - name: Commit source integration
         shell: bash
         run: |
           set -euo pipefail
