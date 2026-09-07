@@ -3,7 +3,7 @@ name: Import GL-SD-301P vendor firmware
 on:
   push:
     paths:
-      - 'devices/gl-sd-301p/vendor-firmware/.incoming/GL-SD-301P_V20851203_20251230.ota.b64.part*'
+      - 'devices/gl-sd-301p/vendor-firmware/.incoming/READY'
 
 permissions:
   contents: write
@@ -23,19 +23,16 @@ jobs:
           incoming='devices/gl-sd-301p/vendor-firmware/.incoming'
           outdir='devices/gl-sd-301p/vendor-firmware'
           out="$outdir/GL-SD-301P_V20851203_20251230.ota"
-          expected_parts=8
+          expected_parts=35
           actual_parts=$(find "$incoming" -maxdepth 1 -type f -name 'GL-SD-301P_V20851203_20251230.ota.b64.part*' | wc -l)
-          if [ "$actual_parts" -ne "$expected_parts" ]; then
-            echo "Waiting for all parts: $actual_parts/$expected_parts"
-            exit 0
-          fi
+          test "$actual_parts" = "$expected_parts"
           mkdir -p "$outdir"
           cat "$incoming"/GL-SD-301P_V20851203_20251230.ota.b64.part* | tr -d '\r\n' | base64 -d > "$out"
           test "$(stat -c%s "$out")" = "208946"
           echo '16595a38ab9783d3afc4eb58ab4ec32625249bd569c1fa6dbaf468bddc76dd72  '"$out" | sha256sum -c -
           python - <<'PY'
           from pathlib import Path
-          import hashlib, struct
+          import struct
           p=Path('devices/gl-sd-301p/vendor-firmware/GL-SD-301P_V20851203_20251230.ota')
           d=p.read_bytes()
           assert struct.unpack_from('<I',d,0)[0] == 0x0BEEF11E
@@ -47,21 +44,13 @@ jobs:
           print('OTA header and size verified')
           PY
 
-      - name: Commit reconstructed OTA when complete
+      - name: Commit reconstructed OTA
         shell: bash
         run: |
           set -euo pipefail
           out='devices/gl-sd-301p/vendor-firmware/GL-SD-301P_V20851203_20251230.ota'
-          if [ ! -f "$out" ]; then
-            echo 'All parts not present yet; nothing to commit.'
-            exit 0
-          fi
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add "$out"
-          if git diff --cached --quiet; then
-            echo 'OTA already committed.'
-            exit 0
-          fi
           git commit -m 'Add vendor-supplied GL-SD-301P V20851203 OTA'
           git push origin HEAD:main
