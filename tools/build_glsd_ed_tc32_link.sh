@@ -1,11 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Build the actual GL-SD-301P End Device product application against Telink's
-# pinned TLSR8258 End Device stack. The electrical power-stage implementation
-# is still a rejecting stub, so the resulting image is intentionally marked
-# DEPLOYABLE=NO even though the Zigbee application is a complete linked image.
-
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SRC="$ROOT/firmware/gl-sd-301p-ed"
 FIXTURE="$SRC/telink_fixture"
@@ -161,22 +156,20 @@ final_bin="$DIR/glsd-ed.final.bin"
 map="$DIR/glsd-ed.map"
 lst="$DIR/glsd-ed.lst"
 
-# Match the proven romasku/telink End Device link recipe exactly: application
-# and SDK objects first, then drivers, then libzb_ed. Do not add the router or
-# coordinator stack, and do not hide genuine stack/security references behind
-# application stubs.
-if ! "$TC32_LD" --gc-sections -nostartfiles -T"$SDK/platform/boot/8258/boot_8258.link" -Map="$map" \
+"$TC32_LD" --gc-sections -nostartfiles -T"$SDK/platform/boot/8258/boot_8258.link" -Map="$map" \
   -L"$SDK/zigbee/lib/tc32" -L"$SDK/platform/lib" \
-  -o "$elf" "${objects[@]}" -ldrivers_8258 -lzb_ed; then
-  echo 'ERROR: End Device link failed; archive inclusion map follows' >&2
-  sed -n '1,220p' "$map" >&2 || true
-  exit 1
-fi
+  -o "$elf" "${objects[@]}" -ldrivers_8258 -lzb_ed
 
 "$TC32_OBJCOPY" -O binary "$elf" "$bin"
 "$TC32_OBJDUMP" -h -t "$elf" > "$lst"
 "$TC32_NM" -u "$elf" > "$DIR/unresolved.txt" || true
-[[ ! -s "$DIR/unresolved.txt" ]] || { echo "ERROR: unresolved symbols" >&2; cat "$DIR/unresolved.txt"; exit 1; }
+if [[ -s "$DIR/unresolved.txt" ]]; then
+  echo "ERROR: unresolved symbols" >&2
+  cat "$DIR/unresolved.txt" >&2
+  echo '=== LINKER ARCHIVE-INCLUSION MAP (first 240 lines) ===' >&2
+  sed -n '1,240p' "$map" >&2 || true
+  exit 1
+fi
 
 raw_bytes="$(stat -c %s "$bin")"
 (( raw_bytes < APP_SLOT_SIZE )) || { echo "ERROR: raw image exceeds 0x34000 app slot" >&2; exit 1; }
