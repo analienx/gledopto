@@ -1,4 +1,4 @@
-name: GL-SD-301P Firmware Analysis
+name: Analyze GL-SD-301P Vendor Firmware
 on:
   workflow_dispatch:
 
@@ -14,35 +14,37 @@ jobs:
         with:
           python-version: '3.11'
       
-      - name: Download uncompressed GL-SD-301P firmware
+      - name: Download and extract GL-SD-301P firmware
         run: |
-          cat > download_uncompressed.py << 'PYEOF'
-          import urllib.request
-          import json
-          import base64
+          mkdir -p incoming
+          for i in $(seq 0 12); do
+            part=$(printf "%03d" $i)
+            echo "Downloading part $part..."
+            curl -sL "https://raw.githubusercontent.com/analienx/gledopto/main/devices/gl-sd-301p/vendor-firmware/.incoming/GL-SD-301P_V20851203_20251230.ota.xz.b64.part$part" -o "incoming/part$part"
+          done
+          
+          echo "Concatenating..."
+          cat incoming/part* > full.b64
+          
+          echo "Decoding base64..."
+          base64 -d full.b64 > full.xz
+          
+          echo "Decompressing..."
+          xz -d full.xz
+          mv full full.ota
+          
+          ls -lh full.ota
+          
+      - name: Analyze firmware patterns
+        run: |
+          cat > analyze_firmware.py << 'PYEOF'
           import struct
+          import re
           from pathlib import Path
 
-          # Try the uncompressed version first
-          filename = "devices/gl-sd-301p/vendor-firmware/.incoming/GL-SD-301P_V20851203_20251230.ota.b64.part000"
-          url = f"https://raw.githubusercontent.com/analienx/gledopto/main/{filename}"
+          ota_data = Path("full.ota").read_bytes()
           
-          print(f"Downloading uncompressed version: {filename}")
-          req = urllib.request.Request(url)
-          with urllib.request.urlopen(req) as resp:
-              content = resp.read().decode('ascii')
-              # Strip whitespace
-              content = ''.join(content.split())
-              print(f"Base64 length: {len(content)} chars")
-          
-          # Decode
-          print("Decoding base64...")
-          try:
-              ota_data = base64.b64decode(content)
-              print(f"✓ OTA size: {len(ota_data)} bytes")
-          except Exception as e:
-              print(f"Base64 decode error: {e}")
-              raise
+          print(f"Total OTA size: {len(ota_data)} bytes")
           
           # Parse OTA header
           magic, = struct.unpack_from("<I", ota_data, 0)
@@ -51,46 +53,31 @@ jobs:
           image_type, = struct.unpack_from("<H", ota_data, 12)
           file_version, = struct.unpack_from("<I", ota_data, 14)
           
-          print(f"\n=== OTA HEADER ===")
+          header_string = ota_data[28:60].split(b'\x00')[0].decode('ascii', errors='replace')
+          
           print(f"Magic: {hex(magic)}")
           print(f"Header length: {header_length}")
-          print(f"Manufacturer: {hex(manufacturer_code)} ({manufacturer_code})")
-          print(f"Image type: {hex(image_type)} ({image_type})")
+          print(f"Manufacturer: {hex(manufacturer_code)}")
+          print(f"Image type: {hex(image_type)}")
           print(f"File version: {hex(file_version)}")
+          print(f"Header string: '{header_string}'")
           
-          # Extract inner image
           inner = ota_data[header_length:]
           print(f"Inner image size: {len(inner)} bytes")
           
-          # Save files
-          Path("gl_sd_301p_full.ota").write_bytes(ota_data)
-          Path("gl_sd_301p_inner.bin").write_bytes(inner)
-          print("\n✓ Saved gl_sd_301p_full.ota and gl_sd_301p_inner.bin")
-          PYEOF
-          
-          python download_uncompressed.py
-      
-      - name: Analyze firmware patterns
-        if: success()
-        run: |
-          cat > analyze_firmware.py << 'PYEOF'
-          import re
-          from pathlib import Path
-
           def find_strings(data, min_len=4):
               pattern = re.compile(rb'[\x20-\x7e]{%d,}' % min_len)
               return [(m.start(), m.group().decode('ascii', errors='replace')) for m in pattern.finditer(data)]
 
           def search_patterns(data):
               results = {}
-              
               patterns = {
                   'tuya_headers': [b'\x55\xaa'],
-                  'tuya_strings': [b'tuya', b'TUYA', b'dp_id', b'mcu_send', b'dp_type'],
-                  'uart_strings': [b'uart', b'UART', b'serial', b'baud', b'115200', b'9600', b'57600'],
-                  'gpio_strings': [b'gpio', b'GPIO', b'pwm', b'PWM', b'timer', b'TIMER', b'dimmer', b'DIMMER'],
-                  'telink_strings': [b'TLSR', b'tlsr', b'8258', b'8266', b'B91', b'telink', b'TELINK'],
-                  'vendor_strings': [b'GLEDOPTO', b'gledopto', b'Candeo', b'GL-SD', b'GL-SD-301P', b'301P']
+                  'tuya_strings': [b'tuya', b'TUYA', b'dp_id', b'mcu_send'],
+                  'uart_strings': [b'uart', b'UART', b'serial', b'baud', b'115200', b'9600', b'19200'],
+                  'gpio_strings': [b'gpio', b'GPIO', b'pwm', b'PWM', b'timer', b'dimmer'],
+                  'telink_strings': [b'TLSR', b'tlsr', b'8258', b'8266', b'B91', b'telink'],
+                  'vendor_strings': [b'GLEDOPTO', b'gledopto', b'Candeo', b'GL-SD', b'GL-C']
               }
               
               for category, search_bytes in patterns.items():
@@ -106,21 +93,17 @@ jobs:
                           pos += 1
                       if positions:
                           results[category][s.decode('ascii', errors='replace')] = len(positions)
-              
               return results
 
-          inner = Path("gl_sd_301p_inner.bin").read_bytes()
-          print(f"Analyzing {len(inner)} bytes...\n")
-          
           strings = find_strings(inner, min_len=4)
-          print(f"=== INTERESTING STRINGS (top 50) ===")
           keywords = ['uart', 'gpio', 'pwm', 'timer', 'dim', 'level', 'tuya', 'mcu', 'serial', 
-                     'baud', 'zigbee', 'telink', 'tlsr', '8258', '8266', 'b91', 'gledopto', 'candeo', '301p']
-          
+                     'baud', 'zigbee', 'telink', 'tlsr', '8258', '8266', 'b91', 'gledopto', 'candeo', '8251']
           interesting = [(off, s) for off, s in strings if any(kw in s.lower() for kw in keywords)]
+          
+          print(f"\n=== INTERESTING STRINGS (top 50) ===")
           for offset, s in interesting[:50]:
               print(f"  0x{offset:06X}: {s}")
-          
+              
           print(f"\n=== PATTERN ANALYSIS ===")
           results = search_patterns(inner)
           
@@ -130,13 +113,12 @@ jobs:
                   print(f"{category}: {total_hits} total hits")
                   for key, count in sorted(data.items(), key=lambda x: x[1], reverse=True)[:5]:
                       print(f"  '{key}': {count} hits")
-          
-          # Decision matrix
+                      
           print(f"\n{'='*60}")
           print("DECISION MATRIX")
           print(f"{'='*60}")
           
-          tuya_count = results.get('tuya_headers', {}).get('U', 0)
+          tuya_count = sum(results.get('tuya_headers', {}).values())
           uart_total = sum(results.get('uart_strings', {}).values())
           gpio_total = sum(results.get('gpio_strings', {}).values())
           
@@ -145,22 +127,13 @@ jobs:
           print(f"GPIO/PWM-related hits: {gpio_total}")
           
           if tuya_count > 5:
-              print("\n→ HIGH PROBABILITY: Tuya-compatible UART protocol")
+              print("→ HIGH PROBABILITY: Tuya-compatible UART protocol")
           elif uart_total > gpio_total * 2:
-              print("\n→ LIKELY: Secondary MCU over UART (non-Tuya)")
+              print("→ LIKELY: Secondary MCU over UART (non-Tuya)")
           elif gpio_total > uart_total * 2:
-              print("\n→ LIKELY: Direct GPIO/PWM control")
+              print("→ LIKELY: Direct GPIO/PWM control")
           else:
-              print("\n→ INCONCLUSIVE: Need deeper disassembly")
+              print("→ INCONCLUSIVE: Need deeper disassembly")
           PYEOF
           
           python analyze_firmware.py
-      
-      - name: Upload analysis results
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: gl-sd-301p-firmware-analysis
-          path: |
-            gl_sd_301p_full.ota
-            gl_sd_301p_inner.bin
