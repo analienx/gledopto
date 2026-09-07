@@ -27,7 +27,6 @@ STAGE0_JOURNAL_SECTOR=0x71000
 MAC_REGION_START=0x76000
 FACTORY_REGION_START=0x77000
 FLASH_END=0x80000
-# Stage-0 executable bytes may not overlap the persistent rollback backup.
 STAGE0_MAX_INNER_SIZE=$((STAGE0_BACKUP_SECTOR - BANK_B_BASE))
 
 [[ -f "$SAMPLE_DIR/board_8258_dongle.h" ]] || { echo "ERROR: complete V3.7.2.0-style 8258 fixture required" >&2; exit 2; }
@@ -44,13 +43,13 @@ telink_first=(-D_SIZE_T -D_SIZE_T_ -D__SIZE_T -D__SIZE_T__)
 cflags=(-O2 -ffunction-sections -fdata-sections -fshort-enums -finline-small-functions -std=gnu99 -funsigned-char -fshort-wchar -fms-extensions -nostartfiles -nostdlib)
 asflags=(-fomit-frame-pointer -fshort-enums -fdata-sections -ffunction-sections)
 
-# Keep the same pinned/known-good SDK closure as the full End Device build.
-# --gc-sections removes unused lighting and UART routines; hard nm gates below
-# prove none survive into the Stage-0 executable.
+# This is intentionally not identical to the full product closure. In
+# particular, Telink's generic b85m irq_handler.c references UART DMA handlers
+# unconditionally. Stage-0 substitutes its own RF/timer-only dispatcher so the
+# final image has no UART execution path at all.
 sdk_sources=(
   platform/boot/8258/cstartup_8258.S
   platform/boot/link_cfg.S
-  platform/services/b85m/irq_handler.c
   platform/tc32/div_mod.S
   platform/chip_8258/flash.c
   platform/chip_8258/flash/flash_common.c
@@ -94,6 +93,7 @@ sdk_sources=(
   zigbee/zcl/zcl_nv.c
   zigbee/zcl/zcl_reporting.c
   zigbee/zcl/general/zcl_basic.c
+  zigbee/zcl/general/zcl_identify.c
   zigbee/zcl/ota_upgrading/zcl_ota.c
   zigbee/zcl/ota_upgrading/zcl_ota_attr.c
   zigbee/common/zb_config.c
@@ -105,6 +105,7 @@ sdk_sources=(
 )
 
 app_sources=(
+  glsd_stage0_irq_handler.c
   glsd_stage0_recovery.c
   glsd_stage0_app.c
   glsd_telink_disabled_feature_glue.c
@@ -189,8 +190,7 @@ physical_b_end=$((BANK_B_BASE + final_bytes))
 }
 (( FACTORY_REGION_START < FLASH_END )) || exit 1
 
-# Final-image negative capability gates. Compiling an SDK object is harmless;
-# any surviving symbol below means Stage-0 gained a forbidden capability.
+# Negative capability is a final-ELF property, not merely a source convention.
 if "$TC32_NM" "$elf" | grep -E '(glsd_power_stage|glsd301p_push|glsd301p_pb4|drv_uart_|uart_dma|uart_send)'; then
   echo 'ERROR: forbidden power-stage/UART/local-input capability survived Stage-0 link' >&2
   exit 1
@@ -211,6 +211,7 @@ fi
   echo DEPLOY_AUTHORIZED=NO
   echo DEPLOYABLE=NO
   echo DEPLOYABLE_BLOCKER=PRODUCTION_ONLY_STAGE0_NOT_YET_EXECUTED
+  echo ZIGBEE_STACK_ARCHIVE=libzb_ed.a
   echo ZIGBEE_ROLE=END_DEVICE
   echo ZB_MAC_RX_ON_WHEN_IDLE=1
   echo PM_ENABLE=0
@@ -218,10 +219,12 @@ fi
   echo POWER_STAGE_DRIVER=NONE
   echo POWER_STAGE_UART_LINKED=NO
   echo PUSH_PB4_LINKED=NO
+  echo GENERIC_UART_IRQ_DISPATCHER=REPLACED
   echo NORMAL_GLEDOPTO_OTA_WHEN_ARMED=DISABLED
   echo RECOVERY_ONLY_OTA_IMAGE_TYPE=0x7F10
   echo STOCK_BANK_RESTORE=JOURNALED_FIRST_SECTOR
   echo STOCK_BANK_FULL_IMAGE_CRC_REVALIDATION=YES
+  echo STOCK_BOOT_ENABLE=TWO_PHASE_FF_TO_4B_COMMIT
   echo STAGE0_SELF_INVALIDATION=AFTER_STOCK_REVALIDATION_ONLY
   echo POWER_FAIL_INVARIANT=B_REMAINS_BOOTABLE_UNTIL_A_VALID
   printf 'STAGE0_BACKUP_SECTOR=0x%05x\n' "$STAGE0_BACKUP_SECTOR"
