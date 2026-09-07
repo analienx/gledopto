@@ -22,12 +22,14 @@ jobs:
           set -euo pipefail
           incoming='devices/gl-sd-301p/vendor-firmware/.incoming'
           outdir='devices/gl-sd-301p/vendor-firmware'
+          packed="$incoming/GL-SD-301P_V20851203_20251230.ota.xz"
           out="$outdir/GL-SD-301P_V20851203_20251230.ota"
-          expected_parts=35
-          actual_parts=$(find "$incoming" -maxdepth 1 -type f -name 'GL-SD-301P_V20851203_20251230.ota.b64.part*' | wc -l)
+          expected_parts=21
+          actual_parts=$(find "$incoming" -maxdepth 1 -type f -name 'GL-SD-301P_V20851203_20251230.ota.xz.b64.part*' | wc -l)
           test "$actual_parts" = "$expected_parts"
+          cat "$incoming"/GL-SD-301P_V20851203_20251230.ota.xz.b64.part* | tr -d '\r\n' | base64 -d > "$packed"
           mkdir -p "$outdir"
-          cat "$incoming"/GL-SD-301P_V20851203_20251230.ota.b64.part* | tr -d '\r\n' | base64 -d > "$out"
+          xz -dc "$packed" > "$out"
           test "$(stat -c%s "$out")" = "208946"
           echo '16595a38ab9783d3afc4eb58ab4ec32625249bd569c1fa6dbaf468bddc76dd72  '"$out" | sha256sum -c -
           python - <<'PY'
