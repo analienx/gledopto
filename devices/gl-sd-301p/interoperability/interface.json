@@ -1,5 +1,5 @@
 {
-  "schema": 5,
+  "schema": 6,
   "device": "GL-SD-301P",
   "purpose": "EU/Czech interoperability; independently written Zigbee End Device client",
   "architecture": {
@@ -124,6 +124,22 @@
       "required_for_basic_onoff_level": false
     }
   },
+  "safety": {
+    "independent_policy": true,
+    "boot_output_state": "LOCKED_OFF_UNTIL_VALIDATED_STATE_ARM",
+    "first_power_stage_command_required": "A55A010004AA",
+    "logical_off_dominates_auxiliary_paths": true,
+    "pb4_never_energizes_from_logical_off": true,
+    "zcl_current_level_0xff_policy": "REJECT_ON_AND_FORCE_OFF",
+    "invalid_minimum_policy": "REJECT_WHEN_CLAMPING_ACTIVE",
+    "off_remains_available_with_invalid_state": true,
+    "runtime_fault_policy": "LATCH_OFF_AND_REQUIRE_CLEAR_PLUS_REARM",
+    "fault_clear_auto_resumes_output": false,
+    "family_0x02_allowed_in_core_runtime": false,
+    "watchdog_reset_effect": "RETURNS_TO_BOOT_LOCKED_OFF",
+    "canonical_document": "devices/gl-sd-301p/SAFETY.md",
+    "host_guard_implementation_ready": true
+  },
   "core_capabilities": {
     "raw_control_encoder_ready": true,
     "normal_off_encoder_ready": true,
@@ -132,7 +148,8 @@
     "startup_state_resync_strategy_ready": true,
     "tx_only_core_implementation_supported_by_current_evidence": true,
     "physical_push_decoder_ready": true,
-    "pb4_aux_compatibility_ready": true
+    "pb4_aux_compatibility_ready": true,
+    "output_guard_ready": true
   },
   "full_stock_parity_unknowns": [
     "0x02 auxiliary operation/pattern value names",
@@ -145,6 +162,7 @@
   "core_onoff_level_encoder_ready": true,
   "physical_push_behavior_ready": true,
   "pb4_aux_behavior_ready": true,
+  "runtime_safety_guard_ready": true,
   "full_feature_parity_ready": false,
   "production_encoder_ready": false,
   "first_flashable_canary_allowed": false
