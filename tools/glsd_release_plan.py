@@ -1,0 +1,221 @@
+#!/usr/bin/env python3
+"""Build a non-executing, exact-target GL-SD OTA release plan.
+
+The plan uses Zigbee2MQTT 2.14+'s per-device `{id, url}` OTA API. It deliberately
+avoids a global override index so the candidate is not advertised to other
+matching devices. The tool never publishes MQTT, serves a file, or talks to a
+device.
+
+A read-only/check request may be shown while production blockers remain. The
+mutating update request is emitted only when the machine-readable flash
+preflight passes *and* the exact local OTA bytes match the quarantined sidecar.
+Even then `authorizationGranted` remains false: the final operator authorization
+is intentionally outside this tool.
+"""
+
+from __future__ import annotations
+
+import argparse
+import hashlib
+import json
+from pathlib import Path
+from urllib.parse import urlparse
+
+from glsd_flash_preflight import (
+    HARDWARE_EVIDENCE_CHOICES,
+    HARDWARE_EVIDENCE_UNPROVEN,
+    evaluate_preconditions,
+)
+
+TARGET_IEEE = "0xa4c13850cfcdb3a4"
+BASE_TOPIC = "zigbee2mqtt"
+CHECK_TOPIC = f"{BASE_TOPIC}/bridge/request/device/ota_update/check"
+UPDATE_TOPIC = f"{BASE_TOPIC}/bridge/request/device/ota_update/update"
+ABORT_TOPIC = f"{BASE_TOPIC}/bridge/request/device/ota_update/update/abort"
+
+
+class ReleasePlanError(ValueError):
+    pass
+
+
+def _validate_url(url: str) -> None:
+    parsed = urlparse(url)
+    # Z2M accepts local paths and URLs, but for the eventual live transaction we
+    # require an explicit HTTP(S) source so the operator is not relying on a
+    # process-local path that may resolve differently inside the add-on.
+    if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+        raise ReleasePlanError("live candidate URL must be an explicit http(s) URL")
+    if parsed.username or parsed.password:
+        raise ReleasePlanError("do not embed credentials in the candidate URL")
+
+
+def attest_candidate_bytes(metadata: dict, candidate_path: Path) -> dict:
+    """Cryptographically bind the release plan to the exact local OTA bytes."""
+    try:
+        data = candidate_path.read_bytes()
+    except OSError as exc:
+        raise ReleasePlanError(f"cannot read candidate OTA: {candidate_path}") from exc
+
+    sha256 = hashlib.sha256(data).hexdigest()
+    sha512 = hashlib.sha512(data).hexdigest()
+    expected_sha256 = metadata.get("sha256")
+    expected_sha512 = metadata.get("sha512")
+    expected_bytes = metadata.get("bytes")
+    expected_file = metadata.get("file")
+
+    failures: list[str] = []
+    if not isinstance(expected_sha256, str) or sha256 != expected_sha256.lower():
+        failures.append("SHA256_MISMATCH")
+    if not isinstance(expected_sha512, str) or sha512 != expected_sha512.lower():
+        failures.append("SHA512_MISMATCH")
+    if expected_bytes != len(data):
+        failures.append("SIZE_MISMATCH")
+    if not isinstance(expected_file, str) or candidate_path.name != expected_file:
+        failures.append("FILENAME_MISMATCH")
+    if failures:
+        raise ReleasePlanError("candidate byte attestation failed: " + ",".join(failures))
+
+    return {
+        "pathName": candidate_path.name,
+        "bytes": len(data),
+        "sha256": sha256,
+        "sha512": sha512,
+        "matchesQuarantineSidecar": True,
+    }
+
+
+def build_plan(
+    metadata: dict,
+    *,
+    candidate_path: Path,
+    url: str,
+    production_flash_size: int | None,
+    production_hw_version: int,
+    current_file_version: int,
+    production_mcu: str,
+    production_revision_proven: bool,
+    return_to_stock_spare_passed: bool,
+    hardware_evidence_source: str = HARDWARE_EVIDENCE_UNPROVEN,
+    exact_revision_spare_match_passed: bool = False,
+    accept_spare_inference_for_production: bool = False,
+) -> dict:
+    _validate_url(url)
+    byte_attestation = attest_candidate_bytes(metadata, candidate_path)
+    preflight = evaluate_preconditions(
+        metadata,
+        production_flash_size=production_flash_size,
+        production_hw_version=production_hw_version,
+        current_file_version=current_file_version,
+        production_mcu=production_mcu,
+        production_revision_proven=production_revision_proven,
+        return_to_stock_spare_passed=return_to_stock_spare_passed,
+        hardware_evidence_source=hardware_evidence_source,
+        exact_revision_spare_match_passed=exact_revision_spare_match_passed,
+        accept_spare_inference_for_production=accept_spare_inference_for_production,
+    )
+
+    check_request = {
+        "topic": CHECK_TOPIC,
+        "payload": {"id": TARGET_IEEE, "url": url},
+        "mutatesFirmware": False,
+    }
+    abort_request = {
+        "topic": ABORT_TOPIC,
+        "payload": {"id": TARGET_IEEE},
+        "mutatesFirmware": False,
+    }
+    update_request = None
+    if preflight["FLASH_WRITE_PRECONDITIONS_PASS"] and byte_attestation[
+        "matchesQuarantineSidecar"
+    ]:
+        update_request = {
+            "topic": UPDATE_TOPIC,
+            "payload": {"id": TARGET_IEEE, "url": url},
+            "mutatesFirmware": True,
+        }
+
+    return {
+        "schemaVersion": 3,
+        "targetIeee": TARGET_IEEE,
+        "usesGlobalOverrideIndex": False,
+        "automaticUpdateChecksMustRemainDisabled": True,
+        "scheduledOtaMustBeEmpty": True,
+        "authorizationGranted": False,
+        "preflight": preflight,
+        "candidateByteAttestation": byte_attestation,
+        "checkRequest": check_request,
+        "updateRequest": update_request,
+        "abortRequest": abort_request,
+        "candidate": {
+            "url": url,
+            "file": metadata.get("file"),
+            "bytes": metadata.get("bytes"),
+            "sha256": metadata.get("sha256"),
+            "sha512": metadata.get("sha512"),
+            "fileVersion": metadata.get("fileVersion"),
+            "manufacturerCode": metadata.get("manufacturerCode"),
+            "imageType": metadata.get("imageType"),
+            "hardwareVersionMin": metadata.get("hardwareVersionMin"),
+            "hardwareVersionMax": metadata.get("hardwareVersionMax"),
+            "bankNeutral": metadata.get("bankNeutral"),
+            "innerSha256": metadata.get("innerSha256"),
+            "buildManifestSha256": metadata.get("buildManifestSha256"),
+        },
+    }
+
+
+def _int_auto(value: str) -> int:
+    return int(value, 0)
+
+
+def main(argv: list[str] | None = None) -> int:
+    ap = argparse.ArgumentParser(description=__doc__)
+    ap.add_argument("metadata", type=Path, help="quarantine sidecar from make_glsd_stager_ota.py")
+    ap.add_argument(
+        "--candidate",
+        type=Path,
+        required=True,
+        help="exact local OTA bytes; must match sidecar size/name/SHA-256/SHA-512",
+    )
+    ap.add_argument("--url", required=True)
+    ap.add_argument("--out", type=Path)
+    ap.add_argument("--production-flash-size", type=_int_auto)
+    ap.add_argument("--production-hw-version", type=_int_auto, default=2)
+    ap.add_argument("--current-file-version", type=_int_auto, default=0x26013001)
+    ap.add_argument("--production-mcu", default="unknown")
+    ap.add_argument("--production-revision-proven", action="store_true")
+    ap.add_argument("--return-to-stock-spare-passed", action="store_true")
+    ap.add_argument(
+        "--hardware-evidence-source",
+        choices=sorted(HARDWARE_EVIDENCE_CHOICES),
+        default=HARDWARE_EVIDENCE_UNPROVEN,
+    )
+    ap.add_argument("--exact-revision-spare-match-passed", action="store_true")
+    ap.add_argument("--accept-spare-inference-for-production", action="store_true")
+    ns = ap.parse_args(argv)
+
+    metadata = json.loads(ns.metadata.read_text(encoding="utf-8"))
+    plan = build_plan(
+        metadata,
+        candidate_path=ns.candidate,
+        url=ns.url,
+        production_flash_size=ns.production_flash_size,
+        production_hw_version=ns.production_hw_version,
+        current_file_version=ns.current_file_version,
+        production_mcu=ns.production_mcu,
+        production_revision_proven=ns.production_revision_proven,
+        return_to_stock_spare_passed=ns.return_to_stock_spare_passed,
+        hardware_evidence_source=ns.hardware_evidence_source,
+        exact_revision_spare_match_passed=ns.exact_revision_spare_match_passed,
+        accept_spare_inference_for_production=ns.accept_spare_inference_for_production,
+    )
+    encoded = json.dumps(plan, indent=2, sort_keys=True) + "\n"
+    if ns.out:
+        ns.out.write_text(encoded, encoding="utf-8")
+    else:
+        print(encoded, end="")
+    return 0 if plan["preflight"]["FLASH_WRITE_PRECONDITIONS_PASS"] else 3
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
