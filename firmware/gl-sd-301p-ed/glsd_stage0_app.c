@@ -151,8 +151,6 @@ static s32 glsd_return_to_stock(void *arg)
     return -1;
 }
 
-static void glsd_encode_status(g lsd_stage0_recovery_status_t status);
-
 /* Keep the Zigbee-visible build id diagnostic without introducing printf/UART. */
 static void glsd_set_status_build_id(glsd_stage0_recovery_status_t status)
 {
