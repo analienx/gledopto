@@ -2,8 +2,9 @@
 """Repository interoperability/reference boundary guard.
 
 Third-party firmware is allowed only in the dedicated vendor-firmware reference
-zone.  The guard prevents accidental propagation into implementation paths and
-ensures a documented interface contract remains the implementation boundary.
+zone. The guard prevents accidental propagation into implementation paths and
+ensures the machine-readable interoperability contract retains confirmed
+safety/compatibility facts.
 """
 
 from __future__ import annotations
@@ -23,6 +24,8 @@ REQUIRED = [
     "THIRD_PARTY_FIRMWARE.md",
     "devices/gl-sd-301p/interoperability/INTERFACE.md",
     "devices/gl-sd-301p/interoperability/interface.json",
+    "devices/gl-sd-301p/interoperability/PUSH_INPUT.md",
+    "devices/gl-sd-301p/interoperability/PB4_AUX_INPUT.md",
     "devices/gl-sd-301p/vendor-firmware/README.md",
     "devices/gl-sd-301p/vendor-firmware/MANIFEST.json",
 ]
@@ -55,13 +58,11 @@ def main() -> int:
         if any(fragment in name for fragment in ENCODED_FW_FRAGMENTS):
             errors.append(f"encoded firmware transport is not canonical tracked storage: {p}")
 
-        # Full disassembly/decompiler output belongs only in curated reference analysis.
         if suffix in {".disasm", ".dump"} and is_vendor_reference(p):
             if "reference-analysis" not in p.parts:
                 errors.append(f"RE output outside vendor reference-analysis zone: {p}")
 
-        # Never allow vendor binary/object material to masquerade as implementation.
-        if "src" in p.parts or "firmware" in p.parts and "vendor-firmware" not in p.parts:
+        if ("src" in p.parts or ("firmware" in p.parts and "vendor-firmware" not in p.parts)):
             if suffix in FIRMWARE_SUFFIXES:
                 errors.append(f"binary material in implementation path: {p}")
 
@@ -70,7 +71,6 @@ def main() -> int:
             errors.append(f"required interoperability/reference document missing: {required}")
 
     manifest_path = ROOT / "devices/gl-sd-301p/vendor-firmware/MANIFEST.json"
-    manifest = None
     if manifest_path.exists():
         try:
             manifest = json.loads(manifest_path.read_text())
@@ -89,7 +89,6 @@ def main() -> int:
                         f"third-party artifact must explicitly exclude project licence: {entry.get('filename')}"
                     )
 
-            # If a canonical original is tracked, it must be represented in the manifest.
             declared = {entry.get("filename") for entry in manifest.get("artifacts", [])}
             for p in files:
                 if (
@@ -107,15 +106,48 @@ def main() -> int:
         except Exception as exc:
             errors.append(f"invalid interface.json: {exc}")
         else:
-            unknowns = spec.get("blocking_unknowns", [])
-            ready = bool(spec.get("production_encoder_ready"))
-            canary = bool(spec.get("first_flashable_canary_allowed"))
-            if ready and unknowns:
-                errors.append("production_encoder_ready=true while blocking_unknowns remain")
-            if canary and not ready:
-                errors.append("first_flashable_canary_allowed=true while encoder is not ready")
-            if spec.get("uart", {}).get("payload_bytes") != 6:
+            if int(spec.get("schema", 0)) < 5:
+                errors.append("interface schema predates solved PB4/local-key contract")
+
+            uart = spec.get("uart", {})
+            if uart.get("payload_bytes") != 6:
                 errors.append("confirmed UART payload width changed from 6 without spec review")
+
+            frame = spec.get("control_frame", {})
+            if frame.get("length") != 6 or frame.get("template_hex") != "A55A000004AA":
+                errors.append("confirmed control-frame template changed without spec review")
+
+            pb4 = spec.get("pb4_aux_input", {})
+            if pb4.get("gpio") != "PB4" or pb4.get("gpio_encoded") != "0x0110":
+                errors.append("PB4 auxiliary GPIO contract changed without review")
+            if pb4.get("consecutive_high_polls_before_action") != 11:
+                errors.append("PB4 qualification threshold changed from 11 polls")
+            if pb4.get("low_resets_qualification") is not True:
+                errors.append("PB4 low-reset behavior must remain enabled")
+            if pb4.get("logical_currentLevel_is_modified") is not False:
+                errors.append("PB4 compatibility path must not mutate logical currentLevel")
+            if pb4.get("business_or_physical_role") != "UNKNOWN":
+                errors.append("PB4 role was semantically promoted without evidence review")
+            if pb4.get("independent_compatibility_module_ready") is not True:
+                errors.append("PB4 compatibility module unexpectedly not ready")
+
+            keyboard = spec.get("local_keyboard", {})
+            if keyboard.get("pb4_is_keyboard_scan_pin") is not False:
+                errors.append("PB4 must not be treated as a keyboard scan pin")
+
+            canary = bool(spec.get("first_flashable_canary_allowed"))
+            production = bool(spec.get("production_encoder_ready"))
+            if canary and not production:
+                errors.append("first_flashable_canary_allowed=true while production encoder is not ready")
+            if canary:
+                required_caps = (
+                    "core_onoff_level_encoder_ready",
+                    "physical_push_behavior_ready",
+                    "pb4_aux_behavior_ready",
+                )
+                for cap in required_caps:
+                    if not bool(spec.get(cap)):
+                        errors.append(f"canary enabled without required capability: {cap}")
 
     if errors:
         print("INTEROP_BOUNDARY_GUARD=FAIL")
