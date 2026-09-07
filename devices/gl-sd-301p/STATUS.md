@@ -1,6 +1,6 @@
 # STATUS — gl-sd-301p
 
-## 2026-09-07 — Core power-stage + PUSH + PB4 behavior solved offline
+## 2026-09-07 — Core power-stage + PUSH + PB4 behavior solved and safety-converged offline
 
 - The exact support-supplied GLEDOPTO OTA is retained as a third-party reference
   artifact with provenance/hashes and is explicitly outside the project licence.
@@ -46,15 +46,30 @@
 - Family `0x02` (`00,01,02,03,04,0F`) is outside ordinary On/Off/Level and the
   solved PC2/PB4 family-`0x01` behavior. Individual semantic names remain optional
   full-parity work rather than blockers for core dimming.
+- A fail-closed independent output guard is now implemented and CI-tested:
+  - boot/reset starts locked OFF;
+  - the confirmed OFF frame remains available even with invalid restored state;
+  - ZCL `currentLevel=0xFF` cannot be emitted as an ON level;
+  - logical OFF dominates PB4 and all other auxiliary output requests;
+  - runtime faults latch OFF and require explicit clear + validated re-arm;
+  - family `0x02` is excluded from the core application runtime path.
+- The solved UART output policy, PC2 PUSH decoder, PB4 compatibility handler and
+  safety guard are now converged into `glsd301p_runtime_core.[ch]`. Application,
+  PUSH and PB4 requests all pass through one guarded output interface; restored
+  application state is an independent mandatory gate in addition to the guard's
+  own ready state.
 - Repository/host CI enforces the vendor-reference/implementation boundary and
-  the solved UART/PC2/PB4 contract.
+  all UART/PC2/PB4/output-guard/runtime-core tests.
 - `CORE_ONOFF_LEVEL_ENCODER_READY = true`.
 - `PHYSICAL_PUSH_BEHAVIOR_READY = true`.
 - `PB4_AUX_BEHAVIOR_READY = true`.
-- `PRODUCTION_ENCODER_READY = false` only because the independent Telink firmware
-  tree has not yet been converged with these now-solved hardware adapters.
+- `RUNTIME_SAFETY_GUARD_READY = true`.
+- `HOST_RUNTIME_CORE_READY = true`.
+- `PRODUCTION_ENCODER_READY = false` because the actual Telink End Device target
+  build/glue has not yet been converged and proven on the pinned toolchain.
 - `FIRST_FLASHABLE_CANARY_ALLOWED = false`.
 - Canonical interface: `devices/gl-sd-301p/interoperability/INTERFACE.md`.
+- Canonical safety policy: `devices/gl-sd-301p/SAFETY.md`.
 
 ## 2026-09-03 — Flash-size forensic (supervisor 5524449062): 512K confirmed
 
@@ -110,16 +125,43 @@
 - Evidence: `evidence/phase1-software-only-20260903/` (raw originals remain
   outside the implementation repository).
 
+## No-spare constraint
+
+No sacrificial GL-SD-301P is available. A spare is therefore **not** represented
+as a pending mandatory prerequisite. The project uses an explicitly higher-risk
+production-only/no-spare track with separate live authorization.
+
+The earlier production unit already passed two deliberately non-bootable OTA
+acceptance experiments, including an exact-size shadow covering the real
+candidate's inactive-bank range; both were rejected as `INVALID_IMAGE`, and stock
+subsequently survived normal control checks and a physical power cycle. Those
+experiments reduce inactive-bank/OTA-path uncertainty but do not eliminate the
+irreducible first-valid-custom-boot risk.
+
+Nothing in the clean-room safety/runtime work above grants live-flash
+permission. `FIRST_FLASHABLE_CANARY_ALLOWED=false` remains authoritative until a
+specific reproducible Telink End Device artifact and its preflight are reviewed.
+
 ## Next
 
-1. Converge the independently written UART frame/output policy, PC2 PUSH decoder,
-   and PB4 auxiliary compatibility module into the clean Telink End Device build.
-2. Rebuild with pinned Telink SDK/toolchain and require the End Device role,
-   no-router capability, endpoint/cluster/reporting/direct-binding regressions,
-   and the host interoperability tests to pass on the same SHA.
+1. Integrate `glsd301p_runtime_core` as the only application-facing power-stage
+   path in an independently authored TLSR8258/Telink End Device target.
+2. Rebuild with the pinned Telink SDK/toolchain and require, on the same SHA:
+   - `ZB_ED_ROLE=1`;
+   - `ZB_ROUTER_ROLE=0`;
+   - RX-on-when-idle enabled and PM disabled;
+   - mains power source;
+   - endpoint 11;
+   - standard On/Off + Level server behavior;
+   - unicast/direct-binding and **group-addressed** On/Off + Level reception;
+   - reporting compatibility;
+   - UART PB1 output path routed only through the guarded runtime core;
+   - boot/reset first power-stage frame = confirmed OFF;
+   - no accidental family-`0x02` application call path.
 3. Keep family-`0x02`, vendor configuration-state fields, and PB4 physical-role
    naming as optional/full-parity work unless a concrete required feature depends
    on them; do not guess them into the runtime path.
 4. After the integrated firmware artifact is reproducible and all software gates
-   pass, perform the first flash only on a sacrificial spare. The installed
-   production unit remains out of scope until that gate succeeds.
+   pass, make a separate no-spare production go/no-go decision with exact artifact
+   attestation and explicit operator authorization. Do not silently substitute a
+   nonexistent sacrificial-spare gate.
