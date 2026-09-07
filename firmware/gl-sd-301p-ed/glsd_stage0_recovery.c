@@ -15,6 +15,7 @@
 #define GLSD_BOOT_FLAG_OFFSET        8u
 #define GLSD_TELINK_START_WORD       0x544c4e4bu
 #define GLSD_TELINK_DISABLED_WORD    0x544c4e00u
+#define GLSD_TELINK_STAGED_WORD      0x544c4effu
 
 /* Reserved only by the Stage-0 build. CI requires the complete Stage-0 image
  * to end before 0x70000 when physically resident in bank B. These two sectors
@@ -222,6 +223,33 @@ static bool glsd_create_backup_and_journal(u32 source_size,
     return memcmp(g_chunk, &journal, sizeof(journal)) == 0;
 }
 
+static bool glsd_enable_stock_boot_flag(const glsd_stage0_journal_t *journal)
+{
+    u8 start = 0x4bu;
+
+    /* Sector 0 is already fully restored and CRC-valid, but its boot byte is
+     * deliberately left erased (0xFF). This final 1->0 write is the atomic
+     * transition from non-bootable to bootable stock. */
+    if (glsd_read_u32(GLSD_BANK_A_BASE + GLSD_BOOT_FLAG_OFFSET) !=
+        GLSD_TELINK_STAGED_WORD) {
+        return false;
+    }
+    if (!glsd_validate_stock_image(false, journal->source_size,
+                                   journal->source_crc, NULL, NULL)) {
+        return false;
+    }
+
+    flash_unlock();
+    if (!flash_writeWithCheck(GLSD_BANK_A_BASE + GLSD_BOOT_FLAG_OFFSET, 1u, &start)) {
+        flash_lock();
+        return false;
+    }
+    flash_lock();
+
+    return glsd_validate_stock_image(true, journal->source_size,
+                                     journal->source_crc, NULL, NULL);
+}
+
 static bool glsd_restore_stock_sector(const glsd_stage0_journal_t *journal)
 {
     u32 offset;
@@ -235,13 +263,23 @@ static bool glsd_restore_stock_sector(const glsd_stage0_journal_t *journal)
         return false;
     }
 
-    g_sector[GLSD_BOOT_FLAG_OFFSET] = 0x4bu;
+    /* Never make A bootable while sector 0 is being reconstructed. NOR flash
+     * lets us leave the byte erased (0xFF) and later commit 0xFF -> 0x4B. */
+    g_sector[GLSD_BOOT_FLAG_OFFSET] = 0xffu;
     if (!glsd_program_sector(GLSD_BANK_A_BASE, g_sector)) {
         return false;
     }
 
-    return glsd_validate_stock_image(true, journal->source_size,
-                                     journal->source_crc, NULL, NULL);
+    if (glsd_read_u32(GLSD_BANK_A_BASE + GLSD_BOOT_FLAG_OFFSET) !=
+        GLSD_TELINK_STAGED_WORD) {
+        return false;
+    }
+    if (!glsd_validate_stock_image(false, journal->source_size,
+                                   journal->source_crc, NULL, NULL)) {
+        return false;
+    }
+
+    return glsd_enable_stock_boot_flag(journal);
 }
 
 static bool glsd_invalidate_stage0_bank(void)
