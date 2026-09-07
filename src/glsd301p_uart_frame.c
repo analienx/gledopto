@@ -4,7 +4,7 @@ bool glsd301p_control_frame_encode(uint8_t family,
                                    uint8_t value,
                                    uint8_t out[GLSD301P_CONTROL_FRAME_SIZE])
 {
-    if (out == NULL) {
+    if (!out) {
         return false;
     }
 
