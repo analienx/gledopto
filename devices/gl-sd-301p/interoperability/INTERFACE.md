@@ -58,13 +58,13 @@ A5 5A CC VV 04 AA
 
 Identified live control senders change only bytes 2 and 3 before transmitting six bytes. There is therefore no varying checksum byte in this control-frame form.
 
-## Family `0x01` — normal lamp output
+## Family `0x01` — lamp output and PB4 auxiliary override
 
 ```text
 A5 5A 01 LL 04 AA
 ```
 
-This is the confirmed normal Zigbee On/Off + Level power-stage path.
+This is the confirmed normal Zigbee On/Off + Level power-stage path and is also reused by the separate PB4 half-scale compatibility path.
 
 ### OFF
 
@@ -86,15 +86,21 @@ The analyzed default minimum-output threshold is `0x02`. An explicit runtime sta
 
 The vendor Level Control progression matches Telink's public sample-light state machinery closely enough that ordinary `MoveToLevel`, `Move`, `Step` and transition progression can use an independent/public ZCL implementation and emit the resulting `currentLevel` through family `0x01`.
 
-### Special family-`0x01` path
+### PB4 half-scale path — trigger solved
 
-A separate non-normal-output path sends:
+The previously unnamed `currentLevel >> 1` sender is now tied to **PB4**.
+
+After PB4 remains high for 11 consecutive ~1 ms polls, stock repeatedly requests:
 
 ```text
 A5 5A 01 (currentLevel >> 1) 04 AA
 ```
 
-It is not used by ordinary Zigbee On/Off/Level and remains isolated until its trigger is completely named.
+while PB4 remains high. A low PB4 sample resets qualification. The logical Zigbee `currentLevel` itself is not changed.
+
+The trigger and arithmetic are therefore solved; the physical/business reason for PB4 is still `UNKNOWN`. Do not rename it thermal/overload/zero-cross without further evidence.
+
+Detailed contract: `PB4_AUX_INPUT.md`.
 
 ## Stock startup synchronization
 
@@ -110,13 +116,24 @@ emit normal family-0x01 output frame
 
 No special mandatory startup handshake has been established.
 
-## PC2 physical PUSH input — solved offline
+## Local onboard keys — separated from PC2/PB4
+
+The stock application also uses Telink's public-style `kb_scan_key(0, 1)` keyboard scanner. The decoded scan pins/key map are:
+
+| GPIO | Encoded | Keycode | Functional role | Confidence |
+|---|---:|---:|---|---|
+| PC4 | `0x0210` | 1 | RESET | HIGH |
+| PC3 | `0x0208` | 2 | LEVEL | HIGH |
+
+PB4 is **not** a keyboard scan pin. PC2 is handled separately by the external PUSH pulse decoder.
+
+The PC4/keycode-1 path includes the stock minimum-brightness configuration flow; the PC3/keycode-2 path is the local Level control path. Their existence further excludes PB4 from the normal user-button subsystem.
+
+## PC2 external PUSH input — solved offline
 
 Detailed functional specification: `PUSH_INPUT.md`.
 
-The stock application polls encoded GPIO `0x0204`, which is TLSR8258 **PC2**, every 1 ms.
-
-PC2 is not treated as a simple DC button level. The firmware validates a repeating pulse waveform:
+The stock application polls encoded GPIO `0x0204`, TLSR8258 **PC2**, every 1 ms. PC2 is not treated as a simple DC button level; the firmware validates a repeating pulse waveform:
 
 ```text
 >=3 low samples
@@ -124,55 +141,20 @@ PC2 is not treated as a simple DC button level. The firmware validates a repeati
 >=3 further low samples
 ```
 
-After that qualification the input is considered active. This pulse-oriented behavior is consistent with a mains-derived/opto-isolated PUSH terminal sense input rather than a direct logic switch.
+After qualification, a short completed activation toggles standard Zigbee On/Off. A sustained activation performs repeated standard Level changes. Long-release reverses the direction for the next long activation.
 
-The semantic identification is independently corroborated by the GL-SD-301P manufacturer/user documentation: the external PUSH input performs short-press On/Off and long-press brightness adjustment, reversing long-press direction after release. That exactly matches the PC2 application state machine.
-
-**Classification:** `PC2 = external PUSH-sense path` — HIGH confidence. PCB continuity would corroborate the net but is not required to reproduce behavior.
-
-### Short PUSH
-
-When a qualified activation ends with 51 consecutive high samples, stock invokes its normal On/Off updater:
-
-```text
-ON  -> OFF
-OFF -> ON
-```
-
-The resulting power-stage output is therefore the same normal family-`0x01` frame described above.
-
-### Long PUSH
-
-While the qualified pulse waveform remains present, stock accumulates **low PC2 samples**:
-
-- first level step after 1001 accumulated low samples;
-- repeat level step every 301 additional accumulated low samples;
-- high gaps below 51 samples preserve the activation and do not clear the accumulated long-hold counter.
-
-Because this is a pulse waveform, accumulated low-sample time is not necessarily equal to elapsed wall-clock time.
-
-### Local level-step policy
+### Long PUSH step policy
 
 ```text
 currentLevel <= 150 -> step 10
 currentLevel >  150 -> step 25
 ```
 
-Initial direction is downward from zero-initialized state. Long-release reverses direction for the next long activation.
-
-Up:
-
-```text
-min(254, currentLevel + step)
-```
-
-Down — preserving the observed stock edge behavior:
+First step occurs after 1001 accumulated low PC2 samples; repeats occur every 301 additional low samples. Upward behavior clamps to 254. Downward behavior deliberately preserves the stock edge:
 
 ```text
 currentLevel <= step ? 2 : currentLevel - step
 ```
-
-The local adjustment routine is gated by logical On/Off state.
 
 Independent implementation:
 
@@ -182,7 +164,32 @@ src/glsd301p_push_input.c
 tests/test_glsd301p_push_input.c
 ```
 
-The decoder emits semantic `TOGGLE` / `LEVEL_STEP` events and does not directly send UART or mutate ZCL state.
+## PB4 auxiliary compatibility input — behavior solved, role unknown
+
+Detailed functional specification: `PB4_AUX_INPUT.md`.
+
+| Property | Value | State |
+|---|---|---|
+| GPIO | PB4 (`0x0110`) | CONFIRMED |
+| Direction | input | CONFIRMED |
+| Stock internal bias | 100 kΩ pulldown | HIGH |
+| Poll cadence | ~1 ms | HIGH |
+| Active level | high | CONFIRMED |
+| Qualification | 11 consecutive high polls | CONFIRMED |
+| Low behavior | reset qualification | CONFIRMED |
+| Qualified behavior | family-`0x01`, value=`currentLevel >> 1` on each poll | CONFIRMED |
+| Mutates logical Zigbee level | no | CONFIRMED |
+| Physical/business role | `UNKNOWN` | UNKNOWN |
+
+Because qualified PB4 reduces the physical output request while leaving logical level unchanged, a protection/derating interpretation is plausible. It is **not** relied upon by the implementation. Preserving the stock behavior is safer than deleting it merely because the semantic name is unknown.
+
+Independent implementation:
+
+```text
+src/glsd301p_pb4_compat.h
+src/glsd301p_pb4_compat.c
+tests/test_glsd301p_pb4_compat.c
+```
 
 ## Family `0x02` — auxiliary operation/pattern control
 
@@ -196,13 +203,13 @@ Observed values:
 00 01 02 03 04 0F
 ```
 
-This family belongs to a separate timed/stateful engine and vendor/private-control paths. It is not used by normal Zigbee On/Off/Level and is not required for the solved PC2 PUSH toggle/level behavior.
+This family belongs to a separate timed/stateful engine and vendor/private-control paths. It is not used by normal Zigbee On/Off/Level, the solved PC2 PUSH output, or the PB4 half-scale family-`0x01` request itself.
 
 Individual value names remain `UNKNOWN`.
 
 ## Separate six-byte configuration/state message
 
-A distinct endpoint-11 command-processing path transmits six configuration/state bytes directly rather than using the `A5 5A .. 04 AA` control template. Its semantics remain unknown and it is not established as necessary for ordinary On/Off/Level or PC2 PUSH behavior.
+A distinct endpoint-11 command-processing path transmits six configuration/state bytes directly rather than using the `A5 5A .. 04 AA` control template. Its semantics remain unknown and it is not established as necessary for ordinary On/Off/Level, PC2 PUSH, or PB4 compatibility behavior.
 
 ## Solved without UART wiring
 
@@ -218,38 +225,29 @@ The reference firmware plus public Telink source and public product behavior est
 - normal Level Control integration;
 - startup state re-sync;
 - RX non-dependency for core operation;
-- PC2 1-ms PUSH pulse decoder;
-- short physical PUSH -> On/Off toggle;
-- long physical PUSH -> repeated Level changes;
-- stock local step sizes and direction reversal.
+- PC2 external PUSH pulse decoder and short/long behavior;
+- onboard keyboard mapping PC4=Reset / PC3=Level;
+- PB4 sustained-high qualification;
+- exact PB4 half-scale output behavior without naming its physical cause.
 
-A physical UART capture or PCB trace is now corroboration/optional parity work, not a prerequisite for implementing basic client dimming and physical PUSH behavior.
+A physical UART capture or PCB trace is corroboration/optional parity work, not a prerequisite for implementing basic client dimming, external PUSH, or the PB4 compatibility behavior.
 
 ## Remaining full-parity questions
 
 - exact semantic names of family-`0x02` values;
-- purpose/trigger of the `currentLevel >> 1` family-`0x01` path;
+- physical/business role of PB4;
 - vendor configuration-state message fields;
 - exact meaning of the below-minimum bypass state;
 - optional controller telemetry semantics;
-- terminal-to-PC2 and UART PCB traces, if physical corroboration is desired.
+- PCB traces, if physical corroboration is desired.
 
 ## Independent firmware boundary
 
 ```text
-Zigbee/ZCL state + PC2 PUSH decoder
-        |
-        v
-normal output policy
-        |
-        v
-A5 5A 01 LL 04 AA
-        |
-        v
-9600 8N1 UART TX
-        |
-        v
-existing secondary power controller
+PC2 PUSH decoder -----\
+PC3/PC4 local keys ----> Zigbee/ZCL state ----> normal output policy ----> family 01 UART
+PB4 aux decoder -------/                         \
+                                                  -> PB4 half-scale family 01 request
 ```
 
 The installed production unit remains outside the first-flash path; this specification does not authorize flashing or mains-side probing.
