@@ -1,0 +1,88 @@
+name: Reference romasku End Device diagnostic
+
+on:
+  push:
+    branches:
+      - build/glsd-ed-client-revalidate-20260907
+    paths:
+      - '.github/workflows/diagnose-romasku-ed.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  reference-ed:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Gledopto branch
+        uses: actions/checkout@v4
+      - name: Checkout proven romasku End Device revision
+        uses: actions/checkout@v4
+        with:
+          repository: romasku/tuya-zigbee-switch
+          ref: 0f2b99e5a0ebd72a2d7c3375cde69db4696e6f00
+          path: romasku-ref
+      - name: Checkout pinned Telink SDK
+        uses: actions/checkout@v4
+        with:
+          repository: telink-semi/telink_zigbee_sdk
+          ref: V3.7.2.0
+          path: telink-sdk
+      - name: Acquire exact TC32 toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          url='https://shyboy.oss-cn-shenzhen.aliyuncs.com/readonly/tc32_gcc_v2.0.tar.bz2'
+          expected='33b854be3e3db3dba4b4dacdda2cd4ea1c94dfd4d562864a095956de7991b430'
+          archive="$RUNNER_TEMP/tc32_gcc_v2.0.tar.bz2"
+          root="$RUNNER_TEMP/tc32"
+          curl --fail --location --retry 3 --output "$archive" "$url"
+          echo "$expected  $archive" | sha256sum --check --strict
+          mkdir -p "$root"
+          tar -xjf "$archive" -C "$root"
+          bindir="$(dirname "$(find "$root" -type f -name tc32-elf-gcc -print -quit)")"
+          test -x "$bindir/tc32-elf-gcc"
+          chmod +x "$bindir"/* || true
+          echo "TC32_BIN=$bindir" >> "$GITHUB_ENV"
+          "$bindir/tc32-elf-gcc" --version | head -n 1
+      - name: Wire reference project to identical SDK and toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p romasku-ref/telink_tools/toolchain
+          ln -s "$GITHUB_WORKSPACE/telink-sdk/tl_zigbee_sdk" romasku-ref/telink_tools/sdk
+          ln -s "$(dirname "$TC32_BIN")" romasku-ref/telink_tools/toolchain/tc32
+          test -x romasku-ref/telink_tools/toolchain/tc32/bin/tc32-elf-gcc
+          git -C telink-sdk rev-parse HEAD
+      - name: Build known-working End Device recipe and inspect unresolved symbols
+        shell: bash
+        run: |
+          set -euo pipefail
+          map="$RUNNER_TEMP/romasku-ed.map"
+          make -C romasku-ref/src/telink clean >/dev/null 2>&1 || true
+          make -C romasku-ref/src/telink \
+            DEVICE_TYPE=end_device \
+            FIRMWARE_BASENAME=reference_ed \
+            LNK_FLAGS="--gc-sections -nostartfiles -Map=$map" \
+            build
+          elf='romasku-ref/build/telink/reference_ed.elf'
+          bin='romasku-ref/build/telink/bin/reference_ed.bin'
+          test -s "$elf"
+          test -s "$bin"
+          echo 'REFERENCE_ED_BUILD=PASS'
+          echo "ELF_SIZE=$(stat -c%s "$elf")"
+          echo "BIN_SIZE=$(stat -c%s "$bin")"
+          echo '=== nm undefined symbol table residue ==='
+          "$TC32_BIN/tc32-elf-nm" -u "$elf" | tee "$RUNNER_TEMP/romasku-unresolved.txt" || true
+          echo '=== final ELF relocation table ==='
+          "$TC32_BIN/tc32-elf-objdump" -r "$elf" | tee "$RUNNER_TEMP/romasku-relocations.txt"
+          echo '=== critical symbols in live relocations ==='
+          if grep -E 'ss_apsmeSwitchKeyReq|ss_apsmeTransportKeyReq|tl_zbNwkBeaconPayloadUpdate' "$RUNNER_TEMP/romasku-relocations.txt"; then
+            echo 'REFERENCE_CRITICAL_LIVE_RELOCATION=YES'
+            exit 1
+          fi
+          echo 'REFERENCE_CRITICAL_LIVE_RELOCATION=NO'
+          sha256sum "$elf" "$bin"
+          echo '=== archive/map references for critical members ==='
+          grep -n -E 'zb_api\.o|nwk_panid_conflict\.o|ss_apsSecurityME\.o|ss_apsmeSwitchKeyReq|ss_apsmeTransportKeyReq|tl_zbNwkBeaconPayloadUpdate' "$map" | head -n 120 || true

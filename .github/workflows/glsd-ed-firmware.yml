@@ -96,6 +96,39 @@ jobs:
           grep -q '^PM_ENABLE=0$' "$manifest"
           grep -q '^GLSD_ED_TC32_OBJECT_COMPILE=PASS_3_OF_3$' "$manifest"
           echo 'GLSD_ED_EFFECTIVE_ROLE=PASS'
+      - name: Diagnose remaining Telink stack symbol ownership
+        shell: bash
+        run: |
+          set -euo pipefail
+          sdk="$GITHUB_WORKSPACE/telink-sdk/tl_zigbee_sdk"
+          for sym in ss_apsmeSwitchKeyReq ss_apsmeTransportKeyReq tl_zbNwkBeaconPayloadUpdate; do
+            echo "=== SYMBOL $sym ==="
+            found=0
+            while IFS= read -r archive; do
+              hits="$($TC32_NM -A "$archive" 2>/dev/null | grep -E "[[:space:]]([TtWw])[[:space:]]+$sym$" || true)"
+              if [ -n "$hits" ]; then
+                printf '%s\n' "$hits"
+                found=1
+              fi
+            done < <(find "$sdk" -type f -name '*.a' | sort)
+            echo "DEFINED_IN_ARCHIVE=$found"
+          done
+      - name: Identify archive members that reference router-only symbols
+        shell: bash
+        run: |
+          set -euo pipefail
+          sdk="$GITHUB_WORKSPACE/telink-sdk/tl_zigbee_sdk"
+          for archive in \
+            "$sdk/zigbee/lib/tc32/libzb_ed.a" \
+            "$sdk/platform/lib/libdrivers_8258.a"; do
+            echo "=== UNDEFINED REFS IN $archive ==="
+            if [ -f "$archive" ]; then
+              "$TC32_NM" -A -u "$archive" 2>/dev/null | \
+                grep -E 'ss_apsmeSwitchKeyReq|ss_apsmeTransportKeyReq|tl_zbNwkBeaconPayloadUpdate' || true
+            else
+              echo 'ARCHIVE_NOT_FOUND'
+            fi
+          done
       - name: Link and finalize complete End Device product image
         shell: bash
         run: |
@@ -114,3 +147,21 @@ jobs:
           grep -q '^DEPLOYABLE=NO$' "$manifest"
           grep -q '^DEPLOYABLE_BLOCKER=POWER_STAGE_DRIVER_STUB$' "$manifest"
           echo 'GLSD_ED_COMPLETE_PRODUCT_LINK=PASS_NONDEPLOYABLE'
+      - name: Trace unresolved symbol callers
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="$RUNNER_TEMP/glsd-ed-link/product/obj"
+          if [ ! -d "$root" ]; then
+            echo 'NO_LINK_OBJECT_TREE'
+            exit 0
+          fi
+          for sym in ss_apsmeSwitchKeyReq ss_apsmeTransportKeyReq tl_zbNwkBeaconPayloadUpdate; do
+            echo "=== CALLERS $sym ==="
+            while IFS= read -r -d '' obj; do
+              if "$TC32_NM" -u "$obj" 2>/dev/null | grep -Eq "[[:space:]]U[[:space:]]+$sym$"; then
+                echo "$obj"
+              fi
+            done < <(find "$root" -type f -name '*.o' -print0)
+          done

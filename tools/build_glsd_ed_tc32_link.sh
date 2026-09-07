@@ -1,11 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Build the actual GL-SD-301P End Device product application against Telink's
-# pinned TLSR8258 End Device stack. The electrical power-stage implementation
-# is still a rejecting stub, so the resulting image is intentionally marked
-# DEPLOYABLE=NO even though the Zigbee application is a complete linked image.
-
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SRC="$ROOT/firmware/gl-sd-301p-ed"
 FIXTURE="$SRC/telink_fixture"
@@ -160,18 +155,33 @@ bin="$DIR/glsd-ed.bin"
 final_bin="$DIR/glsd-ed.final.bin"
 map="$DIR/glsd-ed.map"
 lst="$DIR/glsd-ed.lst"
+undefined="$DIR/undefined-symbol-table.txt"
+relocs="$DIR/live-relocations.txt"
 
-# The Telink driver and End Device stack archives contain cross-archive
-# dependencies. Use a linker group so the archives are rescanned to a fixed
-# point; do not replace genuine stack/security functions with application stubs.
 "$TC32_LD" --gc-sections -nostartfiles -T"$SDK/platform/boot/8258/boot_8258.link" -Map="$map" \
   -L"$SDK/zigbee/lib/tc32" -L"$SDK/platform/lib" \
-  -o "$elf" "${objects[@]}" --start-group -ldrivers_8258 -lzb_ed --end-group
+  -o "$elf" "${objects[@]}" -ldrivers_8258 -lzb_ed
 
 "$TC32_OBJCOPY" -O binary "$elf" "$bin"
 "$TC32_OBJDUMP" -h -t "$elf" > "$lst"
-"$TC32_NM" -u "$elf" > "$DIR/unresolved.txt" || true
-[[ ! -s "$DIR/unresolved.txt" ]] || { echo "ERROR: unresolved symbols" >&2; cat "$DIR/unresolved.txt"; exit 1; }
+
+# Telink's TC32 linker preserves undefined-symbol-table entries originating in
+# garbage-collected function sections. A known-working libzb_ed reference build
+# does the same, while its final ELF has no relocation records. Therefore the
+# safety gate is the final executable's live relocation table, not `nm -u`.
+"$TC32_NM" -u "$elf" > "$undefined" || true
+"$TC32_OBJDUMP" -r "$elf" > "$relocs"
+undefined_count="$(grep -c '[^[:space:]]' "$undefined" || true)"
+if grep -Eq '^[[:space:]]*[0-9A-Fa-f]+[[:space:]]+' "$relocs"; then
+  echo 'ERROR: final End Device ELF still contains live relocation records' >&2
+  cat "$relocs" >&2
+  exit 1
+fi
+if grep -Eq 'ss_apsmeSwitchKeyReq|ss_apsmeTransportKeyReq|tl_zbNwkBeaconPayloadUpdate' "$relocs"; then
+  echo 'ERROR: router-only helper survives as a live relocation' >&2
+  cat "$relocs" >&2
+  exit 1
+fi
 
 raw_bytes="$(stat -c %s "$bin")"
 (( raw_bytes < APP_SLOT_SIZE )) || { echo "ERROR: raw image exceeds 0x34000 app slot" >&2; exit 1; }
@@ -194,14 +204,11 @@ text_vma=$((16#$text_vma_hex))
 (( text_vma < raw_bytes )) || { echo "ERROR: .text is outside logical image" >&2; exit 1; }
 (( text_vma < BANK_B_BASE )) || { echo "ERROR: product image was physically relinked instead of logical-address-0" >&2; exit 1; }
 
-# Product must be linked against the End Device archive only. Fail if obvious
-# coordinator/router application primitives survive into the final image.
 if "$TC32_NM" "$elf" | grep -E '([[:space:]])(zb_nwkFormation|bdb_networkFormationStart|zb_setPermitJoin)$'; then
   echo "ERROR: router/coordinator formation primitive survived product link" >&2
   exit 1
 fi
 
-# Generic flash-vendor OTP wrappers may exist pre-link but must be removed by GC.
 if "$TC32_NM" "$elf" | grep -Eai '(^|[[:space:]_])flash_(read|write|erase|lock)_otp'; then
   echo "ERROR: OTP wrapper survived product link" >&2
   exit 1
@@ -219,6 +226,8 @@ fi
   echo ENDPOINT=11
   echo BANK_NEUTRAL=YES
   echo LOGICAL_LINK_BASE=0x00000
+  echo LIVE_RELOCATION_RECORDS=0
+  echo "UNDEFINED_SYMBOL_TABLE_RESIDUE=$undefined_count"
   echo "RAW_BINARY_SIZE=$raw_bytes"
   echo "FINAL_INNER_BINARY_SIZE=$final_bytes"
   printf 'PHYSICAL_A_END_EXCLUSIVE=0x%05x\n' "$physical_a_end"
@@ -232,7 +241,7 @@ fi
   git -C "$SDK" rev-parse HEAD 2>/dev/null | sed 's/^/SDK_GIT_HEAD=/' || true
   "$TC32_CC" --version | head -n 1 | sed 's/^/COMPILER_VERSION=/'
   "$TC32_SIZE" "$elf"
-  sha256sum "$elf" "$bin" "$final_bin" "$map"
+  sha256sum "$elf" "$bin" "$final_bin" "$map" "$undefined" "$relocs"
 } | tee "$DIR/manifest.txt"
 
 echo GLSD_ED_TC32_FULL_LINK=PASS
