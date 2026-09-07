@@ -14,84 +14,35 @@ jobs:
         with:
           python-version: '3.11'
       
-      - name: Download and assemble GL-SD-301P firmware
+      - name: Download uncompressed GL-SD-301P firmware
         run: |
-          cat > download_and_assemble.py << 'PYEOF'
+          cat > download_uncompressed.py << 'PYEOF'
           import urllib.request
           import json
           import base64
-          import lzma
           import struct
           from pathlib import Path
 
-          # Download all compressed parts
-          parts = []
-          for i in range(13):  # part000 to part012
-              filename = f"devices/gl-sd-301p/vendor-firmware/.incoming/GL-SD-301P_V20851203_20251230.ota.xz.b64.part{i:03d}"
-              url = f"https://raw.githubusercontent.com/analienx/gledopto/main/{filename}"
-              
-              print(f"Downloading part {i:03d}...")
-              req = urllib.request.Request(url)
-              with urllib.request.urlopen(req) as resp:
-                  content = resp.read().decode('ascii')
-                  # Strip whitespace and newlines
-                  content = ''.join(content.split())
-                  parts.append(content)
-                  print(f"  Part {i:03d}: {len(content)} chars")
+          # Try the uncompressed version first
+          filename = "devices/gl-sd-301p/vendor-firmware/.incoming/GL-SD-301P_V20851203_20251230.ota.b64.part000"
+          url = f"https://raw.githubusercontent.com/analienx/gledopto/main/{filename}"
           
-          # Concatenate and decode
-          print("\nConcatenating parts...")
-          full_b64 = ''.join(parts)
-          print(f"Total base64 length: {len(full_b64)} chars")
+          print(f"Downloading uncompressed version: {filename}")
+          req = urllib.request.Request(url)
+          with urllib.request.urlopen(req) as resp:
+              content = resp.read().decode('ascii')
+              # Strip whitespace
+              content = ''.join(content.split())
+              print(f"Base64 length: {len(content)} chars")
           
-          # Check if base64 length is valid (should be multiple of 4)
-          if len(full_b64) % 4 != 0:
-              print(f"WARNING: Base64 length not multiple of 4, padding...")
-              full_b64 += '=' * (4 - len(full_b64) % 4)
-          
+          # Decode
           print("Decoding base64...")
           try:
-              compressed_data = base64.b64decode(full_b64)
-              print(f"Compressed size: {len(compressed_data)} bytes")
+              ota_data = base64.b64decode(content)
+              print(f"✓ OTA size: {len(ota_data)} bytes")
           except Exception as e:
               print(f"Base64 decode error: {e}")
-              # Try with validation
-              compressed_data = base64.b64decode(full_b64, validate=True)
-              print(f"Compressed size (validated): {len(compressed_data)} bytes")
-          
-          # Check XZ magic bytes
-          if len(compressed_data) >= 6:
-              xz_magic = compressed_data[:6]
-              print(f"XZ magic bytes: {xz_magic.hex()}")
-              if xz_magic == b'\xfd7zXZ\x00':
-                  print("✓ Valid XZ header detected")
-              else:
-                  print("✗ Invalid XZ header!")
-          
-          # Decompress XZ with error handling
-          print("Decompressing XZ...")
-          try:
-              ota_data = lzma.decompress(compressed_data)
-              print(f"✓ OTA size: {len(ota_data)} bytes")
-          except lzma.LZMAError as e:
-              print(f"LZMA error: {e}")
-              print("Trying to decompress with stream format...")
-              # Try with FORMAT_XZ
-              try:
-                  ota_data = lzma.decompress(compressed_data, format=lzma.FORMAT_XZ)
-                  print(f"✓ OTA size (FORMAT_XZ): {len(ota_data)} bytes")
-              except Exception as e2:
-                print(f"FORMAT_XZ also failed: {e2}")
-                print("Trying FORMAT_ALONE...")
-                try:
-                    ota_data = lzma.decompress(compressed_data, format=lzma.FORMAT_ALONE)
-                    print(f"✓ OTA size (FORMAT_ALONE): {len(ota_data)} bytes")
-                except Exception as e3:
-                    print(f"All decompression attempts failed: {e3}")
-                    # Save what we have for debugging
-                    Path("compressed_data.bin").write_bytes(compressed_data)
-                    print("Saved compressed_data.bin for debugging")
-                    raise
+              raise
           
           # Parse OTA header
           magic, = struct.unpack_from("<I", ota_data, 0)
@@ -117,7 +68,7 @@ jobs:
           print("\n✓ Saved gl_sd_301p_full.ota and gl_sd_301p_inner.bin")
           PYEOF
           
-          python download_and_assemble.py
+          python download_uncompressed.py
       
       - name: Analyze firmware patterns
         if: success()
@@ -213,4 +164,3 @@ jobs:
           path: |
             gl_sd_301p_full.ota
             gl_sd_301p_inner.bin
-            compressed_data.bin
