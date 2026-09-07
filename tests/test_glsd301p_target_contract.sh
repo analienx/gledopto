@@ -34,20 +34,30 @@ compile_ok() {
 expect_fail() {
   local name="$1"
   shift
-  local defs=("${base_defs[@]}")
-  local filtered=()
-  local replace_key="${1%%=*}"
+  local filtered=("${base_defs[@]}")
 
-  for item in "${defs[@]}"; do
-    if [[ "$item" != "${replace_key}="* ]]; then
-      filtered+=("$item")
-    fi
+  # Replace every overridden -D key rather than stacking duplicate definitions.
+  # A negative case therefore passes only when our contract itself rejects it.
+  for override in "$@"; do
+    local key="${override%%=*}"
+    local next=()
+    for item in "${filtered[@]}"; do
+      if [[ "$item" != "$key="* ]]; then
+        next+=("$item")
+      fi
+    done
+    filtered=("${next[@]}")
   done
   filtered+=("$@")
 
   if "$CC" -std=c11 -Wall -Wextra -Werror -pedantic -I"$INC" \
-      "${filtered[@]}" "$SRC" -o "$TMP/$name" >/dev/null 2>&1; then
+      "${filtered[@]}" "$SRC" -o "$TMP/$name" >"$TMP/$name.log" 2>&1; then
     echo "ERROR: architecture firewall accepted forbidden case: $name" >&2
+    exit 1
+  fi
+  if ! grep -q 'GL-SD-301P' "$TMP/$name.log"; then
+    echo "ERROR: forbidden case $name failed for a non-contract reason" >&2
+    cat "$TMP/$name.log" >&2
     exit 1
   fi
   echo "TARGET_CONTRACT_REJECT_${name}=PASS"
