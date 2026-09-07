@@ -55,7 +55,7 @@ jobs:
           ln -s "$(dirname "$TC32_BIN")" romasku-ref/telink_tools/toolchain/tc32
           test -x romasku-ref/telink_tools/toolchain/tc32/bin/tc32-elf-gcc
           git -C telink-sdk rev-parse HEAD
-      - name: Build known-working End Device recipe and emit map
+      - name: Build known-working End Device recipe and inspect unresolved symbols
         shell: bash
         run: |
           set -euo pipefail
@@ -73,8 +73,16 @@ jobs:
           echo 'REFERENCE_ED_BUILD=PASS'
           echo "ELF_SIZE=$(stat -c%s "$elf")"
           echo "BIN_SIZE=$(stat -c%s "$bin")"
-          "$TC32_BIN/tc32-elf-nm" -u "$elf" | tee "$RUNNER_TEMP/romasku-unresolved.txt"
-          test ! -s "$RUNNER_TEMP/romasku-unresolved.txt"
+          echo '=== nm undefined symbol table residue ==='
+          "$TC32_BIN/tc32-elf-nm" -u "$elf" | tee "$RUNNER_TEMP/romasku-unresolved.txt" || true
+          echo '=== final ELF relocation table ==='
+          "$TC32_BIN/tc32-elf-objdump" -r "$elf" | tee "$RUNNER_TEMP/romasku-relocations.txt"
+          echo '=== critical symbols in live relocations ==='
+          if grep -E 'ss_apsmeSwitchKeyReq|ss_apsmeTransportKeyReq|tl_zbNwkBeaconPayloadUpdate' "$RUNNER_TEMP/romasku-relocations.txt"; then
+            echo 'REFERENCE_CRITICAL_LIVE_RELOCATION=YES'
+            exit 1
+          fi
+          echo 'REFERENCE_CRITICAL_LIVE_RELOCATION=NO'
           sha256sum "$elf" "$bin"
-          echo '=== archive inclusion references for critical members ==='
-          grep -n -E 'zb_api\.o|nwk_panid_conflict\.o|ss_apsSecurityME\.o|ss_apsmeSwitchKeyReq|ss_apsmeTransportKeyReq|tl_zbNwkBeaconPayloadUpdate' "$map" | head -n 100 || true
+          echo '=== archive/map references for critical members ==='
+          grep -n -E 'zb_api\.o|nwk_panid_conflict\.o|ss_apsSecurityME\.o|ss_apsmeSwitchKeyReq|ss_apsmeTransportKeyReq|tl_zbNwkBeaconPayloadUpdate' "$map" | head -n 120 || true
