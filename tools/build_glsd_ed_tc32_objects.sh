@@ -3,6 +3,7 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SRC="$ROOT/firmware/gl-sd-301p-ed"
+INTEROP="$ROOT/src"
 FIXTURE="$SRC/telink_fixture"
 
 : "${TELINK_SDK_ROOT:?set TELINK_SDK_ROOT to the tl_zigbee_sdk directory}"
@@ -45,20 +46,25 @@ telink_first_defines=(-D_SIZE_T -D_SIZE_T_ -D__SIZE_T -D__SIZE_T__)
 include_roots=("$SDK/proj" "$SDK/platform" "$APP_COMMON_DIR" "$SAMPLE_DIR")
 [[ -d "$SDK/stack" ]] && include_roots+=("$SDK/stack")
 [[ -d "$SDK/zigbee" ]] && include_roots+=("$SDK/zigbee")
-includes=(-I"$FIXTURE" -I"$SAMPLE_DIR" -I"$APP_COMMON_DIR" -I"$SDK/proj")
+includes=(-I"$FIXTURE" -I"$SAMPLE_DIR" -I"$APP_COMMON_DIR" -I"$SDK/proj" -I"$SRC" -I"$INTEROP")
 while IFS= read -r -d '' d; do includes+=("-I$d"); done < <(find "${include_roots[@]}" -type d -print0 | sort -zu)
 
 cflags=(-std=gnu99 -Wall -Wextra -ffunction-sections -fdata-sections -fshort-enums -funsigned-char -Os)
 sources=(
-  glsd_ed_core.c
-  glsd_power_stage_stub.c
-  glsd_telink_ed_app.c
+  "$SRC/glsd_ed_core.c"
+  "$SRC/glsd_power_stage_telink.c"
+  "$SRC/glsd_telink_ed_app.c"
+  "$INTEROP/glsd301p_uart_frame.c"
+  "$INTEROP/glsd301p_power_stage_policy.c"
+  "$INTEROP/glsd301p_push_input.c"
+  "$INTEROP/glsd301p_pb4_compat.c"
 )
 
 {
   echo "PRODUCT_FIRMWARE=GL-SD-301P-ED"
   echo "OBJECT_ONLY=YES"
-  echo "DEPLOYABLE=NO_POWER_STAGE_STUB"
+  echo "POWER_STAGE_DRIVER=UART_GLSD301P"
+  echo "DEPLOY_AUTHORIZED=NO"
   echo "ZIGBEE_ROLE=END_DEVICE"
   echo "ZB_MAC_RX_ON_WHEN_IDLE=1"
   echo "PM_ENABLE=0"
@@ -70,15 +76,15 @@ sources=(
   printf 'BASE_DEFINES='; printf '%q ' "${base_defines[@]}"; echo
 } | tee "$OUT_DIR/build-manifest.txt"
 
-for name in "${sources[@]}"; do
-  src="$SRC/$name"
+for src in "${sources[@]}"; do
+  name="$(basename "$src")"
   obj="$OUT_DIR/${name%.c}.o"
   defines=("${base_defines[@]}")
   if [[ "$name" == glsd_telink_ed_app.c ]]; then
     defines+=("${telink_first_defines[@]}")
   fi
   echo "[TC32] $name"
-  "$TC32_CC" "${cflags[@]}" "${defines[@]}" "${includes[@]}" -I"$SRC" -c "$src" -o "$obj"
+  "$TC32_CC" "${cflags[@]}" "${defines[@]}" "${includes[@]}" -c "$src" -o "$obj"
   sha256sum "$obj" | tee -a "$OUT_DIR/build-manifest.txt"
   if command -v "$TC32_NM" >/dev/null 2>&1; then
     echo "UNDEFINED_SYMBOLS $name" >> "$OUT_DIR/build-manifest.txt"
@@ -86,9 +92,6 @@ for name in "${sources[@]}"; do
   fi
 done
 
-# Compile a dedicated translation unit through the exact same pinned SDK headers.
-# This proves the effective build configuration, instead of relying on source-path
-# greps that vary between SDK packaging revisions.
 cat > "$OUT_DIR/role_assert.c" <<'EOF'
 #include "app_cfg.h"
 #if !defined(ZB_ED_ROLE) || (ZB_ED_ROLE != 1)
@@ -107,14 +110,12 @@ int glsd_ed_role_assert_translation_unit(void) { return 0; }
 EOF
 
 "$TC32_CC" "${cflags[@]}" "${base_defines[@]}" "${telink_first_defines[@]}" \
-  "${includes[@]}" -I"$SRC" -c "$OUT_DIR/role_assert.c" -o "$OUT_DIR/role_assert.o"
+  "${includes[@]}" -c "$OUT_DIR/role_assert.c" -o "$OUT_DIR/role_assert.o"
 echo "GLSD_ED_EFFECTIVE_ROLE_ASSERT=PASS" | tee -a "$OUT_DIR/build-manifest.txt"
 
-# Fail if the application object itself reaches router-only primitives. End-device
-# joining/rejoining and standard OTA client calls are expected.
 if command -v "$TC32_NM" >/dev/null 2>&1; then
   ! "$TC32_NM" -u "$OUT_DIR/glsd_telink_ed_app.o" | grep -E '(^| )((zb_nwkFormation|bdb_networkFormationStart|zb_setPermitJoin))$'
 fi
 
-echo "GLSD_ED_TC32_OBJECT_COMPILE=PASS_3_OF_3" | tee -a "$OUT_DIR/build-manifest.txt"
+echo "GLSD_ED_TC32_OBJECT_COMPILE=PASS_7_OF_7" | tee -a "$OUT_DIR/build-manifest.txt"
 echo "Objects and manifest: $OUT_DIR"
