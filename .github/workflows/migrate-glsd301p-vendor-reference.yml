@@ -37,7 +37,7 @@ jobs:
           work="$RUNNER_TEMP/glsd301p-vendor"
           mkdir -p "$work" devices/gl-sd-301p/vendor-firmware/originals
           : > "$work/reference.ota.xz.b64"
-          for i in $(seq -w 0 20); do
+          for i in $(seq -f '%03g' 0 20); do
             git show "$source_ref:$prefix$i" >> "$work/reference.ota.xz.b64"
           done
           tr -d '\r\n' < "$work/reference.ota.xz.b64" | base64 -d > "$work/reference.ota.xz"
