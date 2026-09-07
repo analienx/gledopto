@@ -14,25 +14,43 @@ jobs:
         with:
           python-version: '3.11'
       
-      - name: Download and extract GL-SD-301P firmware
+      - name: Extract GL-SD-301P firmware
         run: |
-          mkdir -p incoming
-          for i in $(seq 0 12); do
-            part=$(printf "%03d" $i)
-            echo "Downloading part $part..."
-            curl -sL "https://raw.githubusercontent.com/analienx/gledopto/main/devices/gl-sd-301p/vendor-firmware/.incoming/GL-SD-301P_V20851203_20251230.ota.xz.b64.part$part" -o "incoming/part$part"
-          done
+          python3 << 'PYEOF'
+          import base64
+          import lzma
+          from pathlib import Path
           
-          echo "Concatenating..."
-          cat incoming/part* > full.b64
+          base_dir = Path("devices/gl-sd-301p/vendor-firmware/.incoming")
+          b64_data = b""
           
-          echo "Decoding base64..."
-          base64 -d full.b64 > full.xz
+          # Read all .part files
+          parts = sorted(base_dir.glob("GL-SD-301P_V20851203_20251230.ota.xz.b64.part*"))
+          print(f"Found {len(parts)} parts")
           
-          echo "Decompressing..."
-          xz -d full.xz
-          mv full full.ota
+          for p in parts:
+              chunk = p.read_bytes().strip()
+              print(f"Read {p.name}: {len(chunk)} bytes, starts with: {chunk[:10]}")
+              b64_data += chunk
+              
+          print(f"Total base64 length: {len(b64_data)}")
           
+          # Fix padding
+          padding = len(b64_data) % 4
+          if padding:
+              b64_data += b"=" * (4 - padding)
+              
+          print("Decoding base64...")
+          xz_data = base64.b64decode(b64_data)
+          print(f"Decoded length: {len(xz_data)}")
+          
+          print("Decompressing xz...")
+          ota_data = lzma.decompress(xz_data)
+          print(f"OTA length: {len(ota_data)}")
+          
+          Path("full.ota").write_bytes(ota_data)
+          print("Saved full.ota")
+          PYEOF
           ls -lh full.ota
           
       - name: Analyze firmware patterns
