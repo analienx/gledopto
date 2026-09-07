@@ -1,19 +1,61 @@
-# analienx/gledopto — GL-SD-301P firmware ledger
+# analienx/gledopto — GL-SD-301P clean-room firmware
 
-Authoritative ledger for custom-firmware work on the GLEDOPTO **GL-SD-301P**
-(Zigbee triac AC dimmer). Migrated from analienx/bseed#9; the live control
-issue is analienx/gledopto#1.
+Independent firmware work for the GLEDOPTO **GL-SD-301P** Zigbee AC dimmer.
+The objective is to keep the device mains-powered and always listening while
+changing its Zigbee role from Router to an RX-on-when-idle **End Device/leaf**.
 
-Current phase: **Phase 1 — SOFTWARE-ONLY / READ-ONLY evidence** (complete to
-the extent possible; see `evidence/phase1-software-only-20260903/`).
+Target architecture:
 
-The production installed unit is not the first canary. Any flashing requires a
-sacrificial spare and a separate Supervisor-authored gate sequence.
+```text
+ZB_ED_ROLE=1
+ZB_ROUTER_ROLE=0
+RX_ON_WHEN_IDLE=1
+PM_ENABLE=0
+powerSource=MAINS
+```
+
+The project preserves hardware interoperability (On/Off, dimming, physical
+control, reporting, direct binding and reliable electrical OFF) through an
+independently written implementation.
+
+## Clean-room rule
+
+This repository is the **implementation side** of the interoperability process.
+Read `CLEAN_ROOM.md` before contributing.
+
+Vendor firmware, flash dumps, disassembly/decompiler output, reconstructed
+source and encoded firmware chunks do **not** belong here. Reverse-engineering
+work occurs in a private analysis workspace; only the minimum sanitized
+interface facts necessary for interoperability cross into this repository.
+
+The canonical hardware interface contract is:
+
+`devices/gl-sd-301p/interoperability/INTERFACE.md`
+
+CI enforces the boundary with `tools/check_cleanroom.py`.
+
+## Current engineering result
+
+The power-stage path is now classified **`SECOND_MCU_UART` with high software
+confidence**. The TLSR8258 application uses a 9600-baud 8N1 UART on TX=PB1,
+RX=PA0 and emits six-byte messages from live lighting/transition paths.
+
+The exact six-byte protocol is not fully decoded yet. Unknown/reserved fields,
+level mapping, electrical-OFF semantics and startup synchronization remain
+fail-closed, so a flashable canary is intentionally blocked until black-box UART
+capture on a sacrificial spare resolves them.
+
+## Safety
+
+The installed production unit is not the first canary. Flashing and live
+electrical validation require the separate sacrificial-spare/Supervisor gate.
 
 ## Layout
 
-- `AGENTS.md` — mandatory agent bootstrap (canonical skill is EXTERNAL_GITHUB).
+- `CLEAN_ROOM.md` — mandatory interoperability/independent-implementation policy.
+- `AGENTS.md` — mandatory agent bootstrap and hard boundaries.
 - `.supervisor/project.yaml` — project manifest.
-- `devices/gl-sd-301p/` — device ledger (README = facts, STATUS = state).
-- `evidence/` — sanitized raw evidence per run. Raw dumps/binaries stay local
-  (host `/config/zigbee2mqtt/gledopto_probe/`) and are never committed.
+- `devices/gl-sd-301p/` — device ledger and status.
+- `devices/gl-sd-301p/interoperability/` — sanitized interface specification.
+- `evidence/` — sanitized historical/project evidence only; never proprietary firmware.
+- `tools/check_cleanroom.py` — CI/repository boundary guard.
