@@ -4,34 +4,31 @@ Status: **engineering interface specification**
 
 Purpose: define the externally relevant facts required for an independently written GL-SD-301P Zigbee End Device/client firmware to interoperate with the existing dimmer hardware.
 
-Detailed vendor-machine-code notes belong under `../vendor-firmware/reference-analysis/`; implementation-facing code should use this functional specification plus public Telink/Zigbee documentation.
+Detailed vendor-machine-code notes belong under `../vendor-firmware/reference-analysis/`; implementation-facing code uses this functional specification plus public Telink/Zigbee documentation.
 
 ## Confidence vocabulary
 
 - `CONFIRMED` — directly established from consistent interface/application behavior or authoritative public definitions.
-- `HIGH` — strongly established; hardware measurement would be useful corroboration rather than the primary basis.
+- `HIGH` — strongly established; hardware measurement would be corroboration rather than the primary basis.
 - `INFERRED` — best explanation of confirmed evidence, but not yet independently measured at the physical boundary.
 - `UNKNOWN` — implementation must not guess.
 
-## Architecture decision
+## Architecture
 
 | Property | State | Confidence |
 |---|---|---|
 | Main Zigbee MCU family | Telink TLSR8258/B85, 512 KiB class | CONFIRMED |
 | Exact candidate | TLSR8258F512ET32 | HIGH |
-| Power-stage control classification | `SECOND_MCU_UART` | HIGH / software-confirmed |
+| Power-stage control | `SECOND_MCU_UART` | HIGH / software-confirmed |
 | Physical PCB destination of UART | attached dimmer/power-stage controller | INFERRED; board trace would corroborate |
 | TLSR directly generates variable phase-cut level | no supporting variable-duty path established | NOT ESTABLISHED |
 
-The application sends lighting state through the Telink UART driver. The variable lamp level is carried in that serial protocol; identified TLSR PWM accesses are limited to enable/disable-style control and are not the normal variable-level path.
-
-**Implementation consequence:** preserve the serial power-controller boundary. Do not invent a new mains phase-cut algorithm.
+The normal variable lamp level is carried through the serial power-controller boundary. Do not invent a new mains phase-cut algorithm in the independent firmware.
 
 ## UART interface
 
 | Parameter | Value | State |
 |---|---:|---|
-| UART instance | TLSR8258 UART | CONFIRMED |
 | Baud | 9600 | CONFIRMED |
 | Data bits | 8 | CONFIRMED |
 | Parity | none | CONFIRMED |
@@ -40,13 +37,9 @@ The application sends lighting state through the Telink UART driver. The variabl
 | RX pin | PA0 | HIGH |
 | Stock transport | DMA TX + RX configured | CONFIRMED, not a wire requirement |
 | Control payload bytes | 6 | CONFIRMED |
-| RX required for core On/Off/Level | no evidence of such requirement | HIGH |
+| RX required for core On/Off/Level | no | HIGH |
 
-The public Telink TLSR8258 SDK defines PB1 as a valid UART TX pin and PA0 as a valid UART RX pin. The stock application configures those encoded pins before UART initialization.
-
-The Telink driver prepends a four-byte length field only inside its DMA buffer. That prefix is **not part of the six application bytes transmitted on the UART wire**.
-
-The receive callback supplied by the analyzed application resolves to a no-op return stub. RX may be retained in an independent implementation for diagnostics/future compatibility, but controller responses are not presently a blocker for ordinary lamp On/Off/Level operation.
+The Telink DMA driver's internal four-byte length prefix is not part of the UART wire payload. The stock receive callback in the analyzed application resolves to a no-op return stub, so RX is not a blocker for ordinary lamp control.
 
 ## Confirmed control frame
 
@@ -63,7 +56,7 @@ A5 5A CC VV 04 AA
 | 4 | `0x04` fixed field | CONFIRMED; semantic label unknown |
 | 5 | `0xAA` fixed suffix | CONFIRMED |
 
-The control buffer is initialized with these fixed framing bytes and identified live control senders change only bytes 2 and 3 before transmitting exactly six bytes. There is therefore no varying checksum byte in this control-frame form.
+Identified live control senders change only bytes 2 and 3 before transmitting six bytes. There is therefore no varying checksum byte in this control-frame form.
 
 ## Family `0x01` — normal lamp output
 
@@ -71,59 +64,125 @@ The control buffer is initialized with these fixed framing bytes and identified 
 A5 5A 01 LL 04 AA
 ```
 
-This is now the **confirmed normal Zigbee On/Off + Level power-stage path**.
+This is the confirmed normal Zigbee On/Off + Level power-stage path.
 
 ### OFF
-
-Normal Zigbee OFF updates the application's standard On/Off state to false and then immediately executes the same serial output refresh used by Level Control. The resulting frame is:
 
 ```text
 A5 5A 01 00 04 AA
 ```
 
-**State: CONFIRMED.** No family-`0x02` command is used by the normal stock OFF path.
+Normal stock OFF updates the standard On/Off state to false and immediately runs the same serial output refresh used by Level Control. No family-`0x02` command is required.
 
-### ON
+### ON / Level
 
-Normal Zigbee ON sets the standard On/Off state true and invokes the same output refresh. The transmitted value is the current Zigbee Level Control `currentLevel`, after the product's configured minimum-output handling:
-
-```text
-A5 5A 01 LL 04 AA
-```
-
-where ordinarily:
+When logically ON, `LL` is the standard Zigbee `currentLevel` after the product's configured minimum-output handling:
 
 ```text
 LL = max(currentLevel, configuredMinimumOutput)
 ```
 
-The analyzed configuration's default minimum-output threshold is `0x02`. The application also has an explicit runtime state which can temporarily permit a level below that threshold; because the meaning of that state is not yet named, the independent policy exposes it explicitly rather than guessing its purpose.
+The analyzed default minimum-output threshold is `0x02`. An explicit runtime state can permit below-minimum output; its purpose remains unnamed and is exposed as an explicit policy flag rather than guessed.
 
-### Level Control
-
-The vendor level-transition/update arithmetic closely matches Telink's public sample-light `light_applyUpdate()` state machine. Each relevant level refresh calls the family-`0x01` sender described above.
-
-Therefore ordinary Zigbee `MoveToLevel`, `Move`, `Step` and transition progression can keep using the public/independently implemented ZCL state machine and emit the current resulting level through family `0x01`.
-
-**Core encoder state: READY FOR HOST/BUILD INTEGRATION.**
+The vendor Level Control progression matches Telink's public sample-light state machinery closely enough that ordinary `MoveToLevel`, `Move`, `Step` and transition progression can use an independent/public ZCL implementation and emit the resulting `currentLevel` through family `0x01`.
 
 ### Special family-`0x01` path
 
-A separate application path sends:
+A separate non-normal-output path sends:
 
 ```text
 A5 5A 01 (currentLevel >> 1) 04 AA
 ```
 
-That path is not the ordinary Zigbee On/Off/Level refresh. Its trigger sits in a separate local state machine and remains under investigation. The normal output encoder must **not** globally apply this shift.
+It is not used by ordinary Zigbee On/Off/Level and remains isolated until its trigger is completely named.
 
 ## Stock startup synchronization
 
-The stock initialization path initializes the UART and later restores/reads the standard lamp state through the same application state machinery. That path invokes the normal On/Off refresh, which in turn emits family `0x01` with either zero or the restored current level.
+UART initialization itself does not emit a mandatory special controller frame. The application later restores/reads normal lamp state and runs the same family-`0x01` output refresh.
 
-No separate controller handshake is emitted directly by UART initialization, and the separately observed six-byte configuration transmission is in a command-handler path rather than adjacent to UART startup.
+Current startup strategy for the independent implementation:
 
-**Implementation consequence:** current evidence supports startup synchronization by emitting the normal family-`0x01` frame from restored On/Off + currentLevel state. A special mandatory startup frame has not been established.
+```text
+initialize UART
+restore Zigbee On/Off + currentLevel
+emit normal family-0x01 output frame
+```
+
+No special mandatory startup handshake has been established.
+
+## PC2 physical PUSH input — solved offline
+
+Detailed functional specification: `PUSH_INPUT.md`.
+
+The stock application polls encoded GPIO `0x0204`, which is TLSR8258 **PC2**, every 1 ms.
+
+PC2 is not treated as a simple DC button level. The firmware validates a repeating pulse waveform:
+
+```text
+>=3 low samples
+>=6 high samples, with 51-high-sample timeout
+>=3 further low samples
+```
+
+After that qualification the input is considered active. This pulse-oriented behavior is consistent with a mains-derived/opto-isolated PUSH terminal sense input rather than a direct logic switch.
+
+The semantic identification is independently corroborated by the GL-SD-301P manufacturer/user documentation: the external PUSH input performs short-press On/Off and long-press brightness adjustment, reversing long-press direction after release. That exactly matches the PC2 application state machine.
+
+**Classification:** `PC2 = external PUSH-sense path` — HIGH confidence. PCB continuity would corroborate the net but is not required to reproduce behavior.
+
+### Short PUSH
+
+When a qualified activation ends with 51 consecutive high samples, stock invokes its normal On/Off updater:
+
+```text
+ON  -> OFF
+OFF -> ON
+```
+
+The resulting power-stage output is therefore the same normal family-`0x01` frame described above.
+
+### Long PUSH
+
+While the qualified pulse waveform remains present, stock accumulates **low PC2 samples**:
+
+- first level step after 1001 accumulated low samples;
+- repeat level step every 301 additional accumulated low samples;
+- high gaps below 51 samples preserve the activation and do not clear the accumulated long-hold counter.
+
+Because this is a pulse waveform, accumulated low-sample time is not necessarily equal to elapsed wall-clock time.
+
+### Local level-step policy
+
+```text
+currentLevel <= 150 -> step 10
+currentLevel >  150 -> step 25
+```
+
+Initial direction is downward from zero-initialized state. Long-release reverses direction for the next long activation.
+
+Up:
+
+```text
+min(254, currentLevel + step)
+```
+
+Down — preserving the observed stock edge behavior:
+
+```text
+currentLevel <= step ? 2 : currentLevel - step
+```
+
+The local adjustment routine is gated by logical On/Off state.
+
+Independent implementation:
+
+```text
+src/glsd301p_push_input.h
+src/glsd301p_push_input.c
+tests/test_glsd301p_push_input.c
+```
+
+The decoder emits semantic `TOGGLE` / `LEVEL_STEP` events and does not directly send UART or mutate ZCL state.
 
 ## Family `0x02` — auxiliary operation/pattern control
 
@@ -131,62 +190,57 @@ No separate controller handshake is emitted directly by UART initialization, and
 A5 5A 02 MM 04 AA
 ```
 
-Observed values include:
+Observed values:
 
 ```text
 00 01 02 03 04 0F
 ```
 
-The family is used by a separate timed/stateful engine with recurring 200/400/500 ms-style intervals and by configuration/private-control paths. It is **not used by the normal Zigbee On/Off/Level output path**.
+This family belongs to a separate timed/stateful engine and vendor/private-control paths. It is not used by normal Zigbee On/Off/Level and is not required for the solved PC2 PUSH toggle/level behavior.
 
-Current classification: **auxiliary operation/pattern/configuration control — HIGH**, with individual value names still `UNKNOWN`.
-
-This means family `0x02` is not a blocker for implementing and testing basic Zigbee lamp control. It may still be necessary to reproduce all physical PUSH feedback, commissioning indications or vendor-specific behavior.
+Individual value names remain `UNKNOWN`.
 
 ## Separate six-byte configuration/state message
 
-A distinct command-handler path transmits six configuration/state bytes directly rather than using the `A5 5A .. 04 AA` control template. It occurs in an endpoint-11 command-processing path and is not evidence of a mandatory UART-startup handshake.
+A distinct endpoint-11 command-processing path transmits six configuration/state bytes directly rather than using the `A5 5A .. 04 AA` control template. Its semantics remain unknown and it is not established as necessary for ordinary On/Off/Level or PC2 PUSH behavior.
 
-Its exact field semantics remain `UNKNOWN` and should be implemented only if required by a feature we choose to preserve.
+## Solved without UART wiring
 
-## What is solved without UART wiring
+The reference firmware plus public Telink source and public product behavior establish offline:
 
-The stock image plus public Telink source are now sufficient to establish offline:
-
-- serial power-stage architecture;
+- secondary UART power-stage architecture;
 - 9600 8N1 transport;
 - likely PB1 TX / PA0 RX assignment;
 - six-byte control framing;
-- normal electrical OFF frame;
-- normal ON/current-level frame;
-- minimum-output clamp behavior;
-- ordinary Level Control integration;
-- startup re-synchronization through the same normal output path;
-- absence of a meaningful RX callback in the analyzed control path;
-- family `0x02` being outside normal On/Off/Level output.
+- normal electrical OFF;
+- normal ON/current-level output;
+- minimum-output handling;
+- normal Level Control integration;
+- startup state re-sync;
+- RX non-dependency for core operation;
+- PC2 1-ms PUSH pulse decoder;
+- short physical PUSH -> On/Off toggle;
+- long physical PUSH -> repeated Level changes;
+- stock local step sizes and direction reversal.
 
-A physical UART capture is therefore **corroboration and a tool for optional-feature completion**, not a prerequisite for basic client dimming.
+A physical UART capture or PCB trace is now corroboration/optional parity work, not a prerequisite for implementing basic client dimming and physical PUSH behavior.
 
-## Remaining optional/full-parity questions
+## Remaining full-parity questions
 
-These no longer block the core On/Off/Level encoder, but they matter for complete stock-feature parity:
-
-- exact semantics of each family-`0x02` value;
-- exact purpose of the `currentLevel >> 1` path;
-- physical PUSH short/hold state-machine mapping;
-- vendor-specific configuration message field meanings;
-- whether any optional controller telemetry should be surfaced;
-- exact meaning of the runtime below-minimum bypass state.
+- exact semantic names of family-`0x02` values;
+- purpose/trigger of the `currentLevel >> 1` family-`0x01` path;
+- vendor configuration-state message fields;
+- exact meaning of the below-minimum bypass state;
+- optional controller telemetry semantics;
+- terminal-to-PC2 and UART PCB traces, if physical corroboration is desired.
 
 ## Independent firmware boundary
 
-The implementation is intentionally split:
-
 ```text
-Zigbee/ZCL state machine
+Zigbee/ZCL state + PC2 PUSH decoder
         |
         v
-glsd301p_normal_output_frame_encode()
+normal output policy
         |
         v
 A5 5A 01 LL 04 AA
@@ -197,7 +251,5 @@ A5 5A 01 LL 04 AA
         v
 existing secondary power controller
 ```
-
-The raw framing and normal output-policy components can be host-tested independently from Telink hardware. Family `0x02` and special local-control behavior remain separate modules until their semantics are established.
 
 The installed production unit remains outside the first-flash path; this specification does not authorize flashing or mains-side probing.
