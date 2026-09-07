@@ -1,0 +1,30 @@
+{
+  "schema": 1,
+  "device": "GL-SD-301P",
+  "vendor": "GLEDOPTO",
+  "artifacts": [
+    {
+      "filename": "GL-SD-301P_V20851203_20251230.ota",
+      "original_source_filename": "GL-SD-301P_V20851203_20251230 (1).ota",
+      "storage_state": "canonical-original-migration-pending",
+      "provenance": "Firmware supplied directly by GLEDOPTO support to the project owner for the GL-SD-301P; hash-verified project copy analyzed on 2026-09-07.",
+      "byte_identical_to_obtained_original": true,
+      "size_bytes": 208946,
+      "sha256": "16595a38ab9783d3afc4eb58ab4ec32625249bd569c1fa6dbaf468bddc76dd72",
+      "sha512": "3e8d9101157ee5363ab91352d3f09d3955a5a0403030d8aa7f48ae429161423902203991324c5156403399725e4d3ddedb659523dc1c7988fdcdb5b054aa3cb0",
+      "zigbee_ota": {
+        "manufacturer_code": "0x124F",
+        "image_type": "0x1416",
+        "file_version": "0x28013001",
+        "stack_version": "0x0002",
+        "header_string": "Telink OTA Sample Usage",
+        "total_image_size": 208946
+      },
+      "vendor_build_label": "20851203",
+      "vendor_date_label": "20251230",
+      "copyright_owner": "GLEDOPTO / applicable firmware rightholder",
+      "project_license_applies": false,
+      "redistribution_terms": "No separate redistribution licence recorded in this repository. Retained as third-party interoperability/reference material; do not infer relicensing from repository publication."
+    }
+  ]
+}
