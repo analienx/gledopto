@@ -31,6 +31,15 @@ jobs:
             src/glsd301p_power_stage_policy.c \
             tests/test_glsd301p_uart_frame.c \
             -o build/host-tests/test_glsd301p_uart_frame
+          cc -std=c11 -Wall -Wextra -Werror -pedantic \
+            -Isrc \
+            src/glsd301p_push_input.c \
+            tests/test_glsd301p_push_input.c \
+            -o build/host-tests/test_glsd301p_push_input
 
       - name: Run host-side interoperability tests
-        run: build/host-tests/test_glsd301p_uart_frame
+        shell: bash
+        run: |
+          set -euo pipefail
+          build/host-tests/test_glsd301p_uart_frame
+          build/host-tests/test_glsd301p_push_input
