@@ -96,6 +96,23 @@ jobs:
           grep -q '^PM_ENABLE=0$' "$manifest"
           grep -q '^GLSD_ED_TC32_OBJECT_COMPILE=PASS_3_OF_3$' "$manifest"
           echo 'GLSD_ED_EFFECTIVE_ROLE=PASS'
+      - name: Diagnose remaining Telink stack symbol ownership
+        shell: bash
+        run: |
+          set -euo pipefail
+          sdk="$GITHUB_WORKSPACE/telink-sdk/tl_zigbee_sdk"
+          for sym in ss_apsmeSwitchKeyReq ss_apsmeTransportKeyReq tl_zbNwkBeaconPayloadUpdate; do
+            echo "=== SYMBOL $sym ==="
+            found=0
+            while IFS= read -r archive; do
+              hits="$($TC32_NM -A "$archive" 2>/dev/null | grep -E "[[:space:]]([TtWw])[[:space:]]+$sym$" || true)"
+              if [ -n "$hits" ]; then
+                printf '%s\n' "$hits"
+                found=1
+              fi
+            done < <(find "$sdk" -type f -name '*.a' | sort)
+            echo "DEFINED_IN_ARCHIVE=$found"
+          done
       - name: Link and finalize complete End Device product image
         shell: bash
         run: |
