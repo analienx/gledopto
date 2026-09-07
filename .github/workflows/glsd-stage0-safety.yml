@@ -1,0 +1,127 @@
+name: GL-SD Stage-0 production safety
+
+on:
+  push:
+    branches:
+      - build/glsd301p-clean-interop-integration-20260907
+    paths:
+      - 'firmware/gl-sd-301p-ed/glsd_stage0_*'
+      - 'firmware/gl-sd-301p-ed/telink_stage0_fixture/**'
+      - 'tools/build_glsd_stage0_tc32_link.sh'
+      - 'tools/test_glsd_stage0_recovery_model.py'
+      - '.github/workflows/glsd-stage0-safety.yml'
+  pull_request:
+    paths:
+      - 'firmware/gl-sd-301p-ed/glsd_stage0_*'
+      - 'firmware/gl-sd-301p-ed/telink_stage0_fixture/**'
+      - 'tools/build_glsd_stage0_tc32_link.sh'
+      - 'tools/test_glsd_stage0_recovery_model.py'
+      - '.github/workflows/glsd-stage0-safety.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  powerfail-model:
+    name: Exhaustive rollback ordering model
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Enforce implementation/reference boundary
+        run: python3 tools/check_cleanroom.py
+      - name: Inject power loss at every rollback primitive
+        run: python3 tools/test_glsd_stage0_recovery_model.py
+      - name: Verify early-boot ordering and negative capability source boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          app = Path('firmware/gl-sd-301p-ed/glsd_stage0_app.c').read_text()
+          body = app.split('void user_init(bool isRetention)', 1)[1]
+          wd = body.index('drv_wd_start();')
+          recovery = body.index('glsd_stage0_recovery_prepare();')
+          zigbee = body.index('zb_init();')
+          assert wd < recovery < zigbee
+          assert 'glsd_power_stage_' not in body
+          assert 'drv_uart_' not in body
+          rec = Path('firmware/gl-sd-301p-ed/glsd_stage0_recovery.c').read_text()
+          assert 'g_sector[GLSD_BOOT_FLAG_OFFSET] = 0xffu;' in rec
+          assert 'GLSD_TELINK_STAGED_WORD' in rec
+          assert rec.index('glsd_enable_stock_boot_flag') < rec.index('glsd_invalidate_stage0_bank')
+          print('GLSD_STAGE0_SOURCE_ORDERING=PASS')
+          PY
+
+  tc32-stage0:
+    name: Pinned TC32 Stage-0 build and reproducibility
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Checkout pinned Telink SDK
+        uses: actions/checkout@v4
+        with:
+          repository: telink-semi/telink_zigbee_sdk
+          ref: V3.7.2.0
+          path: telink-sdk
+      - name: Acquire hash-pinned TC32 toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          url='https://shyboy.oss-cn-shenzhen.aliyuncs.com/readonly/tc32_gcc_v2.0.tar.bz2'
+          expected='33b854be3e3db3dba4b4dacdda2cd4ea1c94dfd4d562864a095956de7991b430'
+          archive="$RUNNER_TEMP/tc32_gcc_v2.0.tar.bz2"
+          root="$RUNNER_TEMP/tc32"
+          curl --fail --location --retry 3 --output "$archive" "$url"
+          echo "$expected  $archive" | sha256sum --check --strict
+          mkdir -p "$root"
+          tar -xjf "$archive" -C "$root"
+          bindir="$(dirname "$(find "$root" -type f -name tc32-elf-gcc -print -quit)")"
+          test -x "$bindir/tc32-elf-gcc"
+          chmod +x "$bindir"/* || true
+          echo "TC32_CC=$bindir/tc32-elf-gcc" >> "$GITHUB_ENV"
+          echo "TC32_NM=$bindir/tc32-elf-nm" >> "$GITHUB_ENV"
+      - name: Build Stage-0 twice from the same SHA
+        shell: bash
+        run: |
+          set -euo pipefail
+          export TELINK_SDK_ROOT="$GITHUB_WORKSPACE/telink-sdk/tl_zigbee_sdk"
+          export OUT_DIR="$RUNNER_TEMP/stage0-a"
+          bash tools/build_glsd_stage0_tc32_link.sh
+          export OUT_DIR="$RUNNER_TEMP/stage0-b"
+          bash tools/build_glsd_stage0_tc32_link.sh
+          cmp "$RUNNER_TEMP/stage0-a/stage0/glsd-stage0.final.bin" \
+              "$RUNNER_TEMP/stage0-b/stage0/glsd-stage0.final.bin"
+          sha256sum "$RUNNER_TEMP/stage0-a/stage0/glsd-stage0.final.bin" \
+                    "$RUNNER_TEMP/stage0-b/stage0/glsd-stage0.final.bin"
+          echo 'GLSD_STAGE0_REPRODUCIBLE_FINAL_BIN=PASS'
+      - name: Enforce Stage-0 manifest gates
+        shell: bash
+        run: |
+          set -euo pipefail
+          manifest="$RUNNER_TEMP/stage0-a/stage0/manifest.txt"
+          cat "$manifest"
+          grep -q '^STAGE0_CANARY=YES$' "$manifest"
+          grep -q '^DEPLOY_AUTHORIZED=NO$' "$manifest"
+          grep -q '^POWER_STAGE_DRIVER=NONE$' "$manifest"
+          grep -q '^POWER_STAGE_UART_LINKED=NO$' "$manifest"
+          grep -q '^PUSH_PB4_LINKED=NO$' "$manifest"
+          grep -q '^MODULE_WATCHDOG_ENABLE=1$' "$manifest"
+          grep -q '^NORMAL_GLEDOPTO_OTA_WHEN_ARMED=DISABLED$' "$manifest"
+          grep -q '^RECOVERY_ONLY_OTA_IMAGE_TYPE=0x7F10$' "$manifest"
+          grep -q '^STOCK_BANK_RESTORE=JOURNALED_FIRST_SECTOR$' "$manifest"
+          grep -q '^STOCK_BANK_FULL_IMAGE_CRC_REVALIDATION=YES$' "$manifest"
+          grep -q '^STAGE0_SELF_INVALIDATION=AFTER_STOCK_REVALIDATION_ONLY$' "$manifest"
+          grep -q '^POWER_FAIL_INVARIANT=B_REMAINS_BOOTABLE_UNTIL_A_VALID$' "$manifest"
+          grep -q '^STAGE0_SCRATCH_FIT=PASS$' "$manifest"
+          echo 'GLSD_STAGE0_RELEASE_GATES=PASS'
+      - name: Preserve unvalidated build evidence only
+        uses: actions/upload-artifact@v4
+        with:
+          name: DO-NOT-FLASH-glsd-stage0-unvalidated
+          path: |
+            ${{ runner.temp }}/stage0-a/stage0/glsd-stage0.elf
+            ${{ runner.temp }}/stage0-a/stage0/glsd-stage0.final.bin
+            ${{ runner.temp }}/stage0-a/stage0/glsd-stage0.map
+            ${{ runner.temp }}/stage0-a/stage0/manifest.txt
+          retention-days: 7
