@@ -1,13 +1,14 @@
 {
-  "schema": 2,
+  "schema": 3,
   "device": "GL-SD-301P",
-  "purpose": "clean-room hardware interoperability",
+  "purpose": "EU/Czech interoperability; independently written Zigbee End Device client",
   "architecture": {
     "zigbee_mcu": "TLSR8258/B85 512K class",
     "exact_candidate": "TLSR8258F512ET32",
     "power_stage_control": "SECOND_MCU_UART",
     "power_stage_control_confidence": "high",
-    "physical_uart_destination_confirmed": false
+    "physical_uart_destination_confirmed": false,
+    "variable_level_is_uart_path": true
   },
   "uart": {
     "baud": 9600,
@@ -17,7 +18,9 @@
     "tx_pin": "PB1",
     "rx_pin": "PA0",
     "payload_bytes": 6,
-    "sdk_dma_length_prefix_is_on_wire": false
+    "sdk_dma_length_prefix_is_on_wire": false,
+    "stock_rx_callback": "NO_OP",
+    "rx_required_for_core_onoff_level": false
   },
   "control_frame": {
     "length": 6,
@@ -32,38 +35,59 @@
     ],
     "families": {
       "0x01": {
-        "context": "output level",
+        "context": "normal lamp output level",
         "wire": "A5 5A 01 LL 04 AA",
-        "normal_mapping": "LL=0 when output disabled; otherwise Zigbee currentLevel after minimum-level handling",
-        "mapping_confidence": "high",
+        "off_frame_hex": "A55A010004AA",
+        "off_mapping_state": "CONFIRMED",
+        "normal_on_mapping": "LL=currentLevel after configured minimum-output handling",
+        "normal_on_mapping_state": "CONFIRMED/HIGH",
+        "default_observed_minimum_output": 2,
+        "below_minimum_bypass_state_exists": true,
+        "below_minimum_bypass_semantics": "UNKNOWN",
         "special_path": "currentLevel >> 1",
+        "special_path_is_normal_zigbee_level_path": false,
         "special_path_semantics": "UNKNOWN"
       },
       "0x02": {
-        "context": "operation/transition control",
+        "context": "auxiliary timed operation/pattern/configuration control",
         "wire": "A5 5A 02 MM 04 AA",
         "observed_values": [0, 1, 2, 3, 4, 15],
-        "mapping": "UNKNOWN"
+        "used_by_normal_zigbee_onoff_level": false,
+        "individual_value_mapping": "UNKNOWN"
       }
     }
+  },
+  "startup": {
+    "uart_init_emits_mandatory_special_frame": false,
+    "stock_state_resync_uses_normal_family_0x01_refresh": true,
+    "special_startup_handshake_established": false
   },
   "additional_message_forms": {
     "six_byte_configuration_state": {
       "exists": true,
+      "observed_in_command_handler": true,
       "semantics": "UNKNOWN",
-      "startup_requirement": "UNKNOWN"
+      "required_for_basic_onoff_level": false
     }
   },
-  "blocking_unknowns": [
-    "0x02 operation mapping",
+  "core_capabilities": {
+    "raw_control_encoder_ready": true,
+    "normal_off_encoder_ready": true,
+    "normal_on_level_encoder_ready": true,
+    "ordinary_zcl_level_progression_can_use_family_0x01": true,
+    "startup_state_resync_strategy_ready": true,
+    "tx_only_core_implementation_supported_by_current_evidence": true
+  },
+  "full_stock_parity_unknowns": [
+    "0x02 auxiliary operation/pattern value names",
     "purpose/trigger of the currentLevel>>1 family-0x01 path",
-    "minimum-brightness policy across all controller modes",
-    "controller startup/configuration six-byte message semantics",
-    "electrical OFF sequence",
-    "power-on synchronization order",
-    "controller-to-TLSR response semantics if operationally required"
+    "physical PUSH short/hold mapping",
+    "vendor configuration-state message field semantics",
+    "exact meaning of the below-minimum bypass state",
+    "optional controller telemetry semantics"
   ],
-  "raw_control_encoder_ready": true,
+  "core_onoff_level_encoder_ready": true,
+  "full_feature_parity_ready": false,
   "production_encoder_ready": false,
   "first_flashable_canary_allowed": false
 }
