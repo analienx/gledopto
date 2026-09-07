@@ -36,6 +36,12 @@ jobs:
             src/glsd301p_push_input.c \
             tests/test_glsd301p_push_input.c \
             -o build/host-tests/test_glsd301p_push_input
+          cc -std=c11 -Wall -Wextra -Werror -pedantic \
+            -Isrc \
+            src/glsd301p_uart_frame.c \
+            src/glsd301p_pb4_compat.c \
+            tests/test_glsd301p_pb4_compat.c \
+            -o build/host-tests/test_glsd301p_pb4_compat
 
       - name: Run host-side interoperability tests
         shell: bash
@@ -43,3 +49,4 @@ jobs:
           set -euo pipefail
           build/host-tests/test_glsd301p_uart_frame
           build/host-tests/test_glsd301p_push_input
+          build/host-tests/test_glsd301p_pb4_compat
