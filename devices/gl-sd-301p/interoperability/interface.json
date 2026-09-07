@@ -1,5 +1,5 @@
 {
-  "schema": 1,
+  "schema": 2,
   "device": "GL-SD-301P",
   "purpose": "clean-room hardware interoperability",
   "architecture": {
@@ -19,46 +19,51 @@
     "payload_bytes": 6,
     "sdk_dma_length_prefix_is_on_wire": false
   },
-  "frame": {
-    "known_fields": [
-      {
-        "offset": 2,
-        "meaning": "command_family",
-        "state": "CONFIRMED",
-        "observed_values": [1, 2]
-      },
-      {
-        "offset": 3,
-        "meaning": "family_specific_dynamic_value",
-        "state": "CONFIRMED"
-      }
+  "control_frame": {
+    "length": 6,
+    "template_hex": "A55A000004AA",
+    "fields": [
+      {"offset": 0, "value": 165, "state": "CONFIRMED", "meaning": "fixed_prefix_0"},
+      {"offset": 1, "value": 90, "state": "CONFIRMED", "meaning": "fixed_prefix_1"},
+      {"offset": 2, "state": "CONFIRMED", "meaning": "command_family"},
+      {"offset": 3, "state": "CONFIRMED", "meaning": "family_specific_value"},
+      {"offset": 4, "value": 4, "state": "CONFIRMED", "meaning": "fixed_control_field_semantics_unknown"},
+      {"offset": 5, "value": 170, "state": "CONFIRMED", "meaning": "fixed_suffix"}
     ],
-    "unknown_offsets": [0, 1, 4, 5],
     "families": {
       "0x01": {
-        "context": "level-related control",
-        "value_offset": 3,
-        "mapping": "UNKNOWN"
+        "context": "output level",
+        "wire": "A5 5A 01 LL 04 AA",
+        "normal_mapping": "LL=0 when output disabled; otherwise Zigbee currentLevel after minimum-level handling",
+        "mapping_confidence": "high",
+        "special_path": "currentLevel >> 1",
+        "special_path_semantics": "UNKNOWN"
       },
       "0x02": {
-        "context": "transition/mode control",
-        "value_offset": 3,
+        "context": "operation/transition control",
+        "wire": "A5 5A 02 MM 04 AA",
         "observed_values": [0, 1, 2, 3, 4, 15],
         "mapping": "UNKNOWN"
       }
     }
   },
+  "additional_message_forms": {
+    "six_byte_configuration_state": {
+      "exists": true,
+      "semantics": "UNKNOWN",
+      "startup_requirement": "UNKNOWN"
+    }
+  },
   "blocking_unknowns": [
-    "frame bytes 0,1,4,5",
-    "checksum or CRC semantics",
-    "sequence or counter semantics",
-    "exact Zigbee level to wire-value mapping",
     "0x02 operation mapping",
-    "controller startup synchronization",
+    "purpose/trigger of the currentLevel>>1 family-0x01 path",
+    "minimum-brightness policy across all controller modes",
+    "controller startup/configuration six-byte message semantics",
     "electrical OFF sequence",
-    "minimum-brightness translation",
-    "controller-to-TLSR response semantics"
+    "power-on synchronization order",
+    "controller-to-TLSR response semantics if operationally required"
   ],
+  "raw_control_encoder_ready": true,
   "production_encoder_ready": false,
   "first_flashable_canary_allowed": false
 }
