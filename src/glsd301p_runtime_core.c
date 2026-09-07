@@ -29,6 +29,24 @@ static glsd301p_runtime_result_t glsd301p_runtime_map_guard_result(
     }
 }
 
+static glsd301p_runtime_result_t glsd301p_runtime_force_off(
+    const glsd301p_runtime_core_t *core,
+    uint8_t out[GLSD301P_CONTROL_FRAME_SIZE])
+{
+    glsd301p_output_guard_result_t result;
+
+    result = glsd301p_output_guard_encode_normal(&core->output_guard,
+                                                  false,
+                                                  GLSD301P_ZCL_LEVEL_UNKNOWN,
+                                                  GLSD301P_ZCL_LEVEL_UNKNOWN,
+                                                  false,
+                                                  out);
+    if (result == GLSD301P_OUTPUT_GUARD_OK) {
+        return GLSD301P_RUNTIME_FORCED_OFF;
+    }
+    return glsd301p_runtime_map_guard_result(result);
+}
+
 void glsd301p_runtime_core_init(glsd301p_runtime_core_t *core)
 {
     if (core == NULL) {
@@ -77,16 +95,7 @@ glsd301p_runtime_result_t glsd301p_runtime_core_restore_state(
                                     minimum_output,
                                     allow_below_min)) {
         glsd301p_runtime_core_invalidate_state(core);
-        result = glsd301p_output_guard_encode_normal(&core->output_guard,
-                                                      false,
-                                                      GLSD301P_ZCL_LEVEL_UNKNOWN,
-                                                      GLSD301P_ZCL_LEVEL_UNKNOWN,
-                                                      false,
-                                                      out);
-        if (result == GLSD301P_OUTPUT_GUARD_OK) {
-            return GLSD301P_RUNTIME_FORCED_OFF;
-        }
-        return glsd301p_runtime_map_guard_result(result);
+        return glsd301p_runtime_force_off(core, out);
     }
 
     result = glsd301p_output_guard_encode_normal(&core->output_guard,
@@ -96,8 +105,11 @@ glsd301p_runtime_result_t glsd301p_runtime_core_restore_state(
                                                   allow_below_min,
                                                   out);
     if (result != GLSD301P_OUTPUT_GUARD_OK) {
+        /* An armed guard without restored application state is forbidden. */
+        glsd301p_output_guard_init(&core->output_guard);
         glsd301p_runtime_core_invalidate_state(core);
-        return glsd301p_runtime_map_guard_result(result);
+        (void)glsd301p_runtime_force_off(core, out);
+        return GLSD301P_RUNTIME_FORCED_OFF;
     }
 
     core->state_restored = true;
@@ -122,14 +134,9 @@ glsd301p_runtime_result_t glsd301p_runtime_core_apply_state(
         return GLSD301P_RUNTIME_INVALID_ARGUMENT;
     }
 
+    /* Application-state restoration is an independent mandatory gate. */
     if (!core->state_restored) {
-        result = glsd301p_output_guard_encode_normal(&core->output_guard,
-                                                      output_enabled,
-                                                      current_level,
-                                                      minimum_output,
-                                                      allow_below_min,
-                                                      out);
-        return glsd301p_runtime_map_guard_result(result);
+        return glsd301p_runtime_force_off(core, out);
     }
 
     result = glsd301p_output_guard_encode_normal(&core->output_guard,
@@ -166,6 +173,10 @@ glsd301p_runtime_result_t glsd301p_runtime_core_poll_push(
         return GLSD301P_RUNTIME_NO_FRAME;
     }
 
+    if (!core->state_restored) {
+        return glsd301p_runtime_force_off(core, out);
+    }
+
     if (event == GLSD301P_PUSH_EVENT_TOGGLE) {
         bool requested_output = !core->logical_output_enabled;
 
@@ -175,7 +186,7 @@ glsd301p_runtime_result_t glsd301p_runtime_core_poll_push(
                                                       core->minimum_output,
                                                       core->allow_below_min,
                                                       out);
-        if (result == GLSD301P_OUTPUT_GUARD_OK && core->state_restored) {
+        if (result == GLSD301P_OUTPUT_GUARD_OK) {
             core->logical_output_enabled = requested_output;
         }
         return glsd301p_runtime_map_guard_result(result);
@@ -199,7 +210,7 @@ glsd301p_runtime_result_t glsd301p_runtime_core_poll_push(
                                                       core->minimum_output,
                                                       core->allow_below_min,
                                                       out);
-        if (result == GLSD301P_OUTPUT_GUARD_OK && core->state_restored) {
+        if (result == GLSD301P_OUTPUT_GUARD_OK) {
             core->current_level = requested_level;
         }
         return glsd301p_runtime_map_guard_result(result);
@@ -223,6 +234,10 @@ glsd301p_runtime_result_t glsd301p_runtime_core_poll_pb4(
         return GLSD301P_RUNTIME_NO_FRAME;
     }
 
+    if (!core->state_restored) {
+        return glsd301p_runtime_force_off(core, out);
+    }
+
     result = glsd301p_output_guard_encode_pb4(&core->output_guard,
                                                core->logical_output_enabled,
                                                core->current_level,
@@ -234,25 +249,13 @@ glsd301p_runtime_result_t glsd301p_runtime_core_latch_fault(
     glsd301p_runtime_core_t *core,
     uint8_t out[GLSD301P_CONTROL_FRAME_SIZE])
 {
-    glsd301p_output_guard_result_t result;
-
     if (core == NULL || out == NULL) {
         return GLSD301P_RUNTIME_INVALID_ARGUMENT;
     }
 
     glsd301p_output_guard_latch_fault(&core->output_guard);
     glsd301p_runtime_core_invalidate_state(core);
-
-    result = glsd301p_output_guard_encode_normal(&core->output_guard,
-                                                  false,
-                                                  GLSD301P_ZCL_LEVEL_UNKNOWN,
-                                                  GLSD301P_ZCL_LEVEL_UNKNOWN,
-                                                  false,
-                                                  out);
-    if (result == GLSD301P_OUTPUT_GUARD_OK) {
-        return GLSD301P_RUNTIME_FORCED_OFF;
-    }
-    return glsd301p_runtime_map_guard_result(result);
+    return glsd301p_runtime_force_off(core, out);
 }
 
 void glsd301p_runtime_core_clear_fault_for_reinit(glsd301p_runtime_core_t *core)
