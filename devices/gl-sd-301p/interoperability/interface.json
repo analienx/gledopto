@@ -1,0 +1,64 @@
+{
+  "schema": 1,
+  "device": "GL-SD-301P",
+  "purpose": "clean-room hardware interoperability",
+  "architecture": {
+    "zigbee_mcu": "TLSR8258/B85 512K class",
+    "exact_candidate": "TLSR8258F512ET32",
+    "power_stage_control": "SECOND_MCU_UART",
+    "power_stage_control_confidence": "high",
+    "physical_uart_destination_confirmed": false
+  },
+  "uart": {
+    "baud": 9600,
+    "data_bits": 8,
+    "parity": "none",
+    "stop_bits": 1,
+    "tx_pin": "PB1",
+    "rx_pin": "PA0",
+    "payload_bytes": 6,
+    "sdk_dma_length_prefix_is_on_wire": false
+  },
+  "frame": {
+    "known_fields": [
+      {
+        "offset": 2,
+        "meaning": "command_family",
+        "state": "CONFIRMED",
+        "observed_values": [1, 2]
+      },
+      {
+        "offset": 3,
+        "meaning": "family_specific_dynamic_value",
+        "state": "CONFIRMED"
+      }
+    ],
+    "unknown_offsets": [0, 1, 4, 5],
+    "families": {
+      "0x01": {
+        "context": "level-related control",
+        "value_offset": 3,
+        "mapping": "UNKNOWN"
+      },
+      "0x02": {
+        "context": "transition/mode control",
+        "value_offset": 3,
+        "observed_values": [0, 1, 2, 3, 4, 15],
+        "mapping": "UNKNOWN"
+      }
+    }
+  },
+  "blocking_unknowns": [
+    "frame bytes 0,1,4,5",
+    "checksum or CRC semantics",
+    "sequence or counter semantics",
+    "exact Zigbee level to wire-value mapping",
+    "0x02 operation mapping",
+    "controller startup synchronization",
+    "electrical OFF sequence",
+    "minimum-brightness translation",
+    "controller-to-TLSR response semantics"
+  ],
+  "production_encoder_ready": false,
+  "first_flashable_canary_allowed": false
+}
