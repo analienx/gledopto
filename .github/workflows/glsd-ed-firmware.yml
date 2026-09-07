@@ -3,17 +3,25 @@ name: GL-SD End Device firmware
 on:
   push:
     branches:
-      - research/wireless-dump-stager
+      - build/glsd301p-clean-interop-integration-20260907
     paths:
       - 'firmware/gl-sd-301p-ed/**'
+      - 'src/**'
+      - 'tests/**'
+      - 'devices/gl-sd-301p/interoperability/**'
       - 'tools/build_glsd_ed_tc32_objects.sh'
       - 'tools/build_glsd_ed_tc32_link.sh'
+      - 'tools/check_cleanroom.py'
       - '.github/workflows/glsd-ed-firmware.yml'
   pull_request:
     paths:
       - 'firmware/gl-sd-301p-ed/**'
+      - 'src/**'
+      - 'tests/**'
+      - 'devices/gl-sd-301p/interoperability/**'
       - 'tools/build_glsd_ed_tc32_objects.sh'
       - 'tools/build_glsd_ed_tc32_link.sh'
+      - 'tools/check_cleanroom.py'
       - '.github/workflows/glsd-ed-firmware.yml'
   workflow_dispatch:
 
@@ -22,10 +30,12 @@ permissions:
 
 jobs:
   host-core:
-    name: End Device product core
+    name: End Device product + interoperability host tests
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Enforce reference/implementation boundary
+        run: python3 tools/check_cleanroom.py
       - name: Compile and test state core
         shell: bash
         run: |
@@ -35,6 +45,27 @@ jobs:
             firmware/gl-sd-301p-ed/tests/ed_core_test.c \
             -o "$RUNNER_TEMP/glsd-ed-core-test"
           "$RUNNER_TEMP/glsd-ed-core-test"
+      - name: Compile and test interoperability modules
+        shell: bash
+        run: |
+          set -euo pipefail
+          cc -std=c11 -Wall -Wextra -Werror -pedantic -Isrc \
+            src/glsd301p_uart_frame.c \
+            src/glsd301p_power_stage_policy.c \
+            tests/test_glsd301p_uart_frame.c \
+            -o "$RUNNER_TEMP/glsd-uart-test"
+          "$RUNNER_TEMP/glsd-uart-test"
+          cc -std=c11 -Wall -Wextra -Werror -pedantic -Isrc \
+            src/glsd301p_push_input.c \
+            tests/test_glsd301p_push_input.c \
+            -o "$RUNNER_TEMP/glsd-push-test"
+          "$RUNNER_TEMP/glsd-push-test"
+          cc -std=c11 -Wall -Wextra -Werror -pedantic -Isrc \
+            src/glsd301p_uart_frame.c \
+            src/glsd301p_pb4_compat.c \
+            tests/test_glsd301p_pb4_compat.c \
+            -o "$RUNNER_TEMP/glsd-pb4-test"
+          "$RUNNER_TEMP/glsd-pb4-test"
       - name: Enforce End Device fixture invariants
         shell: bash
         run: |
@@ -45,8 +76,11 @@ jobs:
           grep -Eq '^#define ZCL_LEVEL_CTRL_SUPPORT[[:space:]]+1$' firmware/gl-sd-301p-ed/telink_fixture/app_cfg.h
           grep -Eq '^#define ZCL_GROUP_SUPPORT[[:space:]]+1$' firmware/gl-sd-301p-ed/telink_fixture/app_cfg.h
           grep -Eq '^#define ZCL_OTA_SUPPORT[[:space:]]+1$' firmware/gl-sd-301p-ed/telink_fixture/app_cfg.h
+          grep -Eq '^#define FILE_VERSION[[:space:]]+0x7F200001$' firmware/gl-sd-301p-ed/telink_fixture/version_cfg.h
           ! grep -Eq '^#define[[:space:]]+ZB_ROUTER_ROLE[[:space:]]+1$' firmware/gl-sd-301p-ed/telink_fixture/stack_cfg.h
-          echo 'GLSD_ED_ROLE_INVARIANTS=PASS'
+          test ! -e firmware/gl-sd-301p-ed/glsd_power_stage_stub.c
+          test -e firmware/gl-sd-301p-ed/glsd_power_stage_telink.c
+          echo 'GLSD_ED_ROLE_AND_POWER_STAGE_INVARIANTS=PASS'
 
   tc32-product:
     name: Pinned TC32 End Device product build
@@ -85,7 +119,7 @@ jobs:
           export OUT_DIR="$RUNNER_TEMP/glsd-ed-objects"
           bash tools/build_glsd_ed_tc32_objects.sh
           cat "$OUT_DIR/build-manifest.txt"
-      - name: Confirm effective product role from compiled assertion
+      - name: Confirm effective product role and hardware adapter
         shell: bash
         run: |
           set -euo pipefail
@@ -94,7 +128,9 @@ jobs:
           grep -q '^ZIGBEE_ROLE=END_DEVICE$' "$manifest"
           grep -q '^ZB_MAC_RX_ON_WHEN_IDLE=1$' "$manifest"
           grep -q '^PM_ENABLE=0$' "$manifest"
-          grep -q '^GLSD_ED_TC32_OBJECT_COMPILE=PASS_3_OF_3$' "$manifest"
+          grep -q '^POWER_STAGE_DRIVER=UART_GLSD301P$' "$manifest"
+          grep -q '^DEPLOY_AUTHORIZED=NO$' "$manifest"
+          grep -q '^GLSD_ED_TC32_OBJECT_COMPILE=PASS_7_OF_7$' "$manifest"
           echo 'GLSD_ED_EFFECTIVE_ROLE=PASS'
       - name: Diagnose remaining Telink stack symbol ownership
         shell: bash
@@ -144,9 +180,13 @@ jobs:
           grep -q '^TELINK_MULTI_ADDRESS_FIT=PASS$' "$manifest"
           grep -q '^TELINK_PREAMBLE=PASS$' "$manifest"
           grep -q '^TELINK_XCRC32=PASS$' "$manifest"
+          grep -q '^POWER_STAGE_DRIVER=UART_GLSD301P$' "$manifest"
+          grep -q '^POWER_STAGE_PROTOCOL_GATE=PASS_STATIC$' "$manifest"
+          grep -q '^FLASHABLE_ARTIFACT=YES$' "$manifest"
+          grep -q '^DEPLOY_AUTHORIZED=NO$' "$manifest"
           grep -q '^DEPLOYABLE=NO$' "$manifest"
-          grep -q '^DEPLOYABLE_BLOCKER=POWER_STAGE_DRIVER_STUB$' "$manifest"
-          echo 'GLSD_ED_COMPLETE_PRODUCT_LINK=PASS_NONDEPLOYABLE'
+          grep -q '^DEPLOYABLE_BLOCKER=SACRIFICIAL_CANARY_NOT_YET_VALIDATED$' "$manifest"
+          echo 'GLSD_ED_COMPLETE_PRODUCT_LINK=PASS_STATIC_NO_DEPLOY_AUTH'
       - name: Trace unresolved symbol callers
         if: always()
         shell: bash
