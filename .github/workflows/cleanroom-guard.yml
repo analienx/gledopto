@@ -49,6 +49,16 @@ jobs:
             src/glsd301p_output_guard.c \
             tests/test_glsd301p_output_guard.c \
             -o build/host-tests/test_glsd301p_output_guard
+          cc -std=c11 -Wall -Wextra -Werror -pedantic \
+            -Isrc \
+            src/glsd301p_uart_frame.c \
+            src/glsd301p_power_stage_policy.c \
+            src/glsd301p_output_guard.c \
+            src/glsd301p_push_input.c \
+            src/glsd301p_pb4_compat.c \
+            src/glsd301p_runtime_core.c \
+            tests/test_glsd301p_runtime_core.c \
+            -o build/host-tests/test_glsd301p_runtime_core
 
       - name: Run host-side interoperability tests
         shell: bash
@@ -58,3 +68,4 @@ jobs:
           build/host-tests/test_glsd301p_push_input
           build/host-tests/test_glsd301p_pb4_compat
           build/host-tests/test_glsd301p_output_guard
+          build/host-tests/test_glsd301p_runtime_core
