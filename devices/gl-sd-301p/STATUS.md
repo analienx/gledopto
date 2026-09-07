@@ -58,13 +58,25 @@
   PUSH and PB4 requests all pass through one guarded output interface; restored
   application state is an independent mandatory gate in addition to the guard's
   own ready state.
+- A compile-time target architecture firewall now exists at
+  `firmware/glsd301p-ed/glsd301p_target_contract.h`. CI proves a valid target
+  configuration compiles and adversarially proves compilation fails for:
+  - Router role or coordinator role;
+  - non-End-Device role;
+  - PM enabled;
+  - RX-on-when-idle disabled;
+  - missing Groups, OnOff or Level Control support;
+  - empty group capability;
+  - endpoint drift away from 11;
+  - non-TLSR8258 target selection.
 - Repository/host CI enforces the vendor-reference/implementation boundary and
-  all UART/PC2/PB4/output-guard/runtime-core tests.
+  all UART/PC2/PB4/output-guard/runtime-core/architecture-contract tests.
 - `CORE_ONOFF_LEVEL_ENCODER_READY = true`.
 - `PHYSICAL_PUSH_BEHAVIOR_READY = true`.
 - `PB4_AUX_BEHAVIOR_READY = true`.
 - `RUNTIME_SAFETY_GUARD_READY = true`.
 - `HOST_RUNTIME_CORE_READY = true`.
+- `TARGET_ARCHITECTURE_FIREWALL_READY = true`.
 - `PRODUCTION_ENCODER_READY = false` because the actual Telink End Device target
   build/glue has not yet been converged and proven on the pinned toolchain.
 - `FIRST_FLASHABLE_CANARY_ALLOWED = false`.
@@ -145,10 +157,12 @@ specific reproducible Telink End Device artifact and its preflight are reviewed.
 ## Next
 
 1. Integrate `glsd301p_runtime_core` as the only application-facing power-stage
-   path in an independently authored TLSR8258/Telink End Device target.
+   path in an independently authored TLSR8258/Telink End Device target. Include
+   `glsd301p_target_contract.h` after final Telink role/feature configuration so
+   architecture drift becomes a compile failure.
 2. Rebuild with the pinned Telink SDK/toolchain and require, on the same SHA:
-   - `ZB_ED_ROLE=1`;
-   - `ZB_ROUTER_ROLE=0`;
+   - real target links against the End Device stack, never `libzb_router.a`;
+   - `ZB_ED_ROLE=1` and no Router/coordinator role symbols/configuration;
    - RX-on-when-idle enabled and PM disabled;
    - mains power source;
    - endpoint 11;
