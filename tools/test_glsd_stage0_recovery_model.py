@@ -1,10 +1,14 @@
 #!/usr/bin/env python3
-"""Power-failure model for the GL-SD-301P Stage-0 rollback transaction.
+"""Power-failure model for the bank-neutral GL-SD-301P Stage-0 transaction.
 
-This is deliberately independent of Telink hardware APIs.  It checks the safety
-ordering we require from glsd_stage0_recovery.c: bank B stays bootable until a
-complete stock A image is valid, and stock A cannot become bootable while its
-first sector is only partially reconstructed.
+The model injects power loss after every destructive/commit primitive for BOTH
+possible OTA histories:
+  * Stage-0 in bank B, preserved stock in bank A
+  * Stage-0 in bank A, preserved stock in bank B
+
+The TLSR8258 boot convention is modeled conservatively as bank-A-first when both
+flags are valid.  A cut may therefore return directly to stock before Stage-0
+gets a chance to clear its own flag; that is still a safe outcome.
 """
 
 from __future__ import annotations
@@ -14,81 +18,94 @@ from dataclasses import dataclass, replace
 
 @dataclass
 class FlashState:
-    a_sector: str = "stock-disabled"  # stock-disabled|erased|partial|staged|stock-enabled
-    a_boot: str = "disabled"          # disabled|erased|staged|enabled
-    b_boot: str = "enabled"           # enabled|disabled
+    self_bank: str
+    stock_sector: str = "stock-disabled"  # stock-disabled|erased|partial|staged|stock-enabled
+    stock_boot: str = "disabled"          # disabled|erased|staged|enabled
+    self_boot: str = "enabled"            # enabled|disabled
     backup: bool = False
     journal: bool = False
 
+    @property
+    def stock_bank(self) -> str:
+        return "B" if self.self_bank == "A" else "A"
+
+
+def bank_boot(s: FlashState, bank: str) -> str:
+    return s.self_boot if bank == s.self_bank else s.stock_boot
+
+
+def boot_target(s: FlashState) -> str | None:
+    # mcuBootAddrGet()/Telink convention checks A before B.
+    if bank_boot(s, "A") == "enabled":
+        return "A"
+    if bank_boot(s, "B") == "enabled":
+        return "B"
+    return None
+
 
 def assert_boot_safe(s: FlashState) -> None:
-    # The dangerous state is no viable recovery root.
-    assert s.a_boot == "enabled" or s.b_boot == "enabled", s
-    # A must never advertise a valid boot flag before the sector is complete.
-    if s.a_boot == "enabled":
-        assert s.a_sector == "stock-enabled", s
-    # Once Stage-0 invalidates itself, verified stock must already be committed.
-    if s.b_boot == "disabled":
-        assert s.a_boot == "enabled" and s.a_sector == "stock-enabled", s
+    assert boot_target(s) is not None, s
+    if s.stock_boot == "enabled":
+        assert s.stock_sector == "stock-enabled", s
+    if s.self_boot == "disabled":
+        assert s.stock_boot == "enabled" and s.stock_sector == "stock-enabled", s
 
 
 def transaction_steps(s: FlashState):
-    """Yield state after each destructive/commit primitive of one recovery run."""
+    """Yield state after each persistent primitive in one Stage-0 recovery run."""
     s = replace(s)
 
     if not (s.backup and s.journal):
-        # A is not touched until both persistent recovery records exist.
-        assert s.a_sector in {"stock-disabled", "stock-enabled"}
-        s.backup = False             # erase backup sector
-        yield "erase-backup", replace(s)
-        s.backup = True              # verified 4-KiB copy
-        yield "write-backup", replace(s)
-        s.journal = False            # erase journal sector
-        yield "erase-journal", replace(s)
-        s.journal = True             # verified metadata + backup CRC
-        yield "write-journal", replace(s)
+        # The stock bank is untouched until BOTH recovery records are durable.
+        assert s.stock_sector in {"stock-disabled", "stock-enabled"}
+        s.backup = False
+        yield "erase-self-backup", replace(s)
+        s.backup = True
+        yield "write-self-backup", replace(s)
+        s.journal = False
+        yield "erase-self-journal", replace(s)
+        s.journal = True
+        yield "write-self-journal", replace(s)
 
-    # If A is already valid from an earlier interrupted run, no second erase.
-    if s.a_boot != "enabled":
+    if s.stock_boot != "enabled":
         assert s.backup and s.journal
-        s.a_sector = "erased"
-        s.a_boot = "erased"
-        yield "erase-a-sector0", replace(s)
+        s.stock_sector = "erased"
+        s.stock_boot = "erased"
+        yield "erase-stock-sector0", replace(s)
 
-        # Model every 256-byte page boundary. The boot byte remains 0xFF for the
-        # entire reconstruction, therefore A is never bootable in this window.
+        # The boot byte remains erased throughout all 16 page writes.
         for page in range(16):
-            s.a_sector = "partial" if page < 15 else "staged"
-            s.a_boot = "staged" if page == 15 else "erased"
-            yield f"write-a-page-{page:02d}", replace(s)
+            s.stock_sector = "partial" if page < 15 else "staged"
+            s.stock_boot = "staged" if page == 15 else "erased"
+            yield f"write-stock-page-{page:02d}", replace(s)
 
-        # Whole-image CRC has been checked with boot byte normalized; now and
-        # only now commit 0xFF -> 0x4B.
-        s.a_sector = "stock-enabled"
-        s.a_boot = "enabled"
-        yield "commit-a-boot-flag", replace(s)
+        # Complete-image CRC passed; commit only the one boot byte FF -> 4B.
+        s.stock_sector = "stock-enabled"
+        s.stock_boot = "enabled"
+        yield "commit-stock-boot-flag", replace(s)
 
-    # Final one-way commit: from now on any reset can only return to stock A.
-    s.b_boot = "disabled"
-    yield "invalidate-stage0-b", replace(s)
+    # Final one-way commit; stock is known-valid before this can happen.
+    s.self_boot = "disabled"
+    yield "invalidate-stage0-self", replace(s)
 
 
-def recover_to_completion(s: FlashState) -> FlashState:
-    """Model reboot into whichever safe image can continue the transaction."""
+def resume_after_power_cut(s: FlashState) -> FlashState:
+    """Boot the image Telink would select, and let Stage-0 finish if selected."""
     assert_boot_safe(s)
+    target = boot_target(s)
+    assert target is not None
 
-    # If stock A is already the sole bootable image, recovery is complete.
-    if s.a_boot == "enabled" and s.b_boot == "disabled":
+    if target == s.stock_bank:
+        # Direct return to valid stock is already the desired safe state.  The
+        # stale Stage-0 flag may remain set only in the B-self/A-stock case;
+        # bank-A-first means it will not execute on subsequent normal boots.
+        assert s.stock_boot == "enabled"
+        assert s.stock_sector == "stock-enabled"
         return s
 
-    # If both are valid, either boot choice is safe. For the stricter model,
-    # assume Stage-0 gets control and completes its final self-invalidation.
-    # If stock gets control instead, the real device has already returned safe.
-    if s.b_boot != "enabled":
-        return s
-
-    # A can be partially destroyed only after journal+backup are durable.
-    if s.a_sector in {"erased", "partial", "staged"}:
+    assert target == s.self_bank
+    assert s.self_boot == "enabled"
+    if s.stock_sector in {"erased", "partial", "staged"}:
         assert s.backup and s.journal
 
     current = s
@@ -97,33 +114,46 @@ def recover_to_completion(s: FlashState) -> FlashState:
     return current
 
 
-def main() -> int:
-    initial = FlashState()
+def verify_orientation(self_bank: str) -> int:
+    initial = FlashState(self_bank=self_bank)
     assert_boot_safe(initial)
+    assert boot_target(initial) == self_bank
 
     baseline = list(transaction_steps(initial))
     assert baseline
 
-    # Cut power after every primitive, including every page of the stock-sector
-    # rewrite, then require the next run to converge to verified stock-only boot.
     for name, interrupted in baseline:
         assert_boot_safe(interrupted)
-        final = recover_to_completion(interrupted)
-        assert final.a_boot == "enabled", (name, final)
-        assert final.a_sector == "stock-enabled", (name, final)
-        assert final.b_boot == "disabled", (name, final)
+        final = resume_after_power_cut(interrupted)
+        assert final.stock_boot == "enabled", (self_bank, name, final)
+        assert final.stock_sector == "stock-enabled", (self_bank, name, final)
+        assert boot_target(final) == final.stock_bank, (self_bank, name, final)
         assert_boot_safe(final)
 
-    # Explicitly prove the key two-phase invariant.
-    partial_states = [s for n, s in baseline if n.startswith("write-a-page-")]
-    assert partial_states
+    partial_states = [s for n, s in baseline if n.startswith("write-stock-page-")]
+    assert len(partial_states) == 16
     for s in partial_states[:-1]:
-        assert s.a_boot != "enabled" and s.b_boot == "enabled"
+        assert s.stock_boot != "enabled" and s.self_boot == "enabled"
     staged = partial_states[-1]
-    assert staged.a_sector == "staged" and staged.a_boot == "staged"
-    assert staged.b_boot == "enabled"
+    assert staged.stock_sector == "staged" and staged.stock_boot == "staged"
+    assert staged.self_boot == "enabled"
 
-    print(f"GLSD_STAGE0_POWERFAIL_MODEL=PASS cut_points={len(baseline)}")
+    # Normal no-cut completion must leave only stock bootable.
+    completed = baseline[-1][1]
+    assert completed.self_boot == "disabled"
+    assert completed.stock_boot == "enabled"
+    assert boot_target(completed) == completed.stock_bank
+
+    return len(baseline)
+
+
+def main() -> int:
+    cuts_a = verify_orientation("A")
+    cuts_b = verify_orientation("B")
+    print(
+        "GLSD_STAGE0_POWERFAIL_MODEL=PASS "
+        f"orientations=2 cut_points={cuts_a + cuts_b}"
+    )
     return 0
 
 
