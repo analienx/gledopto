@@ -1,85 +1,112 @@
-# Clean-room interoperability policy
+# Interoperability / clean implementation policy
 
-This repository contains an **independently implemented interoperability client** for GLEDOPTO hardware. It is not a repository for vendor firmware, decompiled vendor source, translated machine code, or reconstruction of the vendor implementation.
+This project develops an **independently implemented interoperability client** for GLEDOPTO hardware. The repository may also retain lawfully obtained third-party firmware and reverse-engineering evidence as reference material, but that material is kept in a clearly separated reference zone and is **not** implementation source code.
 
-This document is an engineering/process rule, not legal advice. Contributors remain responsible for applicable law, licence terms, and authorization in their jurisdiction.
+This is an engineering/process policy, not legal advice. Contributors remain responsible for applicable law, licence terms, contractual restrictions and authorization in their jurisdiction.
 
-## Purpose limitation
+## Legal/engineering purpose
 
-Reverse engineering is used only to determine the information necessary for an independently written implementation to interoperate with hardware that the project lawfully operates.
+Reverse engineering is performed to determine the information necessary for an independently written implementation to interoperate with hardware that the project lawfully operates.
 
-The public implementation repository may contain only the minimum interface facts needed for that purpose, for example:
+For EU/Czech work, the process is designed around the software-program rules reflected in Directive 2009/24/EC Articles 5 and 6 and Czech Act No. 121/2000 Coll. §§65–66: lawful users may in defined circumstances make necessary backups, observe/study/test functionality, and reproduce/translate code where indispensable to obtain otherwise-unavailable interoperability information. Those provisions have conditions and do not by themselves turn third-party firmware into open-source material or grant an unrestricted redistribution licence.
+
+## Repository zones
+
+### 1. Third-party reference zone
+
+Canonical location:
+
+`devices/<device>/vendor-firmware/`
+
+This zone may contain:
+
+- original vendor `.ota` / `.bin` images that were lawfully obtained;
+- hashes, source/provenance records and vendor correspondence metadata;
+- curated reverse-engineering notes, symbol maps, disassembly excerpts and derived evidence needed to reproduce interoperability findings;
+- tools that analyse a supplied reference image.
+
+Rules:
+
+1. Third-party firmware remains copyrighted by its respective rightholder.
+2. The repository/project licence does **not** relicense those files.
+3. Every retained firmware image must have provenance + cryptographic hashes recorded in a manifest/metadata sidecar.
+4. Do not modify an original reference image. Derived/patched images use a different path and explicit metadata.
+5. Public redistribution is a separate question from lawful possession, backup, study or interoperability analysis; do not claim the interoperability exception is a blanket redistribution licence.
+6. Credentials, Zigbee network keys, private keys and user-private data never belong in this zone.
+
+Canonical originals belong under:
+
+`devices/<device>/vendor-firmware/originals/`
+
+Curated analysis belongs under:
+
+`devices/<device>/vendor-firmware/reference-analysis/`
+
+Temporary chunked/base64 transport under `.incoming/` is not canonical storage and should be removed once the hash-verified original has been reconstructed.
+
+### 2. Interoperability specification zone
+
+Canonical location:
+
+`devices/<device>/interoperability/`
+
+This is the narrow interface between reverse engineering and independent implementation. It contains functional/interface facts such as:
 
 - electrical/digital interface type;
-- pin assignment needed to communicate with the attached controller;
+- pin assignments necessary for communication;
 - baud rate, parity, stop bits and payload size;
-- externally observable frame fields and their behavioural meaning;
-- timing/range/error behaviour required for compatibility;
+- externally observable frame fields and behavioural meaning;
+- timing, ranges and error behaviour required for compatibility;
 - device identity and Zigbee behaviour needed for interoperability;
-- black-box test vectors expressed as inputs and externally observable outputs.
+- black-box or independently derived test vectors.
 
-It must not contain vendor implementation expression merely because it was visible during analysis.
+Facts must be marked by confidence (`CONFIRMED`, `HIGH`, `INFERRED`, `UNKNOWN`). Unknown fields remain fail-closed.
 
-## Two-role boundary
+### 3. Independent implementation zone
 
-### Analysis role
+Implementation code lives outside `vendor-firmware/` and consumes the interoperability specification, public standards and public SDK documentation.
 
-The analysis role may, in a private workspace and where lawfully permitted, observe, study, test and reverse engineer a device or firmware for the interoperability purpose above.
+Implementation commits must not be produced by copying or mechanically translating vendor implementation expression. Compatible external behaviour is the objective; similarity of internal expression is not.
 
-The analysis role may publish into this repository only a **sanitized interoperability specification**. That specification must:
+The same repository may contain both reference and implementation zones. The boundary is **provenance and dependency direction**, not destruction of useful evidence:
 
-1. state facts in interface/behavioural terms rather than translated vendor code;
-2. distinguish `OBSERVED`, `INFERRED`, and `UNKNOWN` information;
-3. include only details necessary to implement or validate interoperability;
-4. avoid decompiled source, disassembly listings, copied control flow, vendor tables, bulk constants, or reconstructable firmware material;
-5. retain provenance/confidence sufficient to audit the conclusion without retaining proprietary expression.
+```text
+third-party reference / RE evidence
+              |
+              v
+interoperability facts + tests
+              |
+              v
+independently written firmware
+```
 
-### Implementation role
+Implementation code must never include proprietary firmware blobs as linked source/object material unless a separate licence explicitly permits that use.
 
-Implementation work uses only:
-
-- the sanitized interoperability specification in this repository;
-- public standards and public manufacturer/SDK documentation that may lawfully be used;
-- independently generated test cases and measurements from project-owned hardware.
-
-Implementation commits must not be written by translating decompiled/disassembled vendor code. Similarity to a vendor implementation is not a design objective; only compatible external behaviour is.
-
-## Prohibited repository content
-
-Do not commit or attach:
-
-- vendor `.ota`, `.bin`, `.hex`, `.elf` or flash images;
-- base64/chunked/compressed/encoded forms of those images;
-- full disassembly or decompiler output;
-- source reconstructed from vendor machine code;
-- raw flash dumps;
-- private keys, Zigbee network keys, credentials or unsanitized logs;
-- large vendor-derived lookup tables, constants or packet corpora that are not necessary interface facts.
-
-GitHub Actions must not download, reconstruct, publish, or retain proprietary firmware as workflow artifacts for implementation work.
-
-## Interoperability specification rule
-
-The canonical GL-SD-301P interface contract is:
+## GL-SD-301P canonical interface
 
 `devices/gl-sd-301p/interoperability/INTERFACE.md`
 
-Implementation code may depend on a field only when that field is marked `CONFIRMED`. Unknown fields remain fail-closed. A guessed checksum, reserved byte, brightness mapping, safety timing or power-stage command must never be promoted into flashable firmware merely to make a test pass.
+Implementation may rely only on fields whose confidence is sufficient for the use being made of them. A guessed checksum, reserved byte, brightness mapping, safety timing or power-stage command must not become a flashable implementation merely to make a test pass.
 
 ## Hardware safety boundary
 
-The installed production GL-SD-301P is not a development canary. Runtime electrical validation is performed only on a sacrificial spare under the project's separate hardware-safety gate. Mains-side investigation requires appropriate isolation and instrumentation; repository changes never authorize physical mains work by themselves.
+The installed production GL-SD-301P is not a development canary. Runtime electrical validation is performed only under the project's separate sacrificial-spare safety gate. Repository changes never authorize mains-side probing or flashing by themselves.
 
 ## Contribution declaration
 
-A PR that changes the interoperability implementation should state:
+A PR changing interoperability implementation should state:
 
-- which public specification/standard or sanitized interface fact it implements;
-- how it was independently implemented;
-- what black-box tests validate it;
-- whether any interface field remains unknown;
-- that no vendor firmware, decompiled source or disassembly was used as implementation source material.
+- which public specification or documented interoperability fact it implements;
+- how the implementation was independently authored;
+- what tests validate external compatibility;
+- which interface fields remain unknown;
+- whether third-party reference material was consulted, and if so, which sanitized interface facts were carried into implementation.
 
-## Legal context
+A PR adding vendor firmware should state:
 
-The process is designed around interoperability-focused limitations reflected, among other places, in Article 5(3) and Article 6 of Directive 2009/24/EC and the corresponding Czech software-program provisions in Act No. 121/2000 Coll. The repository does not claim that those provisions automatically authorize every act in every circumstance.
+- acquisition/source provenance;
+- original filename/version;
+- SHA-256 (and preferably SHA-512);
+- whether the file is unchanged from the supplied/downloaded original;
+- known vendor licence/redistribution terms, if any;
+- that the project licence does not apply to the third-party binary.
