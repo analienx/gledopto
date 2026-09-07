@@ -2,3 +2,20 @@
 .local/
 .work/
 *.log
+
+# Proprietary/vendor firmware is never repository content.
+# Keep lawfully obtained originals in a private analysis workspace only.
+devices/*/vendor-firmware/
+**/.incoming/
+*.ota
+*.ota.xz
+*.ota.b64*
+*.bin
+*.hex
+*.elf
+*.dump
+*.disasm
+
+# Reverse-engineering scratch/output must not cross the clean-room boundary.
+re-private/
+analysis-private/
