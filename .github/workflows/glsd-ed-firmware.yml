@@ -131,3 +131,21 @@ jobs:
           grep -q '^DEPLOYABLE=NO$' "$manifest"
           grep -q '^DEPLOYABLE_BLOCKER=POWER_STAGE_DRIVER_STUB$' "$manifest"
           echo 'GLSD_ED_COMPLETE_PRODUCT_LINK=PASS_NONDEPLOYABLE'
+      - name: Trace unresolved symbol callers
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="$RUNNER_TEMP/glsd-ed-link/product/obj"
+          if [ ! -d "$root" ]; then
+            echo 'NO_LINK_OBJECT_TREE'
+            exit 0
+          fi
+          for sym in ss_apsmeSwitchKeyReq ss_apsmeTransportKeyReq tl_zbNwkBeaconPayloadUpdate; do
+            echo "=== CALLERS $sym ==="
+            while IFS= read -r -d '' obj; do
+              if "$TC32_NM" -u "$obj" 2>/dev/null | grep -Eq "[[:space:]]U[[:space:]]+$sym$"; then
+                echo "$obj"
+              fi
+            done < <(find "$root" -type f -name '*.o' -print0)
+          done
