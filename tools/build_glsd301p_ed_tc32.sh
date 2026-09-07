@@ -190,10 +190,14 @@ final="$DIR/glsd301p-ed.final.bin"
 map="$DIR/glsd301p-ed.map"
 lst="$DIR/glsd301p-ed.lst"
 
+# Keep the End Device and driver archives in a GNU-ld group. The Telink ED
+# archive has internal cross-member references; grouping lets the linker rescan
+# it without introducing router/coordinator libraries or stubbing security APIs.
 "$TC32_LD" --gc-sections -nostartfiles \
   -T"$SDK/platform/boot/8258/boot_8258.link" -Map="$map" \
   -L"$SDK/zigbee/lib/tc32" -L"$SDK/platform/lib" \
-  -o "$elf" "${objects[@]}" -ldrivers_8258 -lzb_ed
+  -o "$elf" "${objects[@]}" \
+  --start-group -ldrivers_8258 -lzb_ed --end-group
 
 "$TC32_OBJCOPY" -O binary "$elf" "$raw"
 "$TC32_OBJDUMP" -h -t "$elf" > "$lst"
@@ -228,6 +232,7 @@ grep -q 'libzb_ed' "$map" || { echo 'ERROR: End Device stack archive absent from
   echo FIRST_FLASHABLE_CANARY_ALLOWED=NO
   echo SDK_EXPECTED_COMMIT=d5bc2f7b0c1f8536fe21c8127ca680ea8214bc8e
   echo STACK_ARCHIVE=libzb_ed.a
+  echo STACK_ARCHIVE_GROUP_RESCAN=YES
   echo ROUTER_ARCHIVE_LINKED=NO
   echo ZB_ED_ROLE=1
   echo ZB_ROUTER_ROLE=0
