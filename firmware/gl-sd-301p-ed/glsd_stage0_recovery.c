@@ -4,9 +4,11 @@
 
 #include "drv_flash.h"
 #include "drv_hw.h"
-#include "ota.h"
 
 #include <string.h>
+
+/* Keep the rollback core independent of ota.h's AF/ZCL type dependencies. */
+extern u32 mcuBootAddrGet(void);
 
 /* Pinned TLSR8258 512-KiB layout from Telink V3.7.2.0. */
 #define GLSD_BANK_A_BASE             0x00000u
@@ -83,7 +85,6 @@ static bool glsd_layout_init(void)
         return false;
     }
 
-    /* At initial entry Stage-0 must itself be a valid Telink image. */
     return glsd_read_u32(g_self_base + GLSD_BOOT_FLAG_OFFSET) == GLSD_TELINK_START_WORD;
 }
 
@@ -128,7 +129,6 @@ static bool glsd_validate_stock_image(bool require_enabled,
         u32 length = remaining > GLSD_CHUNK_SIZE ? GLSD_CHUNK_SIZE : remaining;
         flash_read(g_stock_base + offset, length, g_chunk);
         if (offset == 0u) {
-            /* Telink validates CRC with only the one-byte boot marker normalized. */
             g_chunk[GLSD_BOOT_FLAG_OFFSET] = 0x4bu;
         }
         current_crc = xcrc32(g_chunk, length, current_crc);
@@ -267,7 +267,6 @@ static bool glsd_enable_stock_boot_flag(const glsd_stage0_journal_t *journal)
         return false;
     }
 
-    /* Atomic stock-boot commit: NOR-safe one-way 0xFF -> 0x4B. */
     flash_unlock();
     if (!flash_writeWithCheck(g_stock_base + GLSD_BOOT_FLAG_OFFSET, 1u, &start)) {
         flash_lock();
@@ -292,7 +291,6 @@ static bool glsd_restore_stock_sector(const glsd_stage0_journal_t *journal)
         return false;
     }
 
-    /* During the full-sector rewrite stock remains deliberately non-bootable. */
     g_sector[GLSD_BOOT_FLAG_OFFSET] = 0xffu;
     if (!glsd_program_sector(g_stock_base, g_sector)) {
         return false;
@@ -370,7 +368,6 @@ glsd_stage0_recovery_status_t glsd_stage0_recovery_prepare(void)
         }
     }
 
-    /* An interrupted earlier run may already have committed stock. */
     if (!glsd_validate_stock_image(true, journal.source_size,
                                    journal.source_crc, NULL, NULL)) {
         if (!glsd_restore_stock_sector(&journal)) {
@@ -378,8 +375,6 @@ glsd_stage0_recovery_status_t glsd_stage0_recovery_prepare(void)
         }
     }
 
-    /* Last destructive commit: verified stock is bootable before Stage-0 is
-     * made non-bootable, independent of which physical bank holds either one. */
     if (!glsd_invalidate_stage0_bank()) {
         return GLSD_STAGE0_RECOVERY_ERR_SELF_INVALIDATE;
     }
