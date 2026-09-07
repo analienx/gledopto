@@ -1,0 +1,203 @@
+name: Vendor Firmware Analysis
+on:
+  workflow_dispatch:
+
+jobs:
+  analyze:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      
+      - name: Install xz-utils
+        run: sudo apt-get update && sudo apt-get install -y xz-utils
+      
+      - name: Download and reconstruct vendor firmware
+        run: |
+          cat > reconstruct.py << 'PYEOF'
+          import base64
+          import subprocess
+          from pathlib import Path
+
+          # Download all chunks
+          incoming_dir = Path("devices/gl-sd-301p/vendor-firmware/.incoming")
+          chunks = sorted(incoming_dir.glob("GL-SD-301P_V20851203_20251230.ota.xz.b64.part*"))
+          
+          print(f"Found {len(chunks)} chunks")
+          
+          # Concatenate all chunks
+          combined_b64 = ""
+          for chunk in chunks:
+              print(f"Reading {chunk.name}...")
+              combined_b64 += chunk.read_text().strip()
+          
+          print(f"Combined base64 size: {len(combined_b64)} chars")
+          
+          # Decode base64
+          xz_data = base64.b64decode(combined_b64)
+          Path("firmware.ota.xz").write_bytes(xz_data)
+          print(f"Compressed size: {len(xz_data)} bytes")
+          
+          # Decompress
+          subprocess.run(["xz", "-d", "firmware.ota.xz"], check=True)
+          
+          # Verify the OTA file
+          ota_data = Path("firmware.ota").read_bytes()
+          print(f"Decompressed OTA size: {len(ota_data)} bytes")
+          
+          # Parse OTA header
+          import struct
+          magic, = struct.unpack_from("<I", ota_data, 0)
+          header_length, = struct.unpack_from("<H", ota_data, 6)
+          manufacturer_code, = struct.unpack_from("<H", ota_data, 10)
+          image_type, = struct.unpack_from("<H", ota_data, 12)
+          file_version, = struct.unpack_from("<I", ota_data, 14)
+          header_string = ota_data[28:60].split(b'\x00')[0].decode('ascii', errors='replace')
+          
+          print(f"\n=== OTA HEADER ===")
+          print(f"Magic:            {hex(magic)}")
+          print(f"Header length:    {header_length}")
+          print(f"Manufacturer:     {hex(manufacturer_code)} ({manufacturer_code})")
+          print(f"Image type:       {hex(image_type)} ({image_type})")
+          print(f"File version:     {hex(file_version)}")
+          print(f"Header string:    '{header_string}'")
+          
+          # Extract inner image
+          inner = ota_data[header_length:]
+          Path("vendor_inner.bin").write_bytes(inner)
+          print(f"\nInner image size: {len(inner)} bytes")
+          print("✓ Saved vendor_inner.bin")
+          PYEOF
+          
+          python reconstruct.py
+      
+      - name: Analyze vendor firmware patterns
+        run: |
+          cat > analyze_vendor.py << 'PYEOF'
+          import re
+          from pathlib import Path
+
+          def find_strings(data, min_len=4):
+              pattern = re.compile(rb'[\x20-\x7e]{%d,}' % min_len)
+              return [(m.start(), m.group().decode('ascii', errors='replace')) for m in pattern.finditer(data)]
+
+          def search_patterns(data):
+              results = {}
+              
+              patterns = {
+                  'tuya_headers': [b'\x55\xaa'],
+                  'tuya_strings': [b'tuya', b'TUYA', b'dp_id', b'mcu_send', b'wifi'],
+                  'uart_strings': [b'uart', b'UART', b'serial', b'baud', b'115200', b'9600', b'57600'],
+                  'gpio_strings': [b'gpio', b'GPIO', b'pwm', b'PWM', b'timer', b'dimmer', b'dim', b'level'],
+                  'telink_strings': [b'TLSR', b'tlsr', b'8258', b'8266', b'8278', b'B91', b'telink', b'TELINK'],
+                  'vendor_strings': [b'GLEDOPTO', b'gledopto', b'Candeo', b'GL-SD', b'GL-C', b'GL-B'],
+                  'zigbee_strings': [b'ZigBee', b'zigbee', b'ZCL', b'zcl', b'cluster', b'endpoint'],
+                  'dimmer_strings': [b'dim', b'DIM', b'brightness', b'phase', b'cut', b'triac']
+              }
+              
+              for category, search_bytes in patterns.items():
+                  results[category] = {}
+                  for s in search_bytes:
+                      positions = []
+                      pos = 0
+                      while True:
+                          pos = data.find(s, pos)
+                          if pos == -1:
+                              break
+                          positions.append(pos)
+                          pos += 1
+                      if positions:
+                          results[category][s.decode('ascii', errors='replace')] = len(positions)
+              
+              return results
+
+          inner = Path("vendor_inner.bin").read_bytes()
+          print(f"Analyzing {len(inner)} bytes of vendor firmware...\n")
+          
+          strings = find_strings(inner, min_len=4)
+          print(f"=== INTERESTING STRINGS (top 50) ===")
+          keywords = ['uart', 'gpio', 'pwm', 'timer', 'dim', 'level', 'tuya', 'mcu', 'serial', 
+                     'baud', 'zigbee', 'telink', 'tlsr', '8258', '8266', 'b91', 'gledopto', 'candeo',
+                     'phase', 'cut', 'triac', 'brightness', 'cluster', 'endpoint']
+          
+          interesting = [(off, s) for off, s in strings if any(kw in s.lower() for kw in keywords)]
+          for offset, s in interesting[:50]:
+              print(f"  0x{offset:06X}: {s}")
+          
+          print(f"\n=== PATTERN ANALYSIS ===")
+          results = search_patterns(inner)
+          
+          for category, data in results.items():
+              if data:
+                  total_hits = sum(data.values())
+                  print(f"\n{category}: {total_hits} total hits")
+                  for key, count in sorted(data.items(), key=lambda x: x[1], reverse=True)[:5]:
+                      print(f"  '{key}': {count} hits")
+          
+          # Decision matrix
+          print(f"\n{'='*60}")
+          print("DECISION MATRIX - VENDOR FIRMWARE")
+          print(f"{'='*60}")
+          
+          tuya_count = sum(results.get('tuya_headers', {}).values())
+          uart_total = sum(results.get('uart_strings', {}).values())
+          gpio_total = sum(results.get('gpio_strings', {}).values())
+          dimmer_total = sum(results.get('dimmer_strings', {}).values())
+          telink_total = sum(results.get('telink_strings', {}).values())
+          
+          print(f"Tuya header (0x55 0xAA): {tuya_count}")
+          print(f"UART-related hits: {uart_total}")
+          print(f"GPIO/PWM-related hits: {gpio_total}")
+          print(f"Dimmer-specific hits: {dimmer_total}")
+          print(f"Telink SDK markers: {telink_total}")
+          
+          if tuya_count > 5:
+              print("\n→ HIGH PROBABILITY: Tuya-compatible UART protocol")
+              print("  Can likely reuse romasku's Tuya protocol mapping")
+          elif uart_total > gpio_total * 2:
+              print("\n→ LIKELY: Secondary MCU over UART (non-Tuya)")
+              print("  Need logic analyzer or deeper RE to map protocol")
+          elif gpio_total > uart_total * 2:
+              print("\n→ LIKELY: Direct GPIO/PWM control by Telink")
+              print("  Can extract pin mappings from disassembly")
+          else:
+              print("\n→ INCONCLUSIVE: Mixed signals")
+              print("  Need deeper disassembly or hardware analysis")
+          
+          # Compare with GL-C-009P if it exists
+          glc_path = Path("glc009p_inner.bin")
+          if glc_path.exists():
+              glc_data = glc_path.read_bytes()
+              if len(glc_data) > 0:
+                  print(f"\n{'='*60}")
+                  print("COMPARISON WITH GL-C-009P")
+                  print(f"{'='*60}")
+                  print(f"GL-SD-301P size: {len(inner)} bytes")
+                  print(f"GL-C-009P size:  {len(glc_data)} bytes")
+                  
+                  # Simple similarity check - common strings
+                  sd_strings = set(find_strings(inner, min_len=6))
+                  glc_strings = set(find_strings(glc_data, min_len=6))
+                  common = sd_strings & glc_strings
+                  
+                  print(f"Common strings (min_len=6): {len(common)}")
+                  if len(common) > 0:
+                      print("Sample common strings:")
+                      for _, s in list(common)[:10]:
+                          print(f"  {s}")
+          PYEOF
+          
+          python analyze_vendor.py
+      
+      - name: Upload analysis results
+        uses: actions/upload-artifact@v4
+        with:
+          name: vendor-firmware-analysis
+          path: |
+            firmware.ota
+            vendor_inner.bin
