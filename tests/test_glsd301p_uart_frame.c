@@ -38,6 +38,13 @@ int main(void)
         expect_frame(out, expected);
     }
 
+    /* OFF remains available even if restored/configured level state is invalid. */
+    {
+        const uint8_t expected[] = {0xA5, 0x5A, 0x01, 0x00, 0x04, 0xAA};
+        assert(glsd301p_normal_output_frame_encode(false, 0xFF, 0xFF, false, out));
+        expect_frame(out, expected);
+    }
+
     /* Confirmed normal ON/Level path. */
     {
         const uint8_t expected[] = {0xA5, 0x5A, 0x01, 0x80, 0x04, 0xAA};
@@ -58,6 +65,19 @@ int main(void)
         assert(glsd301p_normal_output_frame_encode(true, 0x01, 0x02, true, out));
         expect_frame(out, expected);
     }
+
+    /* 0xFF is the ZCL unknown sentinel and must never be sent as an ON level. */
+    assert(!glsd301p_normal_output_frame_encode(true, 0xFF, 0x02, false, out));
+
+    /* Unknown minimum is unsafe only when minimum clamping is actually active. */
+    assert(!glsd301p_normal_output_frame_encode(true, 0x80, 0xFF, false, out));
+    {
+        const uint8_t expected[] = {0xA5, 0x5A, 0x01, 0x80, 0x04, 0xAA};
+        assert(glsd301p_normal_output_frame_encode(true, 0x80, 0xFF, true, out));
+        expect_frame(out, expected);
+    }
+
+    assert(!glsd301p_normal_output_frame_encode(true, 0x80, 0x02, false, NULL));
 
     return 0;
 }
