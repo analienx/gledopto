@@ -33,20 +33,65 @@ jobs:
               print(f"Downloading part {i:03d}...")
               req = urllib.request.Request(url)
               with urllib.request.urlopen(req) as resp:
-                  parts.append(resp.read().decode('ascii'))
+                  content = resp.read().decode('ascii')
+                  # Strip whitespace and newlines
+                  content = ''.join(content.split())
+                  parts.append(content)
+                  print(f"  Part {i:03d}: {len(content)} chars")
           
           # Concatenate and decode
-          print("Concatenating parts...")
+          print("\nConcatenating parts...")
           full_b64 = ''.join(parts)
-          compressed_data = base64.b64decode(full_b64)
+          print(f"Total base64 length: {len(full_b64)} chars")
           
-          print(f"Compressed size: {len(compressed_data)} bytes")
+          # Check if base64 length is valid (should be multiple of 4)
+          if len(full_b64) % 4 != 0:
+              print(f"WARNING: Base64 length not multiple of 4, padding...")
+              full_b64 += '=' * (4 - len(full_b64) % 4)
           
-          # Decompress XZ
+          print("Decoding base64...")
+          try:
+              compressed_data = base64.b64decode(full_b64)
+              print(f"Compressed size: {len(compressed_data)} bytes")
+          except Exception as e:
+              print(f"Base64 decode error: {e}")
+              # Try with validation
+              compressed_data = base64.b64decode(full_b64, validate=True)
+              print(f"Compressed size (validated): {len(compressed_data)} bytes")
+          
+          # Check XZ magic bytes
+          if len(compressed_data) >= 6:
+              xz_magic = compressed_data[:6]
+              print(f"XZ magic bytes: {xz_magic.hex()}")
+              if xz_magic == b'\xfd7zXZ\x00':
+                  print("✓ Valid XZ header detected")
+              else:
+                  print("✗ Invalid XZ header!")
+          
+          # Decompress XZ with error handling
           print("Decompressing XZ...")
-          ota_data = lzma.decompress(compressed_data)
-          
-          print(f"OTA size: {len(ota_data)} bytes")
+          try:
+              ota_data = lzma.decompress(compressed_data)
+              print(f"✓ OTA size: {len(ota_data)} bytes")
+          except lzma.LZMAError as e:
+              print(f"LZMA error: {e}")
+              print("Trying to decompress with stream format...")
+              # Try with FORMAT_XZ
+              try:
+                  ota_data = lzma.decompress(compressed_data, format=lzma.FORMAT_XZ)
+                  print(f"✓ OTA size (FORMAT_XZ): {len(ota_data)} bytes")
+              except Exception as e2:
+                print(f"FORMAT_XZ also failed: {e2}")
+                print("Trying FORMAT_ALONE...")
+                try:
+                    ota_data = lzma.decompress(compressed_data, format=lzma.FORMAT_ALONE)
+                    print(f"✓ OTA size (FORMAT_ALONE): {len(ota_data)} bytes")
+                except Exception as e3:
+                    print(f"All decompression attempts failed: {e3}")
+                    # Save what we have for debugging
+                    Path("compressed_data.bin").write_bytes(compressed_data)
+                    print("Saved compressed_data.bin for debugging")
+                    raise
           
           # Parse OTA header
           magic, = struct.unpack_from("<I", ota_data, 0)
@@ -55,6 +100,7 @@ jobs:
           image_type, = struct.unpack_from("<H", ota_data, 12)
           file_version, = struct.unpack_from("<I", ota_data, 14)
           
+          print(f"\n=== OTA HEADER ===")
           print(f"Magic: {hex(magic)}")
           print(f"Header length: {header_length}")
           print(f"Manufacturer: {hex(manufacturer_code)} ({manufacturer_code})")
@@ -68,12 +114,13 @@ jobs:
           # Save files
           Path("gl_sd_301p_full.ota").write_bytes(ota_data)
           Path("gl_sd_301p_inner.bin").write_bytes(inner)
-          print("✓ Saved gl_sd_301p_full.ota and gl_sd_301p_inner.bin")
+          print("\n✓ Saved gl_sd_301p_full.ota and gl_sd_301p_inner.bin")
           PYEOF
           
           python download_and_assemble.py
       
       - name: Analyze firmware patterns
+        if: success()
         run: |
           cat > analyze_firmware.py << 'PYEOF'
           import re
@@ -159,9 +206,11 @@ jobs:
           python analyze_firmware.py
       
       - name: Upload analysis results
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: gl-sd-301p-firmware-analysis
           path: |
             gl_sd_301p_full.ota
             gl_sd_301p_inner.bin
+            compressed_data.bin
