@@ -24,18 +24,15 @@ jobs:
           base_dir = Path("devices/gl-sd-301p/vendor-firmware/.incoming")
           b64_data = b""
           
-          # Read all .part files
           parts = sorted(base_dir.glob("GL-SD-301P_V20851203_20251230.ota.xz.b64.part*"))
           print(f"Found {len(parts)} parts")
           
           for p in parts:
               chunk = p.read_bytes().strip()
-              print(f"Read {p.name}: {len(chunk)} bytes, starts with: {chunk[:10]}")
               b64_data += chunk
               
           print(f"Total base64 length: {len(b64_data)}")
           
-          # Fix padding
           padding = len(b64_data) % 4
           if padding:
               b64_data += b"=" * (4 - padding)
@@ -43,24 +40,55 @@ jobs:
           print("Decoding base64...")
           xz_data = base64.b64decode(b64_data)
           print(f"Decoded length: {len(xz_data)}")
+          print(f"First 16 bytes of xz_data: {xz_data[:16].hex()}")
+          print(f"Last 16 bytes of xz_data: {xz_data[-16:].hex()}")
           
+          # Try decompressing with FORMAT_ALONE or FORMAT_AUTO just in case
           print("Decompressing xz...")
-          ota_data = lzma.decompress(xz_data)
-          print(f"OTA length: {len(ota_data)}")
+          try:
+              ota_data = lzma.decompress(xz_data)
+              print(f"OTA length: {len(ota_data)}")
+              Path("full.ota").write_bytes(ota_data)
+              print("Saved full.ota")
+              print(f"First 16 bytes of OTA: {ota_data[:16].hex()}")
+          except Exception as e:
+              print(f"LZMA decompress failed: {e}")
+              print("Trying to save raw binary data to see what it is...")
+              Path("full.raw").write_bytes(xz_data)
+              print("Saved full.raw")
+              
+              # Let's try if it's just raw gz or zip or something else
+              import subprocess
+              subprocess.run(["file", "full.raw"])
+              
+              # Maybe it's not compressed, maybe it IS the OTA file and the xz extension was a lie?
+              print("Checking if it's a valid Zigbee OTA...")
+              import struct
+              if len(xz_data) > 4:
+                  magic, = struct.unpack_from("<I", xz_data, 0)
+                  print(f"First 4 bytes as u32 LE: {hex(magic)}")
+                  if magic == 0x0BEEF11E:
+                      print("IT IS A VALID ZIGBEE OTA MAGIC! It is NOT xz compressed!")
+                      Path("full.ota").write_bytes(xz_data)
           
-          Path("full.ota").write_bytes(ota_data)
-          print("Saved full.ota")
           PYEOF
-          ls -lh full.ota
+          ls -lh
           
       - name: Analyze firmware patterns
+        if: always()
         run: |
+          ls -lh full.*
           cat > analyze_firmware.py << 'PYEOF'
           import struct
           import re
           from pathlib import Path
 
-          ota_data = Path("full.ota").read_bytes()
+          ota_file = Path("full.ota")
+          if not ota_file.exists():
+              print("full.ota not found, skipping analysis")
+              exit(0)
+              
+          ota_data = ota_file.read_bytes()
           
           print(f"Total OTA size: {len(ota_data)} bytes")
           
