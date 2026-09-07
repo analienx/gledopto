@@ -113,6 +113,22 @@ jobs:
             done < <(find "$sdk" -type f -name '*.a' | sort)
             echo "DEFINED_IN_ARCHIVE=$found"
           done
+      - name: Identify archive members that reference router-only symbols
+        shell: bash
+        run: |
+          set -euo pipefail
+          sdk="$GITHUB_WORKSPACE/telink-sdk/tl_zigbee_sdk"
+          for archive in \
+            "$sdk/zigbee/lib/tc32/libzb_ed.a" \
+            "$sdk/platform/lib/libdrivers_8258.a"; do
+            echo "=== UNDEFINED REFS IN $archive ==="
+            if [ -f "$archive" ]; then
+              "$TC32_NM" -A -u "$archive" 2>/dev/null | \
+                grep -E 'ss_apsmeSwitchKeyReq|ss_apsmeTransportKeyReq|tl_zbNwkBeaconPayloadUpdate' || true
+            else
+              echo 'ARCHIVE_NOT_FOUND'
+            fi
+          done
       - name: Link and finalize complete End Device product image
         shell: bash
         run: |
