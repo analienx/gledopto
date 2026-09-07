@@ -1,5 +1,5 @@
 {
-  "schema": 4,
+  "schema": 5,
   "device": "GL-SD-301P",
   "purpose": "EU/Czech interoperability; independently written Zigbee End Device client",
   "architecture": {
@@ -35,7 +35,7 @@
     ],
     "families": {
       "0x01": {
-        "context": "normal lamp output level",
+        "context": "normal lamp output plus PB4 auxiliary half-scale refresh",
         "wire": "A5 5A 01 LL 04 AA",
         "off_frame_hex": "A55A010004AA",
         "off_mapping_state": "CONFIRMED",
@@ -44,9 +44,10 @@
         "default_observed_minimum_output": 2,
         "below_minimum_bypass_state_exists": true,
         "below_minimum_bypass_semantics": "UNKNOWN",
-        "special_path": "currentLevel >> 1",
-        "special_path_is_normal_zigbee_level_path": false,
-        "special_path_semantics": "UNKNOWN"
+        "special_path": "PB4 qualified-high auxiliary refresh uses currentLevel >> 1",
+        "special_path_trigger_state": "CONFIRMED",
+        "special_path_business_role": "UNKNOWN",
+        "special_path_is_normal_zigbee_level_path": false
       },
       "0x02": {
         "context": "auxiliary timed operation/pattern/configuration control",
@@ -56,6 +57,14 @@
         "individual_value_mapping": "UNKNOWN"
       }
     }
+  },
+  "local_keyboard": {
+    "implementation": "Telink kb_scan_key(0,1) compatible scanner",
+    "scan_pins": [
+      {"gpio": "PC4", "gpio_encoded": "0x0210", "keycode": 1, "role": "RESET", "role_confidence": "high"},
+      {"gpio": "PC3", "gpio_encoded": "0x0208", "keycode": 2, "role": "LEVEL", "role_confidence": "high"}
+    ],
+    "pb4_is_keyboard_scan_pin": false
   },
   "push_input": {
     "gpio": "PC2",
@@ -84,6 +93,24 @@
     },
     "independent_decoder_ready": true
   },
+  "pb4_aux_input": {
+    "gpio": "PB4",
+    "gpio_encoded": "0x0110",
+    "direction": "input",
+    "stock_internal_bias": "PM_PIN_PULLDOWN_100K",
+    "poll_interval_ms": 1,
+    "active_level": "high",
+    "consecutive_high_polls_before_action": 11,
+    "low_resets_qualification": true,
+    "action_while_qualified_high": "request family-0x01 output with value currentLevel >> 1 on every poll",
+    "logical_currentLevel_is_modified": false,
+    "business_or_physical_role": "UNKNOWN",
+    "possible_role_hypotheses_not_relied_upon": [
+      "protection/derating request",
+      "power-stage status/fault input"
+    ],
+    "independent_compatibility_module_ready": true
+  },
   "startup": {
     "uart_init_emits_mandatory_special_frame": false,
     "stock_state_resync_uses_normal_family_0x01_refresh": true,
@@ -104,18 +131,20 @@
     "ordinary_zcl_level_progression_can_use_family_0x01": true,
     "startup_state_resync_strategy_ready": true,
     "tx_only_core_implementation_supported_by_current_evidence": true,
-    "physical_push_decoder_ready": true
+    "physical_push_decoder_ready": true,
+    "pb4_aux_compatibility_ready": true
   },
   "full_stock_parity_unknowns": [
     "0x02 auxiliary operation/pattern value names",
-    "purpose/trigger of the currentLevel>>1 family-0x01 path",
+    "PB4 auxiliary input physical/business role",
     "vendor configuration-state message field semantics",
     "exact meaning of the below-minimum bypass state",
     "optional controller telemetry semantics",
-    "physical terminal-to-PC2 net topology (optional corroboration)"
+    "physical PCB traces if corroboration is desired"
   ],
   "core_onoff_level_encoder_ready": true,
   "physical_push_behavior_ready": true,
+  "pb4_aux_behavior_ready": true,
   "full_feature_parity_ready": false,
   "production_encoder_ready": false,
   "first_flashable_canary_allowed": false
