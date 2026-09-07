@@ -1,5 +1,5 @@
 {
-  "schema": 6,
+  "schema": 7,
   "device": "GL-SD-301P",
   "purpose": "EU/Czech interoperability; independently written Zigbee End Device client",
   "architecture": {
@@ -140,6 +140,19 @@
     "canonical_document": "devices/gl-sd-301p/SAFETY.md",
     "host_guard_implementation_ready": true
   },
+  "runtime_core": {
+    "implementation": "src/glsd301p_runtime_core.[ch]",
+    "host_integration_ready": true,
+    "application_state_restored_is_independent_gate": true,
+    "normal_zigbee_output_uses_guard": true,
+    "physical_push_uses_guard": true,
+    "pb4_aux_uses_guard": true,
+    "direct_uart_bypass_exposed_to_application": false,
+    "fault_invalidates_restored_state": true,
+    "fault_clear_requires_fresh_restore": true,
+    "state_commit_occurs_only_after_guarded_encode_success": true,
+    "telink_target_glue_ready": false
+  },
   "core_capabilities": {
     "raw_control_encoder_ready": true,
     "normal_off_encoder_ready": true,
@@ -149,7 +162,8 @@
     "tx_only_core_implementation_supported_by_current_evidence": true,
     "physical_push_decoder_ready": true,
     "pb4_aux_compatibility_ready": true,
-    "output_guard_ready": true
+    "output_guard_ready": true,
+    "host_runtime_core_ready": true
   },
   "full_stock_parity_unknowns": [
     "0x02 auxiliary operation/pattern value names",
@@ -163,6 +177,8 @@
   "physical_push_behavior_ready": true,
   "pb4_aux_behavior_ready": true,
   "runtime_safety_guard_ready": true,
+  "host_runtime_core_ready": true,
+  "telink_target_glue_ready": false,
   "full_feature_parity_ready": false,
   "production_encoder_ready": false,
   "first_flashable_canary_allowed": false
