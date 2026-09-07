@@ -1,5 +1,5 @@
 {
-  "schema": 3,
+  "schema": 4,
   "device": "GL-SD-301P",
   "purpose": "EU/Czech interoperability; independently written Zigbee End Device client",
   "architecture": {
@@ -57,6 +57,33 @@
       }
     }
   },
+  "push_input": {
+    "gpio": "PC2",
+    "gpio_encoded": "0x0204",
+    "poll_interval_ms": 1,
+    "classification": "external PUSH sense path",
+    "classification_confidence": "high",
+    "simple_dc_button_semantics": false,
+    "pulse_decoder": {
+      "first_low_qualify_ticks": 3,
+      "inter_pulse_high_qualify_ticks": 6,
+      "high_gap_timeout_ticks": 51,
+      "second_low_qualify_ticks": 3,
+      "first_long_step_accumulated_low_ticks": 1001,
+      "repeat_long_step_accumulated_low_ticks": 301
+    },
+    "short_activation": "toggle standard Zigbee OnOff state",
+    "long_activation": "step standard Zigbee currentLevel while logically on",
+    "long_direction_initial": "down",
+    "long_direction_reverses_on_release": true,
+    "level_step": {
+      "when_current_level_lte_150": 10,
+      "when_current_level_gt_150": 25,
+      "up": "min(254,currentLevel+step)",
+      "down": "currentLevel<=step ? 2 : currentLevel-step"
+    },
+    "independent_decoder_ready": true
+  },
   "startup": {
     "uart_init_emits_mandatory_special_frame": false,
     "stock_state_resync_uses_normal_family_0x01_refresh": true,
@@ -76,17 +103,19 @@
     "normal_on_level_encoder_ready": true,
     "ordinary_zcl_level_progression_can_use_family_0x01": true,
     "startup_state_resync_strategy_ready": true,
-    "tx_only_core_implementation_supported_by_current_evidence": true
+    "tx_only_core_implementation_supported_by_current_evidence": true,
+    "physical_push_decoder_ready": true
   },
   "full_stock_parity_unknowns": [
     "0x02 auxiliary operation/pattern value names",
     "purpose/trigger of the currentLevel>>1 family-0x01 path",
-    "physical PUSH short/hold mapping",
     "vendor configuration-state message field semantics",
     "exact meaning of the below-minimum bypass state",
-    "optional controller telemetry semantics"
+    "optional controller telemetry semantics",
+    "physical terminal-to-PC2 net topology (optional corroboration)"
   ],
   "core_onoff_level_encoder_ready": true,
+  "physical_push_behavior_ready": true,
   "full_feature_parity_ready": false,
   "production_encoder_ready": false,
   "first_flashable_canary_allowed": false
