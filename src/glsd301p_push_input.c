@@ -168,7 +168,11 @@ uint8_t glsd301p_push_level_step(uint8_t current_level,
         return candidate > 254u ? 254u : (uint8_t)candidate;
     }
 
-    if (current_level <= (uint8_t)(2u + step)) {
+    /* Stock behavior uses 2 as the fallback only when the current level is
+     * less than or equal to the chosen step. Otherwise it subtracts the step
+     * directly (so e.g. 11 -> 1 with a step of 10). Preserve that observable
+     * behavior rather than silently normalizing it. */
+    if (current_level <= step) {
         return 2u;
     }
     return (uint8_t)(current_level - step);
