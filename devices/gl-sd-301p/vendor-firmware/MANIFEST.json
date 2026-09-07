@@ -6,7 +6,7 @@
     {
       "filename": "GL-SD-301P_V20851203_20251230.ota",
       "original_source_filename": "GL-SD-301P_V20851203_20251230 (1).ota",
-      "storage_state": "canonical-original-migration-pending",
+      "storage_state": "canonical-original",
       "provenance": "Firmware supplied directly by GLEDOPTO support to the project owner for the GL-SD-301P; hash-verified project copy analyzed on 2026-09-07.",
       "byte_identical_to_obtained_original": true,
       "size_bytes": 208946,
