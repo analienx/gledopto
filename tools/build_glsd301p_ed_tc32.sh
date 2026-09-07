@@ -111,6 +111,7 @@ app_sources=(
   "$CORE/glsd301p_push_input.c"
   "$CORE/glsd301p_pb4_compat.c"
   "$CORE/glsd301p_runtime_core.c"
+  "$TARGET/glsd301p_telink_inert_glue.c"
   "$TARGET/glsd301p_telink_target.c"
 )
 
@@ -121,7 +122,7 @@ compile_one() {
   mkdir -p "$(dirname "$obj")"
   case "$source" in
     *.S) "$TC32_CC" "${asflags[@]}" "${defs[@]}" "${includes[@]}" -c "$source" -o "$obj" ;;
-    *glsd301p_telink_target.c)
+    *glsd301p_telink_*.c)
       "$TC32_CC" "${f[@]}" "${defs[@]}" "${telink_first[@]}" "${includes[@]}" -c "$source" -o "$obj" ;;
     *) "$TC32_CC" "${f[@]}" "${defs[@]}" "${includes[@]}" -c "$source" -o "$obj" ;;
   esac
@@ -147,6 +148,12 @@ if grep -E 'GLSD301P_CONTROL_FAMILY_OPERATION' \
 fi
 if grep -q 'glsd301p_control_frame_encode' "$TARGET/glsd301p_telink_target.c"; then
   echo 'ERROR: Telink application bypasses guarded output APIs' >&2
+  exit 1
+fi
+# Only the known disabled Touchlink state byte is allowed in optional-feature glue.
+grep -q '^u8 deviceInfoRsp = 0u;$' "$TARGET/glsd301p_telink_inert_glue.c"
+if grep -E 'touchlink_|zcl_touchlink|gpDevice|zclGp|flash_.*otp' "$TARGET/glsd301p_telink_inert_glue.c"; then
+  echo 'ERROR: optional-feature glue grew beyond the minimal inert state hook' >&2
   exit 1
 fi
 
@@ -230,6 +237,8 @@ grep -q 'libzb_ed' "$map" || { echo 'ERROR: End Device stack archive absent from
   echo POWER_SOURCE=MAINS
   echo BOOT_FIRST_POWER_STAGE_FRAME=A55A010004AA
   echo FAMILY_0x02_CORE_RUNTIME=ABSENT
+  echo OPTIONAL_TOUCHLINK_STATE_HOOK=deviceInfoRsp_zero_only
+  echo ADC_FLASH_SAFETY_PIN_FIXTURE=GPIO_PC5_UNVALIDATED_PHYSICALLY
   echo UART=9600_8N1_PB1_TX_PA0_RX
   echo "RAW_BINARY_SIZE=$raw_bytes"
   echo "FINAL_BINARY_SIZE=$final_bytes"
