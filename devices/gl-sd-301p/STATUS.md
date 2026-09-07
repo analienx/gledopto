@@ -1,5 +1,37 @@
 # STATUS — gl-sd-301p
 
+## 2026-09-07 — Power-stage architecture resolved + clean-room implementation gate
+
+- Exact support-supplied GL-SD-301P firmware was analyzed in a private/research
+  context solely to determine hardware interoperability information. The public
+  implementation repository now retains only sanitized interface facts; vendor
+  firmware and reconstructable chunks are prohibited by `CLEAN_ROOM.md` + CI.
+- `POWER_STAGE_CONTROL = SECOND_MCU_UART`, **HIGH software confidence**.
+- Confirmed interface required by the independent implementation:
+  - TLSR8258 UART;
+  - 9600 baud, 8 data bits, no parity, 1 stop bit;
+  - TX = PB1, RX = PA0;
+  - lighting/control application emits six-byte UART payloads;
+  - the Telink SDK driver's internal 4-byte DMA length prefix is not wire data.
+- Live lighting/transition control paths call the UART transmitter, so UART is
+  not merely an unused/debug initialization path.
+- TLSR PWM references in the analyzed application resolve to enable/disable
+  control only; no corresponding variable PWM compare/cycle path was established.
+  Therefore the new firmware will preserve the serial power-controller boundary
+  rather than inventing mains phase-cut timing.
+- Six-byte protocol is **PARTIAL**:
+  - byte 2 is a command-family discriminator;
+  - byte 3 is a dynamic family-specific value;
+  - families 0x01 and 0x02 are confirmed in level/transition-related paths;
+  - exact bytes 0/1/4/5, level mapping, mode mapping, checksum/counter semantics,
+    startup sync and electrical-OFF sequence remain UNKNOWN.
+- `PRODUCTION_ENCODER_READY = false`.
+- `FIRST_FLASHABLE_CANARY_ALLOWED = false`.
+- Shortest remaining engineering step: isolated black-box UART capture on the
+  sacrificial spare, varying one normal control at a time, followed by publication
+  of sanitized wire test vectors only.
+- Canonical interface: `devices/gl-sd-301p/interoperability/INTERFACE.md`.
+
 ## 2026-09-03 — Flash-size forensic (supervisor 5524449062): 512K confirmed
 
 - App header size field == payload size exactly; last non-0xFF byte is the
@@ -11,10 +43,8 @@
 - `FLASH_MAP_SELECTION_LOGIC = A (hardcoded 512K)`;
   `FLASH_SIZE_CLASS = 512K`;
   **`MCU_EXACT_CANDIDATE = TLSR8258F512ET32`, confidence high** for the
-  recovered 0x1416 lineage. `POWER_STAGE_CONTROL=UNKNOWN` unchanged.
+  recovered 0x1416 lineage. `POWER_STAGE_CONTROL=UNKNOWN` at that historical point.
 - Evidence: `evidence/mcu-id-20260903/FLASH-SIZE-ADDENDUM.md`.
-- Family question closed (TLSR8258/B85). Remaining spare purpose: 2024/2026
-  revision identity, mains-PCB power-stage path, SWS pads, stock flash backup.
 
 ## 2026-09-03 — MCU ID pass 2 (supervisor 5523981212): TLSR825x family confirmed
 
@@ -25,15 +55,11 @@
   0x81→0x80006f flash wake, 0xAB wake sequence, no efuse delay (the 8278
   reset path's efuse-delay discriminator is ABSENT), identical IRQ handler,
   identical pool constants (0x80060c/0x80063e/0x80000c/0x80058a).
-- MMIO: 64 shared-register literal hits; unique hits = stimer-block noise.
 - FCC package quantified: QFN32-class (~8 pads/side), ≈5 mm body —
   TLSR8258-compatible; TLSR8278 (QFN48-only) incompatible.
-- Decisions: `MCU_FAMILY=Telink TC32/B85 (TLSR825x)` confidence HIGH;
-  `MCU_EXACT_CANDIDATE=TLSR8258F512ET32` (flash size open vs F1K variants),
-  exact-part confidence MEDIUM; `FLASH_SIZE_CLASS=unresolved`;
-  `POWER_STAGE_CONTROL=UNKNOWN` (module photo doesn't clear the mains PCB);
-  `SPARE_STILL_REQUIRED=yes` (marking, 2024+ revision identity, mains-PCB
-  power-stage path, SWS pads, stock flash backup).
+- Decisions at that point: `MCU_FAMILY=Telink TC32/B85 (TLSR825x)` confidence HIGH;
+  `MCU_EXACT_CANDIDATE=TLSR8258F512ET32`, exact-part confidence MEDIUM;
+  `POWER_STAGE_CONTROL=UNKNOWN` pending later GL-SD-301P-specific evidence.
 - Evidence: `evidence/mcu-id-20260903/`.
 
 ## 2026-09-03 — Phase 1 forensics pass executed (supervisor 5522442315)
@@ -43,43 +69,35 @@
 - **Boot layout = CLASSIC_TC32 (Telink B85 family), ISA = TC32.** Platform
   narrowed from "Telink" to the TLSR8258/8278 generation (B91 ruled out).
 - FCC (2A6ZUGL-C-009P) internal photos: single QFN32-class SoC on a castellated
-  Zigbee module, no second MCU — single-SoC architecture leaning, 2022 lineage.
+  Zigbee module, no second MCU visible on that sibling module — historical
+  family evidence only, not a GL-SD-301P mains-PCB conclusion.
 - Live standard-attribute read pass (authorized): cluster revisions = 1;
   OTA client `currentZigbeeStackVersion=2` matches historical header.
-- Decisions: `MCU_FAMILY=Telink TC32/B85`, `MCU_EXACT=UNKNOWN`,
-  `MCU_CONFIDENCE=medium`, `POWER_STAGE_CONTROL=UNKNOWN (single-SoC leaning)`,
-  `SPARE_STILL_REQUIRED=yes`. Machine-code 8258-vs-8278 match NOT_TESTED
-  (no TC32 toolchain on the executor host).
-- 07:39 review items: `action: off` CLOSED / NOT A DEVICE ANOMALY
-  (`state_action: true`). Control-path classification task superseded by the
-  07:52 pivot order; treated as resolved by the supervisor's own pivot.
 - Evidence: `evidence/phase1-forensics-20260903/`.
-- Support letter draft ready: `SUPPORT-LETTER-DRAFT.md` (user to send).
 
 ## 2026-09-03 — Phase 1 (software-only fingerprinting) executed
 
 - Executor session per `analienx/config:skills/supervisor-executor/SKILL.md` v2.1.
 - SAFETY_CLASS: SOFTWARE_READONLY. No writes to the device. No OTA update.
-  Device-initiated protocol replies (`queryNextImageResponse` NO_IMAGE_AVAILABLE)
-  were protocol-mandated responses to the supervisor-authorized check only.
-- Live mutations (authorized by the supervisor procedure comment): temporary
-  external OTA-diagnostic converter, temporary `ota.disable_automatic_update_check`,
-  one read-only diagnostic extension. ALL REVERTED and verified (bindings and
-  configured reporting byte-identical to pre-probe baseline).
-- Result: **PARTIAL PASS**. All software-only probes exhausted. Remaining
-  unknowns (MCU exact, power-stage architecture) require a sacrificial spare.
-- Evidence: `evidence/phase1-software-only-20260903/` (raw originals on the HA
-  host under `/config/zigbee2mqtt/gledopto_probe/`).
+- Live mutations used only for the authorized diagnostic procedure were reverted
+  and bindings/configured reporting verified against baseline.
+- All software-only probes available at that time were exhausted without changing
+  the production unit's firmware or physical state.
+- Evidence: `evidence/phase1-software-only-20260903/` (raw originals remain
+  outside the implementation repository).
 
 ## Next
 
-1. **Sacrificial GL-SD-301P spare (unchanged physical gate):** unpowered
-   teardown — exact MCU/module marking (expect Telink TC32/B85-class QFN32),
-   power-stage trace (direct SoC GPIO/timer vs second MCU), SWS/debug pads,
-   full stock flash backup before any experimental write.
-2. Optional: TC32 disassembly (Ghidra + rgov/Ghidra_TELink_TC32) of the
-   historical payload + reference 8258/8278 sampleLight builds to resolve
-   8258 vs 8278 before the spare arrives.
-3. Send `SUPPORT-LETTER-DRAFT.md` to Gledopto.
-4. Firmware plan afterwards: RX-on-when-idle End Device build
-   (`ZB_ED_ROLE=1`, `ZB_ROUTER_ROLE=0`, `RX_ON_WHEN_IDLE=1`, `PM_ENABLE=0`).
+1. **Clean-room protocol completion on sacrificial spare:** trace PB1/PA0 at the
+   low-voltage controller boundary and capture six-byte UART transactions for
+   OFF, ON, stable levels and one controlled transition. Publish sanitized
+   input/output vectors only.
+2. Complete the independent `glsd_power_stage_*` UART adapter from the confirmed
+   interface specification once the blocking fields are measured.
+3. Build the RX-on-when-idle Zigbee End Device independently from public Telink
+   SDK/standards: `ZB_ED_ROLE=1`, `ZB_ROUTER_ROLE=0`, `RX_ON_WHEN_IDLE=1`,
+   `PM_ENABLE=0`, mains power.
+4. Preserve endpoint/OnOff/Level/reporting/direct-binding behaviour and add
+   regression tests before any canary image exists.
+5. **Only after protocol + CI + spare hardware gates pass:** authorize the first
+   sacrificial canary. The installed production unit remains out of scope.
