@@ -3,6 +3,7 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SRC="$ROOT/firmware/gl-sd-301p-ed"
+INTEROP="$ROOT/src"
 FIXTURE="$SRC/telink_fixture"
 FINALIZER="$ROOT/tools/telink_app_finalize.py"
 
@@ -35,7 +36,7 @@ FLASH_END=0x80000
 [[ -f "$FINALIZER" ]] || { echo "ERROR: Telink finalizer missing" >&2; exit 2; }
 
 roots=("$SDK/proj" "$SDK/platform" "$SDK/zigbee" "$COMMON_APP" "$SAMPLE_DIR")
-includes=(-I"$FIXTURE" -I"$SAMPLE_DIR" -I"$COMMON_APP" -I"$SDK/proj")
+includes=(-I"$FIXTURE" -I"$SAMPLE_DIR" -I"$COMMON_APP" -I"$SDK/proj" -I"$SRC" -I"$INTEROP")
 while IFS= read -r -d '' d; do includes+=("-I$d"); done < <(find "${roots[@]}" -type d -print0 | sort -zu)
 
 defs=(-DGLSD_TELINK_SDK -DMCU_CORE_8258=1 -DEND_DEVICE=1 -DMCU_STARTUP_8258=1)
@@ -107,9 +108,16 @@ sdk_sources=(
 
 app_sources=(
   glsd_ed_core.c
-  glsd_power_stage_stub.c
+  glsd_power_stage_telink.c
   glsd_telink_ed_app.c
   glsd_telink_disabled_feature_glue.c
+)
+
+interop_sources=(
+  glsd301p_uart_frame.c
+  glsd301p_power_stage_policy.c
+  glsd301p_push_input.c
+  glsd301p_pb4_compat.c
 )
 
 compile_one() {
@@ -150,6 +158,14 @@ for rel in "${app_sources[@]}"; do
   objects+=("$obj")
 done
 
+for rel in "${interop_sources[@]}"; do
+  src="$INTEROP/$rel"
+  [[ -f "$src" ]] || { echo "ERROR: interoperability source missing: $rel" >&2; exit 2; }
+  obj="$DIR/obj/app/${rel%.c}.o"
+  compile_one "$src" "$obj" 0
+  objects+=("$obj")
+done
+
 elf="$DIR/glsd-ed.elf"
 bin="$DIR/glsd-ed.bin"
 final_bin="$DIR/glsd-ed.final.bin"
@@ -185,9 +201,11 @@ fi
 
 raw_bytes="$(stat -c %s "$bin")"
 (( raw_bytes < APP_SLOT_SIZE )) || { echo "ERROR: raw image exceeds 0x34000 app slot" >&2; exit 1; }
-python3 "$FINALIZER" check-link "$bin" --max-final-size "$APP_SLOT_SIZE"
-python3 "$FINALIZER" finalize "$bin" "$final_bin" --max-final-size "$APP_SLOT_SIZE"
-python3 "$FINALIZER" check-final "$final_bin" --max-final-size "$APP_SLOT_SIZE"
+file_version="$(awk '/^[[:space:]]*#define[[:space:]]+FILE_VERSION[[:space:]]+/ {print $3; exit}' "$FIXTURE/version_cfg.h")"
+[[ "$file_version" =~ ^0[xX][0-9A-Fa-f]+$ ]] || { echo "ERROR: cannot parse FILE_VERSION" >&2; exit 2; }
+python3 "$FINALIZER" check-link "$bin" --file-version "$file_version" --max-final-size "$APP_SLOT_SIZE"
+python3 "$FINALIZER" finalize "$bin" "$final_bin" --file-version "$file_version" --max-final-size "$APP_SLOT_SIZE"
+python3 "$FINALIZER" check-final "$final_bin" --file-version "$file_version" --max-final-size "$APP_SLOT_SIZE"
 final_bytes="$(stat -c %s "$final_bin")"
 
 physical_a_end=$((BANK_A_BASE + final_bytes))
@@ -216,9 +234,12 @@ fi
 
 {
   echo PRODUCT_FIRMWARE=GL-SD-301P-ED
+  echo FLASHABLE_ARTIFACT=YES
+  echo DEPLOY_AUTHORIZED=NO
   echo DEPLOYABLE=NO
-  echo DEPLOYABLE_BLOCKER=POWER_STAGE_DRIVER_STUB
-  echo POWER_STAGE_DRIVER=STUB
+  echo DEPLOYABLE_BLOCKER=SACRIFICIAL_CANARY_NOT_YET_VALIDATED
+  echo POWER_STAGE_DRIVER=UART_GLSD301P
+  echo POWER_STAGE_PROTOCOL_GATE=PASS_STATIC
   echo ZIGBEE_STACK_ARCHIVE=libzb_ed.a
   echo ZIGBEE_ROLE=END_DEVICE
   echo ZB_MAC_RX_ON_WHEN_IDLE=1
@@ -246,4 +267,4 @@ fi
 
 echo GLSD_ED_TC32_FULL_LINK=PASS
 echo GLSD_ED_STACK=TELINK_END_DEVICE
-echo 'STOP: product image is non-deployable until glsd_power_stage_stub.c is replaced by the verified GL-SD hardware driver.'
+echo 'STOP: structurally flashable artifact built; deployment remains unauthorized until sacrificial-canary validation.'

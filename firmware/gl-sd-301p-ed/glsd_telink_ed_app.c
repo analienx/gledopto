@@ -16,6 +16,8 @@
 
 #include "glsd_ed_core.h"
 #include "glsd_power_stage.h"
+#include "glsd301p_push_input.h"
+#include "glsd301p_pb4_compat.h"
 
 #define GLSD_ENDPOINT                    0x0Bu
 #define GLSD_MANUFACTURER_CODE           0x124Fu
@@ -23,6 +25,7 @@
 #define GLSD_LEVEL_MIN                   1u
 #define GLSD_LEVEL_MAX                   254u
 #define GLSD_MOVE_TICK_MS                100u
+#define GLSD_LOCAL_IO_TICK_MS            1u
 
 static glsd_ed_core_t g_core;
 static u8 g_power_ready;
@@ -31,6 +34,9 @@ static s16 g_move_delta;
 static u8 g_move_with_onoff;
 static ev_timer_event_t *g_steer_timer;
 static ev_timer_event_t *g_rejoin_timer;
+static ev_timer_event_t *g_local_io_timer;
+static glsd301p_push_decoder_t g_push_decoder;
+static glsd301p_pb4_compat_t g_pb4_compat;
 
 /* Basic cluster: development identity is intentionally not stock-identical. */
 static u8 g_basic_zcl_version = 0x03u;
@@ -197,6 +203,47 @@ static void glsd_stop_move(void)
     g_move_timer = NULL;
     g_move_delta = 0;
     g_level_remaining = 0;
+}
+
+
+static s32 glsd_local_io_tick(void *arg)
+{
+    glsd301p_push_event_t event;
+    (void)arg;
+
+    if (!g_power_ready) {
+        g_local_io_timer = NULL;
+        return -1;
+    }
+
+    event = glsd301p_push_decoder_poll(
+        &g_push_decoder,
+        glsd_power_stage_pc2_high() != 0);
+
+    if (event == GLSD301P_PUSH_EVENT_TOGGLE) {
+        glsd_stop_move();
+        if (glsd_ed_toggle(&g_core) == GLSD_ED_OK) {
+            glsd_sync_attrs();
+        }
+    } else if (event == GLSD301P_PUSH_EVENT_LEVEL_STEP && g_core.on) {
+        const glsd301p_push_dim_direction_t direction =
+            glsd301p_push_decoder_direction(&g_push_decoder);
+        const uint8_t next = glsd301p_push_level_step(g_core.level, direction);
+        glsd_stop_move();
+        if (glsd_ed_set_level(&g_core, next, 0u) == GLSD_ED_OK) {
+            glsd_sync_attrs();
+        }
+    }
+
+    if (glsd301p_pb4_compat_poll(
+            &g_pb4_compat,
+            glsd_power_stage_pb4_high() != 0)) {
+        /* Stock behavior does not mutate g_core.level and does not send a
+         * full-level restoration solely because PB4 later becomes low. */
+        (void)glsd_power_stage_apply_pb4_aux(g_core.level);
+    }
+
+    return 0;
 }
 
 static status_t glsd_level_cb(zclIncomingAddrInfo_t *addr, u8 cmd_id, void *payload)
@@ -375,6 +422,8 @@ void user_init(bool isRetention)
     u8 reportable_change[2] = {0, 0};
     (void)isRetention;
 
+    glsd301p_push_decoder_init(&g_push_decoder);
+    glsd301p_pb4_compat_init(&g_pb4_compat);
     g_power_ready = (glsd_power_stage_init() == 0) ? 1u : 0u;
     hw.user = NULL;
     hw.apply_output = glsd_hw_apply;
@@ -401,6 +450,10 @@ void user_init(bool isRetention)
     ev_on_poll(EV_POLL_IDLE, glsd_app_task);
     (void)bdb_init((af_simple_descriptor_t *)&g_simple_desc,
                    &g_bdb_settings, &g_bdb_callbacks, 1);
+    if (g_power_ready) {
+        g_local_io_timer = TL_ZB_TIMER_SCHEDULE(
+            glsd_local_io_tick, NULL, GLSD_LOCAL_IO_TICK_MS);
+    }
 }
 
 #endif /* GLSD_TELINK_SDK */
