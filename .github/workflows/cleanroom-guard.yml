@@ -1,8 +1,10 @@
-name: Clean-room guard
+name: Interoperability boundary and host tests
 
 on:
   push:
-    branches: [main]
+    branches:
+      - main
+      - cleanroom/glsd301p-interoperability-20260907
   pull_request:
   workflow_dispatch:
 
@@ -10,9 +12,25 @@ permissions:
   contents: read
 
 jobs:
-  cleanroom:
+  boundary-and-tests:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
-      - name: Reject proprietary firmware and unresolved production gates
+
+      - name: Validate third-party/reference/implementation boundary
         run: python3 tools/check_cleanroom.py
+
+      - name: Build host-side interoperability tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p build/host-tests
+          cc -std=c11 -Wall -Wextra -Werror -pedantic \
+            -Isrc \
+            src/glsd301p_uart_frame.c \
+            src/glsd301p_power_stage_policy.c \
+            tests/test_glsd301p_uart_frame.c \
+            -o build/host-tests/test_glsd301p_uart_frame
+
+      - name: Run host-side interoperability tests
+        run: build/host-tests/test_glsd301p_uart_frame
