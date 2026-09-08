@@ -11,7 +11,7 @@
       "byte_identical_to_obtained_original": true,
       "size_bytes": 208946,
       "sha256": "16595a38ab9783d3afc4eb58ab4ec32625249bd569c1fa6dbaf468bddc76dd72",
-      "sha512": "3e8d9101157ee5363ab91352d3f09d3955a5a0403030d8aa7f48ae429161423902203991324c5156403399725e4d3ddedb659523dc1c7988fdcdb5b054aa3cb0",
+      "sha512": "508b261b5b2ea46510a2ad295a5e468cfa5ff4e33530819fd2b4cbb7cd323c9c3e88fc40aaf69e22dec48d43e939cca735f73e1827a9d53a6c30d9da9a753576",
       "zigbee_ota": {
         "manufacturer_code": "0x124F",
         "image_type": "0x1416",
