@@ -82,4 +82,7 @@ typedef enum {
 } ev_poll_e;
 
 #define GLSD301P_ENDPOINT                       0x0B
+/* Real target: post-SDK GPIO assertions are enabled. Reference-only temporary
+ * configs flip this to 0 while compiling alternate candidate GPIO wrappers. */
+#define GLSD301P_TARGET_ENABLE_SDK_PIN_ASSERTS  1
 #include "glsd301p_target_contract.h"
