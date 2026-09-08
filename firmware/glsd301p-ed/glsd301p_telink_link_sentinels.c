@@ -18,7 +18,7 @@
  */
 
 #include "tl_common.h"
-#include "security_service.h"
+#include "zb_api.h"
 
 u8 ss_apsmeSwitchKeyReq(ss_apsmeSwitchKeyReq_t *req)
 {
