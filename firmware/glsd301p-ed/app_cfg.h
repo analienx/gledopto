@@ -26,10 +26,11 @@
 #if defined(MCU_CORE_8258)
 #define CLOCK_SYS_CLOCK_HZ                      48000000
 /* Telink drv_hw.c initializes an ADC input for flash safe-voltage handling even
- * when application voltage detection is disabled. PC5 is the SDK's standard
- * 8258-dongle fixture value. Its physical suitability on GL-SD-301P remains an
- * explicit deployment blocker; this build is quarantined and not flashable. */
-#define VOLTAGE_DETECT_ADC_PIN                  GPIO_PC5
+ * when application voltage detection is disabled. Genuine same-model GLEDOPTO
+ * firmware was independently traced through the unique drv_adc_mode_pin_set
+ * helper/caller and resolves this VBAT-mode argument to GPIO_PB3. Keep this
+ * exact pin locked unless the vendor-proof gate is deliberately superseded. */
+#define VOLTAGE_DETECT_ADC_PIN                  GPIO_PB3
 #else
 #error "GL-SD-301P target supports only MCU_CORE_8258"
 #endif
