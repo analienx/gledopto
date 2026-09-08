@@ -27,6 +27,17 @@ def _define_value(text: str, name: str) -> str | None:
     return match.group(1) if match else None
 
 
+def _find_handler_definition(ota_source: str) -> str:
+    """Return the real handler definition, never a prototype/disabled declaration."""
+    match = re.search(
+        r"(?m)^[^\n;{}]*\bota_queryNextImageRspHandler\s*\([^;{}]*\)\s*\{",
+        ota_source,
+    )
+    if match is None:
+        return ""
+    return ota_source[match.start():match.start() + 9000]
+
+
 def analyze_contract(
     ota_source: str,
     app_cfg: str,
@@ -43,12 +54,9 @@ def analyze_contract(
     if "ota_init(" not in target_source or "g_ota_info" not in target_source:
         errors.append("target does not initialize the standard Telink OTA client with its preamble")
 
-    fn_start = ota_source.find("ota_queryNextImageRspHandler")
-    if fn_start < 0:
-        errors.append("pinned ota_queryNextImageRspHandler not found")
-        handler = ""
-    else:
-        handler = ota_source[fn_start:fn_start + 9000]
+    handler = _find_handler_definition(ota_source)
+    if not handler:
+        errors.append("pinned ota_queryNextImageRspHandler definition not found")
 
     downgrade_expr = "pQueryNextImageRsp->fileVer < g_otaCtx.pOtaPreamble->fileVer"
     equal_expr = "pQueryNextImageRsp->fileVer == g_otaCtx.pOtaPreamble->fileVer"
