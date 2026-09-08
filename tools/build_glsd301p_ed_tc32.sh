@@ -112,6 +112,7 @@ app_sources=(
   "$CORE/glsd301p_pb4_compat.c"
   "$CORE/glsd301p_runtime_core.c"
   "$TARGET/glsd301p_telink_inert_glue.c"
+  "$TARGET/glsd301p_telink_link_sentinels.c"
   "$TARGET/glsd301p_telink_target.c"
 )
 
@@ -131,6 +132,8 @@ compile_one() {
 # Source-level architecture/call-surface gates before invoking a compiler.
 grep -q '#define GLSD301P_ENDPOINT[[:space:]]*0x0B' "$TARGET/app_cfg.h"
 grep -q '#define ZB_MAC_RX_ON_WHEN_IDLE[[:space:]]*1' "$TARGET/stack_cfg.h"
+grep -q '#define TOUCHLINK_SUPPORT[[:space:]]*0' "$TARGET/app_cfg.h"
+grep -q '#define ZCL_ZLL_COMMISSIONING_SUPPORT[[:space:]]*0' "$TARGET/app_cfg.h"
 grep -q 'POWER_MODE_RECEIVER_SYNCHRONIZED_WHEN_ON_IDLE' "$TARGET/glsd301p_telink_target.c"
 grep -q 'POWER_SRC_MAINS_POWER' "$TARGET/glsd301p_telink_target.c"
 grep -q 'UART_TX_PB1, UART_RX_PA0' "$TARGET/glsd301p_telink_target.c"
@@ -147,11 +150,33 @@ if grep -q 'glsd301p_control_frame_encode' "$TARGET/glsd301p_telink_target.c"; t
   echo 'ERROR: Telink application bypasses guarded output APIs' >&2
   exit 1
 fi
+
+# Disabled Touchlink closure is allowed only in the dedicated inert glue.
 grep -q '^u8 deviceInfoRsp = 0u;$' "$TARGET/glsd301p_telink_inert_glue.c"
-if grep -E 'touchlink_|zcl_touchlink|gpDevice|zclGp|flash_.*otp' "$TARGET/glsd301p_telink_inert_glue.c"; then
-  echo 'ERROR: optional-feature glue grew beyond the minimal inert state hook' >&2
+for hook in touchlink_keyModeSet touchlink_lqiThresholdSet zcl_touchlink_register; do
+  grep -q "$hook" "$TARGET/glsd301p_telink_inert_glue.c" || {
+    echo "ERROR: missing inert Touchlink closure: $hook" >&2; exit 1;
+  }
+done
+if grep -E 'gpDevice|zclGp|flash_.*otp|ss_apsme|tl_zbNwkBeaconPayloadUpdate' "$TARGET/glsd301p_telink_inert_glue.c"; then
+  echo 'ERROR: inert Touchlink glue contains non-Touchlink closure' >&2
   exit 1
 fi
+
+# These are link-resolution sentinels only. Any final-ELF reachability is fatal.
+gc_only_sentinels=(
+  flash_erase_otp
+  flash_read_otp
+  flash_write_otp
+  ss_apsmeSwitchKeyReq
+  ss_apsmeTransportKeyReq
+  tl_zbNwkBeaconPayloadUpdate
+)
+for sym in "${gc_only_sentinels[@]}"; do
+  grep -q "$sym" "$TARGET/glsd301p_telink_link_sentinels.c" || {
+    echo "ERROR: missing GC-only linker sentinel: $sym" >&2; exit 1;
+  }
+done
 
 rm -rf "$DIR"
 mkdir -p "$DIR/obj/sdk" "$DIR/obj/app"
@@ -211,6 +236,24 @@ if [[ -s "$DIR/unresolved.txt" ]]; then
   exit 1
 fi
 
+# The role/security/beacon/OTP shims are valid only as pre-GC resolution aids.
+# If any survives, a supposedly dead ED section is actually reachable.
+for sym in "${gc_only_sentinels[@]}"; do
+  if "$TC32_NM" "$elf" | awk -v s="$sym" '$NF == s {found=1} END {exit(found ? 0 : 1)}'; then
+    echo "ERROR: GC-only linker sentinel survived final ELF: $sym" >&2
+    exit 1
+  fi
+done
+echo 'GC_ONLY_LINK_SENTINELS_FINAL_ELF=NONE'
+
+# Touchlink remains disabled; only the three inert BDB closure hooks and the
+# zero response-state byte may exist. No ZLL implementation TU is compiled.
+if grep -Eq 'zcl_zll_commissioning\.c|zcl_zll_commissioning\.o' "$map"; then
+  echo 'ERROR: Touchlink implementation entered final link map' >&2
+  exit 1
+fi
+echo 'TOUCHLINK_IMPLEMENTATION_LINKED=NO'
+
 raw_bytes="$(stat -c %s "$raw")"
 (( raw_bytes < APP_SLOT_SIZE )) || { echo 'ERROR: raw image exceeds 0x34000 app slot' >&2; exit 1; }
 python3 "$FINALIZER" check-link "$raw" --file-version "$FILE_VERSION" --max-final-size "$APP_SLOT_SIZE"
@@ -249,7 +292,10 @@ grep -q 'libzb_ed' "$map" || { echo 'ERROR: End Device stack archive absent from
   echo POWER_SOURCE=MAINS
   echo BOOT_FIRST_POWER_STAGE_FRAME=A55A010004AA
   echo FAMILY_0x02_CORE_RUNTIME=ABSENT
-  echo OPTIONAL_TOUCHLINK_STATE_HOOK=deviceInfoRsp_zero_only
+  echo TOUCHLINK_SUPPORT=0
+  echo TOUCHLINK_IMPLEMENTATION_LINKED=NO
+  echo TOUCHLINK_CLOSURE=INERT_BDB_HOOKS_ONLY
+  echo GC_ONLY_LINK_SENTINELS_FINAL_ELF=NONE
   echo ADC_FLASH_SAFETY_PIN_FIXTURE=GPIO_PC5_UNVALIDATED_PHYSICALLY
   echo UART=9600_8N1_PB1_TX_PA0_RX
   echo "RAW_BINARY_SIZE=$raw_bytes"
