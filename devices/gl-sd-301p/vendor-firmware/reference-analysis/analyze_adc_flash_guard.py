@@ -34,8 +34,6 @@ ADC_PINS = (
 def run(argv: list[str], *, cwd: Path | None = None, text: bool = True) -> subprocess.CompletedProcess:
     cp = subprocess.run(argv, cwd=cwd, check=False, capture_output=True, text=text)
     if cp.returncode:
-        # Tool output here is public SDK/compiler diagnostics only. Never print
-        # vendor payload/disassembly from this helper.
         stderr = cp.stderr if isinstance(cp.stderr, str) else "<binary stderr>"
         stdout = cp.stdout if isinstance(cp.stdout, str) else "<binary stdout>"
         raise RuntimeError(
@@ -98,7 +96,6 @@ def find_text_section(objdump: Path, obj: Path, function: str) -> str:
 
 
 def relocation_mask(length: int, relocations: Iterable[int]) -> set[int]:
-    """Mask conservatively around each TC32 relocation-bearing instruction."""
     masked: set[int] = set()
     for off in relocations:
         for i in range(max(0, off - 2), min(length, off + 6)):
@@ -152,7 +149,9 @@ def copy_target_cfg(target: Path, dst: Path, pin: str) -> None:
 
 def sdk_include_args(sdk: Path, cfg: Path, core: Path) -> list[str]:
     roots = [sdk / "proj", sdk / "platform", sdk / "zigbee", sdk / "apps" / "common"]
-    dirs = {cfg, core, sdk / "proj"}
+    # Include the roots themselves as the production build does; rglob only
+    # returns descendants and would otherwise miss apps/common/comm_cfg.h.
+    dirs = {cfg, core, *roots}
     for root in roots:
         for p in root.rglob("*"):
             if p.is_dir():
