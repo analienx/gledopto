@@ -10,6 +10,9 @@
 #include "tl_common.h"
 #include "zcl_include.h"
 #include "zcl_zll_commissioning.h"
+#include "drv_gpio.h"
+
+#include "glsd301p_telink_pin_contract.h"
 
 u8 deviceInfoRsp = 0u;
 
