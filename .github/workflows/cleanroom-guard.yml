@@ -21,7 +21,9 @@ jobs:
         run: python3 tools/check_cleanroom.py
 
       - name: Check target build harness syntax
-        run: bash -n tools/build_glsd301p_ed_tc32.sh
+        run: |
+          bash -n tools/build_glsd301p_ed_tc32.sh
+          bash -n tools/probe_telink_role_symbol_ownership.sh
 
       - name: Build host-side interoperability tests
         shell: bash
@@ -117,6 +119,13 @@ jobs:
           chmod +x "$bindir"/* || true
           echo "TC32_CC=$bindir/tc32-elf-gcc" >> "$GITHUB_ENV"
           "$bindir/tc32-elf-gcc" --version | head -n 1
+
+      - name: Probe unresolved symbols across Telink role archives
+        shell: bash
+        run: |
+          set -euo pipefail
+          export TELINK_SDK_ROOT="$GITHUB_WORKSPACE/telink-sdk/tl_zigbee_sdk"
+          bash tools/probe_telink_role_symbol_ownership.sh
 
       - name: Compile, link and finalize quarantined End Device target
         shell: bash
