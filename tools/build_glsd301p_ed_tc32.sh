@@ -131,6 +131,8 @@ compile_one() {
 
 # Source-level architecture/call-surface gates before invoking a compiler.
 grep -q '#define GLSD301P_ENDPOINT[[:space:]]*0x0B' "$TARGET/app_cfg.h"
+grep -q '#define VOLTAGE_DETECT_ADC_PIN[[:space:]]*GPIO_PB3' "$TARGET/app_cfg.h"
+! grep -q '#define VOLTAGE_DETECT_ADC_PIN[[:space:]]*GPIO_PC5' "$TARGET/app_cfg.h"
 grep -q '#define ZB_MAC_RX_ON_WHEN_IDLE[[:space:]]*1' "$TARGET/stack_cfg.h"
 grep -q '#define TOUCHLINK_SUPPORT[[:space:]]*0' "$TARGET/app_cfg.h"
 grep -q '#define ZCL_ZLL_COMMISSIONING_SUPPORT[[:space:]]*0' "$TARGET/app_cfg.h"
@@ -309,7 +311,7 @@ grep -q 'libzb_ed' "$map" || { echo 'ERROR: End Device stack archive absent from
   echo TOUCHLINK_CLOSURE=INERT_BDB_HOOKS_ONLY
   echo GC_ONLY_LINK_SENTINELS_FINAL_ELF=NONE
   echo REACHABLE_TARGET_RUNTIME_CHAIN=PASS
-  echo ADC_FLASH_SAFETY_PIN_FIXTURE=GPIO_PC5_UNVALIDATED_PHYSICALLY
+  echo ADC_FLASH_SAFETY_PIN=GPIO_PB3_VENDOR_FIRMWARE_CONFIRMED
   echo UART=9600_8N1_PB1_TX_PA0_RX
   echo "RAW_BINARY_SIZE=$raw_bytes"
   echo "FINAL_BINARY_SIZE=$final_bytes"
