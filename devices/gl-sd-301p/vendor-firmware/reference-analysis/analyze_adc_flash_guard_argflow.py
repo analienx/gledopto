@@ -4,7 +4,7 @@
 This analyzer starts from the independently unique same-model
 ``drv_adc_mode_pin_set`` machine-code anchor, locates its sole direct TC32 caller,
 and symbolically evaluates only the constant-building instructions immediately
-before that call.  The TC32 ABI and per-pin argument values are learned from
+before that call. The TC32 ABI and per-pin argument values are learned from
 compiler-controlled public wrappers, not hard-coded.
 
 Only derived register constants, offsets and the symbolic GPIO result are
@@ -135,6 +135,60 @@ def vendor_basic_block_before(vins: list[dict], call_index: int) -> list[dict]:
     return vins[start:call_index]
 
 
+def derive_abi(wrapper_states: dict[str, dict[str, int]]) -> tuple[str, str, int, dict[int, list[str]], dict[str, int]]:
+    """Infer mode/pin registers without requiring identical codegen for every GPIO.
+
+    TC32 emits a shorter special sequence for some constants (notably PB0), so
+    requiring every wrapper to expose the same register set is too strict. The
+    pin register must instead be present in a supermajority of wrappers, vary
+    across at least three concrete values, and provide a unique GPIO mapping for
+    every wrapper where it is present. The mode register must be present in all
+    wrappers and carry one invariant non-zero value.
+    """
+    pins = list(wrapper_states)
+    all_regs = sorted({reg for state in wrapper_states.values() for reg in state})
+
+    mode_candidates: list[tuple[str, int]] = []
+    pin_candidates: list[tuple[str, int, int]] = []
+    register_coverage: dict[str, int] = {}
+
+    for reg in all_regs:
+        values = [(pin, wrapper_states[pin][reg]) for pin in pins if reg in wrapper_states[pin]]
+        coverage = len(values)
+        register_coverage[reg] = coverage
+        distinct = {value for _, value in values}
+
+        if coverage == len(pins) and len(distinct) == 1:
+            value = next(iter(distinct))
+            if value != 0:
+                mode_candidates.append((reg, value))
+
+        # Allow one codegen outlier, but demand broad coverage and real variation.
+        if coverage >= len(pins) - 1 and len(distinct) >= 3:
+            pin_candidates.append((reg, coverage, len(distinct)))
+
+    if "r0" in {reg for reg, _ in mode_candidates}:
+        mode_reg, expected_mode = next((reg, value) for reg, value in mode_candidates if reg == "r0")
+    elif len(mode_candidates) == 1:
+        mode_reg, expected_mode = mode_candidates[0]
+    else:
+        raise SystemExit(f"could not derive unique mode argument register: {mode_candidates}")
+
+    if len(pin_candidates) != 1:
+        raise SystemExit(f"could not derive unique pin argument register: {pin_candidates}")
+    pin_reg = pin_candidates[0][0]
+
+    pin_value_map: dict[int, list[str]] = {}
+    for pin, state in wrapper_states.items():
+        if pin_reg in state:
+            pin_value_map.setdefault(state[pin_reg], []).append(pin)
+
+    if any(len(names) != 1 for names in pin_value_map.values()):
+        raise SystemExit(f"compiler GPIO argument map is not unique: {pin_value_map}")
+
+    return mode_reg, pin_reg, expected_mode, pin_value_map, register_coverage
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--ota", type=Path, required=True)
@@ -163,7 +217,6 @@ def main() -> int:
             raise SystemExit("exact drv_adc_mode_pin_set anchor is not unique/strong")
         anchor_off = int(anchor["offset"])
 
-        # Learn ABI + concrete per-GPIO argument values from the pinned compiler.
         wrapper_states: dict[str, dict[str, int]] = {}
         wrapper_lengths: dict[str, int] = {}
         for pin in base.ADC_PINS:
@@ -173,27 +226,7 @@ def main() -> int:
             wrapper_states[pin] = state
             wrapper_lengths[pin] = len(used)
 
-        common_regs = set.intersection(*(set(s) for s in wrapper_states.values()))
-        varying_regs = [r for r in sorted(common_regs) if len({s[r] for s in wrapper_states.values()}) > 1]
-        invariant_regs = [r for r in sorted(common_regs) if len({s[r] for s in wrapper_states.values()}) == 1]
-        if len(varying_regs) != 1:
-            raise SystemExit(f"could not derive unique pin argument register: {varying_regs}")
-        pin_reg = varying_regs[0]
-
-        # The mode register is the invariant register carrying the same nonzero
-        # constant into every VBAT-mode wrapper. Prefer r0 if the compiler uses it.
-        nonzero_invariant = [r for r in invariant_regs if wrapper_states[base.ADC_PINS[0]][r] != 0]
-        if "r0" in nonzero_invariant:
-            mode_reg = "r0"
-        elif len(nonzero_invariant) == 1:
-            mode_reg = nonzero_invariant[0]
-        else:
-            raise SystemExit(f"could not derive unique mode argument register: {nonzero_invariant}")
-        expected_mode = wrapper_states[base.ADC_PINS[0]][mode_reg]
-
-        pin_value_map: dict[int, list[str]] = {}
-        for pin, state in wrapper_states.items():
-            pin_value_map.setdefault(state[pin_reg], []).append(pin)
+        mode_reg, pin_reg, expected_mode, pin_value_map, register_coverage = derive_abi(wrapper_states)
 
         vendor_raw = root / "vendor.bin"
         vendor_raw.write_bytes(payload)
@@ -236,6 +269,7 @@ def main() -> int:
             "pin_register": pin_reg,
             "vbat_mode_value": expected_mode,
             "wrapper_instruction_counts": wrapper_lengths,
+            "register_coverage": register_coverage,
         },
         "vendor_argument_state": {
             "mode_value": mode_value,
