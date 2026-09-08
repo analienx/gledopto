@@ -12,6 +12,7 @@ disassembly, or reconstructed source, and is not an implementation dependency.
 from __future__ import annotations
 
 import argparse
+from collections import defaultdict
 import hashlib
 import json
 from pathlib import Path
@@ -98,17 +99,10 @@ def find_text_section(objdump: Path, obj: Path, function: str) -> str:
 def relocation_mask(length: int, relocations: Iterable[int]) -> set[int]:
     masked: set[int] = set()
     for off in relocations:
+        # Conservative around a 16/32-bit TC32 relocation-bearing instruction.
         for i in range(max(0, off - 2), min(length, off + 6)):
             masked.add(i)
     return masked
-
-
-def differential_positions(variants: dict[str, bytes]) -> set[int]:
-    lengths = {len(v) for v in variants.values()}
-    if len(lengths) != 1:
-        raise RuntimeError(f"variant lengths differ: {sorted(lengths)}")
-    n = next(iter(lengths))
-    return {i for i in range(n) if len({v[i] for v in variants.values()}) > 1}
 
 
 def best_window_match(payload: bytes, sig: bytes, compare_positions: list[int]) -> tuple[float, int, int]:
@@ -118,17 +112,17 @@ def best_window_match(payload: bytes, sig: bytes, compare_positions: list[int]) 
         return 0.0, -1, 0
     best_score = -1
     best_off = -1
-    exact_count = 0
+    ties = 0
     required = len(compare_positions)
     for off in range(0, len(payload) - len(sig) + 1, 2):
         score = sum(payload[off + i] == sig[i] for i in compare_positions)
         if score > best_score:
             best_score = score
             best_off = off
-            exact_count = 1
+            ties = 1
         elif score == best_score:
-            exact_count += 1
-    return best_score / required, best_off, exact_count
+            ties += 1
+    return best_score / required, best_off, ties
 
 
 def copy_target_cfg(target: Path, dst: Path, pin: str) -> None:
@@ -149,8 +143,6 @@ def copy_target_cfg(target: Path, dst: Path, pin: str) -> None:
 
 def sdk_include_args(sdk: Path, cfg: Path, core: Path) -> list[str]:
     roots = [sdk / "proj", sdk / "platform", sdk / "zigbee", sdk / "apps" / "common"]
-    # Include the roots themselves as the production build does; rglob only
-    # returns descendants and would otherwise miss apps/common/comm_cfg.h.
     dirs = {cfg, core, *roots}
     for root in roots:
         for p in root.rglob("*"):
@@ -206,11 +198,13 @@ def compile_helper_variant(cc: Path, sdk: Path, target: Path, core: Path, pin: s
     return obj
 
 
-def build_signatures(kind: str, cc: Path, sdk: Path, target: Path, core: Path, root: Path) -> tuple[dict[str, bytes], set[int]]:
+def build_signatures(
+    kind: str, cc: Path, sdk: Path, target: Path, core: Path, root: Path
+) -> tuple[dict[str, bytes], dict[str, set[int]]]:
     objcopy = tool_sibling(cc, "tc32-elf-objcopy")
     objdump = tool_sibling(cc, "tc32-elf-objdump")
     variants: dict[str, bytes] = {}
-    relocation_union: set[int] = set()
+    relocations: dict[str, set[int]] = {}
     function = "drv_platform_init" if kind == "platform" else "glsd_adc_flash_guard_signature"
     for pin in ADC_PINS:
         out = root / kind / pin
@@ -219,34 +213,48 @@ def build_signatures(kind: str, cc: Path, sdk: Path, target: Path, core: Path, r
             cc, sdk, target, core, pin, out
         )
         section = find_text_section(objdump, obj, function)
-        raw = parse_section_bytes(objcopy, obj, section, out / "section.bin")
-        variants[pin] = raw
-        relocation_union |= parse_relocation_offsets(objdump, obj, section)
-    return variants, relocation_union
+        variants[pin] = parse_section_bytes(objcopy, obj, section, out / "section.bin")
+        relocations[pin] = parse_relocation_offsets(objdump, obj, section)
+    return variants, relocations
 
 
-def analyze_family(payload: bytes, variants: dict[str, bytes], relocations: set[int]) -> dict:
-    variable = differential_positions(variants)
-    length = len(next(iter(variants.values())))
-    masked = relocation_mask(length, relocations)
-    positions = [i for i in range(length) if i not in masked]
-    if len(variable - masked) < 1:
-        raise RuntimeError("pin variants produced no unmasked differentiating byte")
-    scores = {}
+def analyze_family(
+    payload: bytes, variants: dict[str, bytes], relocations: dict[str, set[int]]
+) -> dict:
+    length_groups: dict[int, list[str]] = defaultdict(list)
     for pin, sig in variants.items():
+        length_groups[len(sig)].append(pin)
+
+    scores: dict[str, dict] = {}
+    for pin, sig in variants.items():
+        masked = relocation_mask(len(sig), relocations[pin])
+        positions = [i for i in range(len(sig)) if i not in masked]
         score, off, ties = best_window_match(payload, sig, positions)
-        scores[pin] = {"score": round(score, 6), "offset": off, "best_score_ties": ties}
-    ranking = sorted(scores, key=lambda p: (-scores[p]["score"], p))
+
+        peers = length_groups[len(sig)]
+        diff_count = 0
+        if len(peers) > 1:
+            for i in positions:
+                if len({variants[p][i] for p in peers}) > 1:
+                    diff_count += 1
+        scores[pin] = {
+            "score": round(score, 6),
+            "offset": off,
+            "best_score_ties": ties,
+            "signature_length": len(sig),
+            "compared_bytes": len(positions),
+            "same_length_pin_differentiating_bytes": diff_count,
+        }
+
+    ranking = sorted(scores, key=lambda p: (-scores[p]["score"], -scores[p]["compared_bytes"], p))
     winner, runner = ranking[:2]
     return {
-        "signature_length": length,
-        "compared_bytes": len(positions),
-        "pin_differentiating_bytes": len(variable - masked),
         "winner": winner,
         "winner_score": scores[winner]["score"],
         "runner_up": runner,
         "runner_up_score": scores[runner]["score"],
         "margin": round(scores[winner]["score"] - scores[runner]["score"], 6),
+        "signature_lengths": {str(k): sorted(v) for k, v in sorted(length_groups.items())},
         "scores": scores,
     }
 
