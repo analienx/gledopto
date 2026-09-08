@@ -22,14 +22,13 @@ import tempfile
 import analyze_adc_flash_guard as base
 import analyze_adc_flash_guard_semantics as sem
 
-PRE = 12
-CALL_MASK = 6
+MAX_PRE = 8
 
 
 def compile_mode_callers(
     cc: Path, sdk: Path, target: Path, core: Path, objcopy: Path, objdump: Path, root: Path,
-) -> tuple[dict[str, bytes], dict[str, dict]]:
-    windows: dict[str, bytes] = {}
+) -> tuple[dict[str, bytes], dict[str, dict], int]:
+    compiled: dict[str, tuple[bytes, int]] = {}
     meta: dict[str, dict] = {}
     for pin in base.ADC_PINS:
         out = root / "caller" / pin
@@ -62,22 +61,33 @@ def compile_mode_callers(
         if len(entries) != 1:
             raise RuntimeError(f"expected one drv_adc_mode_pin_set relocation for {pin}, got {entries}")
         call_off, reloc_type = entries[0]
-        if call_off < PRE:
-            raise RuntimeError(f"caller too short before relocation for {pin}: {call_off}")
-        windows[pin] = raw[call_off - PRE:call_off]
+        if call_off <= 0:
+            raise RuntimeError(f"no argument-materialization bytes before call for {pin}: {call_off}")
+        compiled[pin] = (raw, call_off)
         meta[pin] = {
             "call_offset": call_off,
             "function_length": len(raw),
             "relocation_type": reloc_type,
         }
-    return windows, meta
+
+    # TC32 may encode one GPIO constant with a shorter sequence than another.
+    # Align on the tail immediately before the call so every candidate compares
+    # the same semantic region rather than an arbitrary function prologue.
+    pre = min(MAX_PRE, min(call_off for _, call_off in compiled.values()))
+    if pre < 2:
+        raise RuntimeError(f"common pre-call window unexpectedly small: {pre}")
+    windows = {
+        pin: raw[call_off - pre:call_off]
+        for pin, (raw, call_off) in compiled.items()
+    }
+    return windows, meta, pre
 
 
-def variable_positions(windows: dict[str, bytes]) -> tuple[list[int], list[int]]:
-    if {len(v) for v in windows.values()} != {PRE}:
+def variable_positions(windows: dict[str, bytes], pre: int) -> tuple[list[int], list[int]]:
+    if {len(v) for v in windows.values()} != {pre}:
         raise RuntimeError("caller pre-windows differ in length")
     stable, variable = [], []
-    for i in range(PRE):
+    for i in range(pre):
         vals = {v[i] for v in windows.values()}
         (stable if len(vals) == 1 else variable).append(i)
     return stable, variable
@@ -124,15 +134,18 @@ def find_direct_callers(insns: list[dict], target: int) -> list[dict]:
     callers = []
     for ins in insns:
         mnem = ins["mnemonic"].lower()
-        if target in ins["targets"] and ("call" in mnem or mnem in {"tcall", "call"}):
+        if target in ins["targets"] and "call" in mnem:
             callers.append({"offset": ins["addr"], "mnemonic": ins["mnemonic"]})
     return callers
 
 
-def score_callsite(payload: bytes, call_off: int, windows: dict[str, bytes], stable: list[int], variable: list[int]) -> dict:
-    if call_off < PRE:
+def score_callsite(
+    payload: bytes, call_off: int, windows: dict[str, bytes],
+    stable: list[int], variable: list[int], pre: int,
+) -> dict:
+    if call_off < pre:
         return {"offset": call_off, "usable": False}
-    observed = payload[call_off - PRE:call_off]
+    observed = payload[call_off - pre:call_off]
     ranked = []
     for pin, sig in windows.items():
         stable_hits = sum(observed[i] == sig[i] for i in stable)
@@ -144,7 +157,7 @@ def score_callsite(payload: bytes, call_off: int, windows: dict[str, bytes], sta
             "variable_hits": variable_hits,
             "variable_total": len(variable),
             "variable_score": round(variable_hits / len(variable), 6) if variable else 0.0,
-            "total_score": round((stable_hits + variable_hits) / PRE, 6),
+            "total_score": round((stable_hits + variable_hits) / pre, 6),
         })
     ranked.sort(key=lambda x: (-x["variable_hits"], -x["stable_hits"], -x["total_score"], x["pin"]))
     margin = ranked[0]["variable_hits"] - ranked[1]["variable_hits"] if len(ranked) > 1 else 0
@@ -193,11 +206,14 @@ def main() -> int:
             return 3
 
         anchor_offset = int(anchor["offset"])
-        windows, caller_meta = compile_mode_callers(cc, sdk, target, core, objcopy, objdump, root)
-        stable, variable = variable_positions(windows)
+        windows, caller_meta, pre = compile_mode_callers(cc, sdk, target, core, objcopy, objdump, root)
+        stable, variable = variable_positions(windows, pre)
         insns = parse_vendor_instructions(objdump, payload, root)
         callers = find_direct_callers(insns, anchor_offset)
-        evaluated = [score_callsite(payload, c["offset"], windows, stable, variable) | {"mnemonic": c["mnemonic"]} for c in callers]
+        evaluated = [
+            score_callsite(payload, c["offset"], windows, stable, variable, pre) | {"mnemonic": c["mnemonic"]}
+            for c in callers
+        ]
 
     candidates = []
     for row in evaluated:
@@ -207,7 +223,14 @@ def main() -> int:
         second = row["ranking"][1]
         strong_ctx = best["stable_total"] == 0 or best["stable_hits"] / best["stable_total"] >= 0.60
         unique = row["variable_hit_margin"] > 0
-        strong_pin = best["variable_total"] >= 2 and best["variable_score"] >= 0.75 and unique and strong_ctx
+        # With an independently exact call destination, even a tiny compiler
+        # wrapper can be decisive if the pin-changing bytes uniquely agree.
+        strong_pin = (
+            best["variable_total"] >= 1
+            and best["variable_score"] >= 0.75
+            and unique
+            and strong_ctx
+        )
         candidates.append({
             "call_offset": row["offset"],
             "mnemonic": row["mnemonic"],
@@ -234,7 +257,7 @@ def main() -> int:
         "direct_call_count": len(callers),
         "direct_callers": candidates,
         "caller_variant_metadata": caller_meta,
-        "pre_call_window_bytes": PRE,
+        "pre_call_window_bytes": pre,
         "stable_pre_call_bytes": len(stable),
         "pin_variable_pre_call_bytes": len(variable),
         "derived_pin": derived,
