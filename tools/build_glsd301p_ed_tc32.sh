@@ -137,9 +137,6 @@ grep -q 'UART_TX_PB1, UART_RX_PA0' "$TARGET/glsd301p_telink_target.c"
 [[ "$(grep -c 'drv_uart_tx_start' "$TARGET/glsd301p_telink_target.c")" -eq 1 ]] || {
   echo 'ERROR: target must have exactly one UART transmit choke point' >&2; exit 1;
 }
-# The generic encoder remains capable of representing observed family 0x02 for
-# forensic/full-parity work. Production core paths are rejected only if they
-# actually name that family. The target itself must never call the raw encoder.
 if grep -E 'GLSD301P_CONTROL_FAMILY_OPERATION' \
     "$TARGET/glsd301p_telink_target.c" "$CORE/glsd301p_runtime_core.c" \
     "$CORE/glsd301p_output_guard.c" "$CORE/glsd301p_power_stage_policy.c"; then
@@ -150,7 +147,6 @@ if grep -q 'glsd301p_control_frame_encode' "$TARGET/glsd301p_telink_target.c"; t
   echo 'ERROR: Telink application bypasses guarded output APIs' >&2
   exit 1
 fi
-# Only the known disabled Touchlink state byte is allowed in optional-feature glue.
 grep -q '^u8 deviceInfoRsp = 0u;$' "$TARGET/glsd301p_telink_inert_glue.c"
 if grep -E 'touchlink_|zcl_touchlink|gpDevice|zclGp|flash_.*otp' "$TARGET/glsd301p_telink_inert_glue.c"; then
   echo 'ERROR: optional-feature glue grew beyond the minimal inert state hook' >&2
@@ -190,9 +186,6 @@ final="$DIR/glsd301p-ed.final.bin"
 map="$DIR/glsd301p-ed.map"
 lst="$DIR/glsd301p-ed.lst"
 
-# Keep the End Device and driver archives in a GNU-ld group. The Telink ED
-# archive has internal cross-member references; grouping lets the linker rescan
-# it without introducing router/coordinator libraries or stubbing security APIs.
 "$TC32_LD" --gc-sections -nostartfiles \
   -T"$SDK/platform/boot/8258/boot_8258.link" -Map="$map" \
   -L"$SDK/zigbee/lib/tc32" -L"$SDK/platform/lib" \
@@ -202,7 +195,21 @@ lst="$DIR/glsd301p-ed.lst"
 "$TC32_OBJCOPY" -O binary "$elf" "$raw"
 "$TC32_OBJDUMP" -h -t "$elf" > "$lst"
 "$TC32_NM" -u "$elf" > "$DIR/unresolved.txt" || true
-[[ ! -s "$DIR/unresolved.txt" ]] || { echo 'ERROR: unresolved symbols'; cat "$DIR/unresolved.txt"; exit 1; }
+if [[ -s "$DIR/unresolved.txt" ]]; then
+  echo 'ERROR: unresolved symbols'
+  cat "$DIR/unresolved.txt"
+  echo '--- unresolved-symbol ownership autopsy ---'
+  while read -r _ kind sym; do
+    [[ "$kind" == U ]] || continue
+    echo "### $sym"
+    for input in "$SDK/zigbee/lib/tc32/libzb_ed.a" "$SDK/platform/lib/libdrivers_8258.a" "${objects[@]}"; do
+      [[ -f "$input" ]] || continue
+      "$TC32_NM" -A "$input" 2>/dev/null | awk -v s="$sym" '$NF == s {print}' || true
+    done
+  done < "$DIR/unresolved.txt"
+  echo '--- end ownership autopsy ---'
+  exit 1
+fi
 
 raw_bytes="$(stat -c %s "$raw")"
 (( raw_bytes < APP_SLOT_SIZE )) || { echo 'ERROR: raw image exceeds 0x34000 app slot' >&2; exit 1; }
