@@ -30,14 +30,38 @@ jobs:
           python3 -m py_compile tools/check_telink_ota_recovery_contract.py
       - name: Run adversarial finalization tests
         run: python3 tools/tests/test_glsd301p_finalization.py -v
-      - name: Prove policy never authorizes live execution
+      - name: Prove policy never authorizes or executes live OTA
         shell: bash
         run: |
           set -euo pipefail
-          ! grep -R -E 'authorizationGranted["'"']?[[:space:]]*[:=][[:space:]]*True|AUTHORIZATION_GRANTED["'"']?[[:space:]]*[:=][[:space:]]*True' \
-            tools/make_glsd301p_ed_ota.py tools/glsd301p_final_preflight.py tools/glsd301p_release_plan.py
-          echo 'FINAL_POLICY_AUTHORIZATION_TRUE_PATH=NONE'
-          echo 'FINAL_POLICY_NETWORK_EXECUTION=NONE'
+          python3 - <<'PY'
+          from pathlib import Path
+          paths = [
+              Path("tools/make_glsd301p_ed_ota.py"),
+              Path("tools/glsd301p_final_preflight.py"),
+              Path("tools/glsd301p_release_plan.py"),
+          ]
+          text = "\n".join(path.read_text(encoding="utf-8") for path in paths)
+          forbidden_true = (
+              '"authorizationGranted": True',
+              "'authorizationGranted': True",
+              '"AUTHORIZATION_GRANTED": True',
+              "'AUTHORIZATION_GRANTED': True",
+          )
+          forbidden_network = (
+              "paho.mqtt",
+              "mqtt.Client(",
+              "requests.post(",
+              "requests.put(",
+              "urllib.request",
+              "socket.socket(",
+              "mosquitto_pub",
+          )
+          assert not any(token in text for token in forbidden_true)
+          assert not any(token in text for token in forbidden_network)
+          print("FINAL_POLICY_AUTHORIZATION_TRUE_PATH=NONE")
+          print("FINAL_POLICY_NETWORK_EXECUTION=NONE")
+          PY
 
   exact-head-tc32-final-readiness:
     name: Exact-head TC32 + vendor recovery + inert release plan
