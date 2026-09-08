@@ -10,7 +10,12 @@
  *
  * The pinned TC32 compiler predates C11; negative-size typedefs provide
  * compile-time assertions without requiring _Static_assert.
+ *
+ * Production sets GLSD301P_TARGET_ENABLE_SDK_PIN_ASSERTS=1. Reference-only
+ * temporary configs set it to 0 while compiling alternate GPIO candidates.
  */
+
+#if defined(GLSD301P_TARGET_ENABLE_SDK_PIN_ASSERTS) && GLSD301P_TARGET_ENABLE_SDK_PIN_ASSERTS
 
 typedef char glsd301p_adc_pin_must_be_pb3[
     (VOLTAGE_DETECT_ADC_PIN == GPIO_PB3) ? 1 : -1];
@@ -29,5 +34,7 @@ typedef char glsd301p_adc_pin_not_uart_tx[(GPIO_PB3 != GPIO_PB1) ? 1 : -1];
 typedef char glsd301p_adc_pin_not_uart_rx[(GPIO_PB3 != GPIO_PA0) ? 1 : -1];
 typedef char glsd301p_adc_pin_not_push[(GPIO_PB3 != GPIO_PC2) ? 1 : -1];
 typedef char glsd301p_adc_pin_not_aux_input[(GPIO_PB3 != GPIO_PB4) ? 1 : -1];
+
+#endif
 
 #endif /* GLSD301P_TELINK_PIN_CONTRACT_H */
