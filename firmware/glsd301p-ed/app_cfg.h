@@ -82,5 +82,4 @@ typedef enum {
 } ev_poll_e;
 
 #define GLSD301P_ENDPOINT                       0x0B
-#define GLSD301P_TARGET_ENABLE_SDK_PIN_ASSERTS  1
 #include "glsd301p_target_contract.h"
