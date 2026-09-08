@@ -84,6 +84,18 @@ if grep -Eq '^#define[[:space:]]+VOLTAGE_DETECT_ADC_PIN[[:space:]]+GPIO_PC5([[:s
   exit 1
 fi
 
+# The real target must never be allowed to opt out of the post-SDK enum and
+# collision assertions. Only temporary reference-analysis copies may flip this
+# switch to zero while compiling alternate GPIO candidates.
+grep -Eq '^#define[[:space:]]+GLSD301P_TARGET_ENABLE_SDK_PIN_ASSERTS[[:space:]]+1[[:space:]]*$' "$CFG" || {
+  echo 'ERROR: production post-SDK pin assertions must remain enabled' >&2
+  exit 1
+}
+if grep -Eq '^#define[[:space:]]+GLSD301P_TARGET_ENABLE_SDK_PIN_ASSERTS[[:space:]]+0([[:space:]]|$)' "$CFG"; then
+  echo 'ERROR: reference-only pin-assertion bypass leaked into production config' >&2
+  exit 1
+fi
+
 # Lock implementation pin roles separately from evidence confidence. PB3 is
 # vendor-firmware-confirmed by the semantic reference gate. PB1/PA0 are HIGH,
 # PC2 is HIGH/functional, and PB4's pin/behavior is confirmed while its physical
@@ -105,6 +117,7 @@ if grep -q 'GPIO_PB3' "$TARGET_SRC"; then
 fi
 
 echo 'TARGET_ADC_FLASH_SAFETY_PIN_GPIO_PB3=PASS'
+echo 'TARGET_PRODUCTION_SDK_PIN_ASSERTIONS=ENABLED'
 echo 'TARGET_UART_PIN_ROLE_PB1_PA0=PASS'
 echo 'TARGET_PUSH_PIN_ROLE_PC2=PASS'
 echo 'TARGET_AUX_PIN_ROLE_PB4=PASS'
