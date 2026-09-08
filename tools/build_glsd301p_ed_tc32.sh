@@ -199,7 +199,7 @@ if [[ -s "$DIR/unresolved.txt" ]]; then
   echo 'ERROR: unresolved symbols'
   cat "$DIR/unresolved.txt"
   echo '--- unresolved-symbol ownership autopsy ---'
-  while read -r _ kind sym; do
+  while read -r kind sym; do
     [[ "$kind" == U ]] || continue
     echo "### $sym"
     for input in "$SDK/zigbee/lib/tc32/libzb_ed.a" "$SDK/platform/lib/libdrivers_8258.a" "${objects[@]}"; do
