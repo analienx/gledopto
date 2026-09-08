@@ -269,8 +269,20 @@ text_vma_hex="$("$TC32_OBJDUMP" -h "$elf" | awk '$2 == ".text" {print $4; exit}'
 text_vma=$((16#$text_vma_hex))
 (( text_vma < BANK_B_BASE )) || { echo 'ERROR: target appears physically relinked to bank B' >&2; exit 1; }
 
-"$TC32_NM" "$elf" | grep -Eq ' T glsd301p_target_runtime_ready$' || { echo 'ERROR: target runtime symbol GCd/missing' >&2; exit 1; }
-"$TC32_NM" "$elf" | grep -Eq ' T glsd301p_runtime_core_apply_state$' || { echo 'ERROR: guarded runtime not linked' >&2; exit 1; }
+# Gate the actual reachable application/runtime chain rather than diagnostics-only
+# wrappers, which are correctly removed by --gc-sections when unreferenced.
+for sym in \
+  user_init \
+  glsd301p_runtime_core_apply_state \
+  glsd301p_runtime_core_poll_push \
+  glsd301p_runtime_core_poll_pb4; do
+  "$TC32_NM" "$elf" | grep -Eq " [Tt] ${sym}$" || {
+    echo "ERROR: required reachable runtime symbol missing: $sym" >&2
+    exit 1
+  }
+done
+echo 'REACHABLE_TARGET_RUNTIME_CHAIN=PASS'
+
 if grep -q 'libzb_router' "$map"; then
   echo 'ERROR: router archive entered final link map' >&2; exit 1
 fi
@@ -296,6 +308,7 @@ grep -q 'libzb_ed' "$map" || { echo 'ERROR: End Device stack archive absent from
   echo TOUCHLINK_IMPLEMENTATION_LINKED=NO
   echo TOUCHLINK_CLOSURE=INERT_BDB_HOOKS_ONLY
   echo GC_ONLY_LINK_SENTINELS_FINAL_ELF=NONE
+  echo REACHABLE_TARGET_RUNTIME_CHAIN=PASS
   echo ADC_FLASH_SAFETY_PIN_FIXTURE=GPIO_PC5_UNVALIDATED_PHYSICALLY
   echo UART=9600_8N1_PB1_TX_PA0_RX
   echo "RAW_BINARY_SIZE=$raw_bytes"
