@@ -113,7 +113,13 @@ def parse_vendor_instructions(objdump: Path, payload: bytes, root: Path) -> list
     cp = base.run([str(objdump), "-D", "-b", "binary", "-m", "tc32", str(raw)])
     insns: list[dict] = []
     for line in cp.stdout.splitlines():
-        m = re.match(r"^\s*([0-9a-fA-F]+):\s+[0-9a-fA-F]+\s+([A-Za-z0-9_.]+)\s*(.*)$", line)
+        # TC32 objdump emits one 16-bit word for normal instructions and two
+        # 16-bit words for R_TC32_CALL/tjl.  Consume the complete opcode column
+        # before interpreting the mnemonic.
+        m = re.match(
+            r"^\s*([0-9a-fA-F]+):\s+(?:(?:[0-9a-fA-F]{4})\s+)+([A-Za-z0-9_.]+)\s*(.*)$",
+            line,
+        )
         if not m:
             continue
         addr = int(m.group(1), 16)
@@ -134,7 +140,8 @@ def find_direct_callers(insns: list[dict], target: int) -> list[dict]:
     callers = []
     for ins in insns:
         mnem = ins["mnemonic"].lower()
-        if target in ins["targets"] and "call" in mnem:
+        # GNU TC32 binutils names R_TC32_CALL's linked instruction `tjl`.
+        if target in ins["targets"] and mnem in {"tjl", "call", "tcall"}:
             callers.append({"offset": ins["addr"], "mnemonic": ins["mnemonic"]})
     return callers
 
