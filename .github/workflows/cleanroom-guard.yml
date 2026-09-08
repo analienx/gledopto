@@ -25,6 +25,7 @@ jobs:
           bash -n tools/build_glsd301p_ed_tc32.sh
           bash -n tools/probe_telink_role_symbol_ownership.sh
           python3 -m py_compile devices/gl-sd-301p/vendor-firmware/reference-analysis/analyze_adc_flash_guard.py
+          python3 -m py_compile devices/gl-sd-301p/vendor-firmware/reference-analysis/analyze_adc_flash_guard_callsite.py
 
       - name: Build host-side interoperability tests
         shell: bash
@@ -121,7 +122,7 @@ jobs:
           echo "TC32_CC=$bindir/tc32-elf-gcc" >> "$GITHUB_ENV"
           "$bindir/tc32-elf-gcc" --version | head -n 1
 
-      - name: Reference-only same-model ADC flash-guard pin analysis
+      - name: Reference-only same-model ADC flash-guard broad analysis
         shell: bash
         run: |
           set -uo pipefail
@@ -134,11 +135,32 @@ jobs:
           rc=${PIPESTATUS[0]}
           set -e
           if [[ "$rc" -eq 0 ]]; then
-            echo 'VENDOR_ADC_FLASH_GUARD_REFERENCE=STRONG_MATCH'
+            echo 'VENDOR_ADC_FLASH_GUARD_BROAD_REFERENCE=STRONG_MATCH'
           elif [[ "$rc" -eq 3 ]]; then
-            echo 'VENDOR_ADC_FLASH_GUARD_REFERENCE=INCONCLUSIVE'
+            echo 'VENDOR_ADC_FLASH_GUARD_BROAD_REFERENCE=INCONCLUSIVE'
           else
-            echo "ERROR: reference analyzer failed unexpectedly rc=$rc" >&2
+            echo "ERROR: broad reference analyzer failed unexpectedly rc=$rc" >&2
+            exit "$rc"
+          fi
+
+      - name: Reference-only relocation-anchored ADC flash-guard callsite analysis
+        shell: bash
+        run: |
+          set -uo pipefail
+          ota='devices/gl-sd-301p/vendor-firmware/originals/GL-SD-301P_V20851203_20251230.ota'
+          sdk="$GITHUB_WORKSPACE/telink-sdk/tl_zigbee_sdk"
+          set +e
+          python3 devices/gl-sd-301p/vendor-firmware/reference-analysis/analyze_adc_flash_guard_callsite.py \
+            --ota "$ota" --sdk-root "$sdk" --tc32-cc "$TC32_CC" \
+            | tee "$RUNNER_TEMP/adc-flash-guard-callsite.json"
+          rc=${PIPESTATUS[0]}
+          set -e
+          if [[ "$rc" -eq 0 ]]; then
+            echo 'VENDOR_ADC_FLASH_GUARD_CALLSITE=STRONG_MATCH'
+          elif [[ "$rc" -eq 3 ]]; then
+            echo 'VENDOR_ADC_FLASH_GUARD_CALLSITE=INCONCLUSIVE'
+          else
+            echo "ERROR: callsite analyzer failed unexpectedly rc=$rc" >&2
             exit "$rc"
           fi
           echo 'REFERENCE_ANALYSIS_ARTIFACT_UPLOAD=NONE'
