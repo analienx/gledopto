@@ -62,16 +62,20 @@ def analyze_contract(
 
     # V3.7.2.0 compiles the lower-version rejection only under ZCL_WWAH.
     # zcl_config.h, in turn, defines ZCL_WWAH only when ZCL_WWAH_SUPPORT is
-    # nonzero. The target pins ZCL_WWAH_SUPPORT to 0, so a lower same-identity
-    # vendor image is not unconditionally rejected by file-version ordering.
+    # nonzero. A synthetic analyzer fixture may spell the equivalent condition
+    # directly as #if ZCL_WWAH_SUPPORT, but the pinned source is required to use
+    # the real #ifdef ZCL_WWAH mapping in the main CLI gate below.
     wwah_block_confined = False
     if downgrade_expr in handler:
         pos = handler.find(downgrade_expr)
         before = handler[max(0, pos - 1800):pos]
         after = handler[pos:pos + 1800]
-        wwah_block_confined = "#ifdef ZCL_WWAH" in before and "#endif" in after
+        wwah_block_confined = (
+            ("#ifdef ZCL_WWAH" in before or "#if ZCL_WWAH_SUPPORT" in before)
+            and "#endif" in after
+        )
         if not wwah_block_confined:
-            errors.append("lower-version rejection is not demonstrably confined to #ifdef ZCL_WWAH")
+            errors.append("lower-version rejection is not demonstrably WWAH-conditional")
 
     zcl_macro_mapping = None
     if zcl_config is not None:
@@ -84,6 +88,13 @@ def analyze_contract(
         )
         if not zcl_macro_mapping:
             errors.append("zcl_config.h no longer maps ZCL_WWAH_SUPPORT to ZCL_WWAH as expected")
+        # The real pinned OTA source must use the derived ZCL_WWAH guard, not a
+        # coincidental direct test of the application macro.
+        if downgrade_expr in handler:
+            pos = handler.find(downgrade_expr)
+            before = handler[max(0, pos - 1800):pos]
+            if "#ifdef ZCL_WWAH" not in before:
+                errors.append("pinned OTA source no longer guards downgrade rejection with #ifdef ZCL_WWAH")
 
     if VENDOR_RECOVERY_FILE_VERSION >= CUSTOM_FILE_VERSION:
         errors.append("test constants no longer exercise an actual downgrade")
