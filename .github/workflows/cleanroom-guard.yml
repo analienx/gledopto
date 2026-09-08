@@ -26,6 +26,7 @@ jobs:
           bash -n tools/probe_telink_role_symbol_ownership.sh
           python3 -m py_compile devices/gl-sd-301p/vendor-firmware/reference-analysis/analyze_adc_flash_guard.py
           python3 -m py_compile devices/gl-sd-301p/vendor-firmware/reference-analysis/analyze_adc_flash_guard_callsite.py
+          python3 -m py_compile devices/gl-sd-301p/vendor-firmware/reference-analysis/analyze_adc_flash_guard_semantics.py
 
       - name: Build host-side interoperability tests
         shell: bash
@@ -161,6 +162,27 @@ jobs:
             echo 'VENDOR_ADC_FLASH_GUARD_CALLSITE=INCONCLUSIVE'
           else
             echo "ERROR: callsite analyzer failed unexpectedly rc=$rc" >&2
+            exit "$rc"
+          fi
+
+      - name: Reference-only narrow semantic ADC flash-guard analysis
+        shell: bash
+        run: |
+          set -uo pipefail
+          ota='devices/gl-sd-301p/vendor-firmware/originals/GL-SD-301P_V20851203_20251230.ota'
+          sdk="$GITHUB_WORKSPACE/telink-sdk/tl_zigbee_sdk"
+          set +e
+          python3 devices/gl-sd-301p/vendor-firmware/reference-analysis/analyze_adc_flash_guard_semantics.py \
+            --ota "$ota" --sdk-root "$sdk" --tc32-cc "$TC32_CC" \
+            | tee "$RUNNER_TEMP/adc-flash-guard-semantics.json"
+          rc=${PIPESTATUS[0]}
+          set -e
+          if [[ "$rc" -eq 0 ]]; then
+            echo 'VENDOR_ADC_FLASH_GUARD_SEMANTICS=STRONG_MATCH'
+          elif [[ "$rc" -eq 3 ]]; then
+            echo 'VENDOR_ADC_FLASH_GUARD_SEMANTICS=INCONCLUSIVE'
+          else
+            echo "ERROR: semantic analyzer failed unexpectedly rc=$rc" >&2
             exit "$rc"
           fi
           echo 'REFERENCE_ANALYSIS_ARTIFACT_UPLOAD=NONE'
