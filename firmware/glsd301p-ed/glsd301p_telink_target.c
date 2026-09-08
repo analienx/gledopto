@@ -7,6 +7,7 @@
 #include "drv_gpio.h"
 
 #include "glsd301p_runtime_core.h"
+#include "glsd301p_uart_transport.h"
 
 #define GLSD301P_MANUFACTURER_CODE            0x124Fu
 #define GLSD301P_IMAGE_TYPE                   0x1416u
@@ -15,10 +16,16 @@
 #define GLSD301P_IO_POLL_MS                   1u
 #define GLSD301P_LEVEL_TICK_MS                100u
 #define GLSD301P_UART_RX_BUFFER_SIZE          16u
+#define GLSD301P_UART_TX_DMA_SIZE              (4u + GLSD301P_CONTROL_FRAME_SIZE)
+#define GLSD301P_UART_PENDING_TIMEOUT_MS       32u
 
 static glsd301p_runtime_core_t g_runtime;
 static ev_timer_event_t *g_level_timer;
 static u8 g_uart_rx_buf[GLSD301P_UART_RX_BUFFER_SIZE] __attribute__((aligned(4)));
+static u8 g_uart_tx_dma[GLSD301P_UART_TX_DMA_SIZE] __attribute__((aligned(4)));
+static glsd301p_uart_transport_t g_uart_transport;
+static u16 g_uart_pending_ms;
+static u8 g_uart_transport_fault_latched;
 static u8 g_uart_online;
 static u8 g_zcl_online;
 
@@ -168,12 +175,72 @@ static void glsd_sync_zcl_from_runtime(void)
     g_current_level = g_runtime.current_level;
 }
 
-static u8 glsd_uart_send(const u8 frame[GLSD301P_CONTROL_FRAME_SIZE])
+static u8 glsd_uart_send_boot_off_blocking(
+    const u8 frame[GLSD301P_CONTROL_FRAME_SIZE])
 {
     if (!g_uart_online) {
         return 0u;
     }
     return drv_uart_tx_start((u8 *)frame, GLSD301P_CONTROL_FRAME_SIZE);
+}
+
+static u8 glsd_uart_queue(const u8 frame[GLSD301P_CONTROL_FRAME_SIZE])
+{
+    if (!g_uart_online) {
+        return 0u;
+    }
+    return glsd301p_uart_transport_offer(&g_uart_transport, frame) ? 1u : 0u;
+}
+
+static void glsd_uart_service_pending(void)
+{
+    u8 frame[GLSD301P_CONTROL_FRAME_SIZE];
+    bool is_off;
+
+    if (!g_uart_online) {
+        return;
+    }
+    if (!glsd301p_uart_transport_has_pending(&g_uart_transport)) {
+        g_uart_pending_ms = 0u;
+        return;
+    }
+
+    if (g_uart_pending_ms < 0xFFFFu) {
+        g_uart_pending_ms++;
+    }
+
+    /* A wedged/busy transport must not steal the 1 ms input cadence. Latch the
+     * runtime fail-OFF state once, retain priority OFF, and keep retrying only
+     * through O(1) nonblocking service attempts. */
+    if (g_uart_pending_ms >= GLSD301P_UART_PENDING_TIMEOUT_MS &&
+        !g_uart_transport_fault_latched) {
+        u8 off[GLSD301P_CONTROL_FRAME_SIZE];
+        (void)glsd301p_runtime_core_latch_fault(&g_runtime, off);
+        (void)glsd301p_uart_transport_offer(&g_uart_transport, off);
+        g_uart_transport_fault_latched = 1u;
+        glsd_sync_zcl_from_runtime();
+    }
+
+    /* The static DMA buffer must never be rewritten while hardware owns it. */
+    if (uart_tx_is_busy()) {
+        return;
+    }
+    if (!glsd301p_uart_transport_peek(&g_uart_transport, frame, &is_off)) {
+        return;
+    }
+
+    g_uart_tx_dma[0] = GLSD301P_CONTROL_FRAME_SIZE;
+    g_uart_tx_dma[1] = 0u;
+    g_uart_tx_dma[2] = 0u;
+    g_uart_tx_dma[3] = 0u;
+    memcpy(g_uart_tx_dma + 4u, frame, GLSD301P_CONTROL_FRAME_SIZE);
+
+    /* Pinned TLSR8258 uart_dma_send() is explicitly nonblocking: 0 means DMA
+     * busy, 1 means the transfer was accepted. No polling loop is permitted. */
+    if (uart_dma_send(g_uart_tx_dma)) {
+        glsd301p_uart_transport_commit_sent(&g_uart_transport, is_off);
+        g_uart_pending_ms = 0u;
+    }
 }
 
 static u8 glsd_emit_runtime_result(glsd301p_runtime_result_t result,
@@ -186,10 +253,9 @@ static u8 glsd_emit_runtime_result(glsd301p_runtime_result_t result,
         return 0u;
     }
 
-    if (!glsd_uart_send(frame)) {
+    if (!glsd_uart_queue(frame)) {
         u8 off[GLSD301P_CONTROL_FRAME_SIZE];
         (void)glsd301p_runtime_core_latch_fault(&g_runtime, off);
-        (void)glsd_uart_send(off);
         glsd_sync_zcl_from_runtime();
         return 0u;
     }
@@ -197,6 +263,7 @@ static u8 glsd_emit_runtime_result(glsd301p_runtime_result_t result,
     if (result == GLSD301P_RUNTIME_FORCED_OFF) {
         u8 off[GLSD301P_CONTROL_FRAME_SIZE];
         (void)glsd301p_runtime_core_latch_fault(&g_runtime, off);
+        (void)glsd301p_uart_transport_offer(&g_uart_transport, off);
         glsd_sync_zcl_from_runtime();
         return 0u;
     }
@@ -229,6 +296,15 @@ static u8 glsd_apply_level_state(u8 level, u8 with_onoff, u8 direction_up)
 {
     u8 frame[GLSD301P_CONTROL_FRAME_SIZE];
     bool output = g_runtime.logical_output_enabled;
+
+    /* 0xFF is Zigbee's reserved/unknown Level value. Never normalize it into
+     * an energizing value; an impossible internal state fails closed. */
+    if (level == GLSD301P_ZCL_LEVEL_UNKNOWN) {
+        (void)glsd301p_runtime_core_latch_fault(&g_runtime, frame);
+        (void)glsd_uart_queue(frame);
+        glsd_sync_zcl_from_runtime();
+        return 0u;
+    }
 
     level = glsd_clamp_level(level);
     if (with_onoff) {
@@ -425,7 +501,7 @@ static status_t glsd_level_cb(zclIncomingAddrInfo_t *addr, u8 cmd_id, void *payl
     case ZCL_CMD_LEVEL_MOVE_TO_LEVEL:
     case ZCL_CMD_LEVEL_MOVE_TO_LEVEL_WITH_ON_OFF: {
         moveToLvl_t *cmd = (moveToLvl_t *)payload;
-        if (cmd == NULL) {
+        if (cmd == NULL || cmd->level == GLSD301P_ZCL_LEVEL_UNKNOWN) {
             return ZCL_STA_INVALID_FIELD;
         }
         glsd_start_target_transition(cmd->level, cmd->transitionTime,
@@ -479,10 +555,17 @@ static s32 glsd_io_timer_cb(void *arg)
 {
     u8 frame[GLSD301P_CONTROL_FRAME_SIZE];
     glsd301p_runtime_result_t result;
+    bool push_took_control = false;
     (void)arg;
 
-    result = glsd301p_runtime_core_poll_push(&g_runtime,
-                                             drv_gpio_read(GPIO_PC2), frame);
+    /* Sample both physical inputs before touching the UART transport. */
+    result = glsd301p_runtime_core_poll_push_ex(&g_runtime,
+                                                drv_gpio_read(GPIO_PC2),
+                                                &push_took_control, frame);
+    if (push_took_control) {
+        /* Physical PUSH supersedes every remote target or continuous move. */
+        glsd_cancel_level_transition();
+    }
     if (result != GLSD301P_RUNTIME_NO_FRAME) {
         (void)glsd_emit_runtime_result(result, frame);
     }
@@ -493,6 +576,7 @@ static s32 glsd_io_timer_cb(void *arg)
         (void)glsd_emit_runtime_result(result, frame);
     }
 
+    glsd_uart_service_pending();
     return 0;
 }
 
@@ -571,6 +655,9 @@ static u8 glsd_init_power_stage_io(void)
     u8 frame[GLSD301P_CONTROL_FRAME_SIZE];
 
     glsd301p_runtime_core_init(&g_runtime);
+    glsd301p_uart_transport_init(&g_uart_transport);
+    g_uart_pending_ms = 0u;
+    g_uart_transport_fault_latched = 0u;
 
     drv_uart_pin_set(UART_TX_PB1, UART_RX_PA0);
     g_uart_online = (drv_uart_init(GLSD301P_TARGET_UART_BAUD,
@@ -596,7 +683,7 @@ static u8 glsd_init_power_stage_io(void)
      * user_init has returned and IRQs can retire the DMA transfer. */
     if (glsd301p_runtime_core_boot_off(&g_runtime, frame) !=
             GLSD301P_RUNTIME_FRAME_READY ||
-        !glsd_uart_send(frame)) {
+        !glsd_uart_send_boot_off_blocking(frame)) {
         (void)glsd301p_runtime_core_latch_fault(&g_runtime, frame);
         return 0u;
     }

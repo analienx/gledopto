@@ -111,6 +111,27 @@ require_source 'drv_gpio_output_en\(GPIO_PB4,[[:space:]]*false\)' 'PB4 auxiliary
 require_source 'drv_gpio_input_en\(GPIO_PB4,[[:space:]]*true\)' 'PB4 auxiliary input enabled'
 require_source 'drv_gpio_up_down_resistor\(GPIO_PB4,[[:space:]]*PM_PIN_PULLDOWN_100K\)' 'PB4 100k pulldown'
 
+# Safety-sweep regressions: physical PUSH owns the local control plane, reserved
+# Level 0xFF is rejected before normalization, and runtime UART is nonblocking.
+require_source 'glsd301p_runtime_core_poll_push_ex\(' 'PUSH takeover-aware runtime API'
+require_source 'if[[:space:]]*\(push_took_control\)[[:space:]]*\{' 'PUSH takeover branch'
+require_source 'glsd_cancel_level_transition\(\);' 'PUSH cancels remote level transition'
+require_source 'cmd->level[[:space:]]*==[[:space:]]*GLSD301P_ZCL_LEVEL_UNKNOWN' 'reserved Level 0xFF rejection'
+require_source 'uart_tx_is_busy\(\)' 'nonblocking UART busy probe'
+require_source 'uart_dma_send\(g_uart_tx_dma\)' 'nonblocking UART DMA start'
+
+[[ "$(grep -c 'drv_uart_tx_start' "$TARGET_SRC")" -eq 1 ]] || {
+  echo 'ERROR: blocking UART wrapper must remain boot-OFF-only' >&2
+  exit 1
+}
+if grep -Eq 'while[[:space:]]*\([^)]*(uart|UART)' "$TARGET_SRC"; then
+  echo 'ERROR: runtime UART polling loop reintroduced' >&2
+  exit 1
+fi
+echo 'TARGET_PUSH_TAKEOVER_CANCELS_REMOTE_LEVEL=PASS'
+echo 'TARGET_RESERVED_LEVEL_FF_REJECTED=PASS'
+echo 'TARGET_UART_RUNTIME_NONBLOCKING=PASS'
+
 if grep -q 'GPIO_PB3' "$TARGET_SRC"; then
   echo 'ERROR: PB3 is reserved for ADC flash-safety handling and must not be reused by application GPIO code' >&2
   exit 1

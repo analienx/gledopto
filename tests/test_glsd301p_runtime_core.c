@@ -165,6 +165,81 @@ static void test_push_updates_guarded_logical_state(void)
     assert(core.current_level == 90u);
 }
 
+
+static void test_push_takeover_metadata_covers_off_and_local_dimming(void)
+{
+    glsd301p_runtime_core_t core;
+    uint8_t out[GLSD301P_CONTROL_FRAME_SIZE] = {0};
+    bool took_control = false;
+    glsd301p_runtime_result_t result = GLSD301P_RUNTIME_NO_FRAME;
+
+    glsd301p_runtime_core_init(&core);
+    assert(glsd301p_runtime_core_restore_state(&core, true, 100u, 2u, false, out) ==
+           GLSD301P_RUNTIME_FRAME_READY);
+
+    /* A decoded short PUSH takes ownership and toggles ON -> OFF. */
+    for (unsigned i = 0; i < 3u; ++i) {
+        assert(glsd301p_runtime_core_poll_push_ex(&core, false, &took_control, out) ==
+               GLSD301P_RUNTIME_NO_FRAME);
+        assert(!took_control);
+    }
+    for (unsigned i = 0; i < 6u; ++i) {
+        assert(glsd301p_runtime_core_poll_push_ex(&core, true, &took_control, out) ==
+               GLSD301P_RUNTIME_NO_FRAME);
+        assert(!took_control);
+    }
+    for (unsigned i = 0; i < 3u; ++i) {
+        assert(glsd301p_runtime_core_poll_push_ex(&core, false, &took_control, out) ==
+               GLSD301P_RUNTIME_NO_FRAME);
+        assert(!took_control);
+    }
+    for (unsigned i = 0; i < 51u; ++i) {
+        result = glsd301p_runtime_core_poll_push_ex(&core, true, &took_control, out);
+    }
+    assert(result == GLSD301P_RUNTIME_FRAME_READY);
+    assert(took_control);
+    expect_off(out);
+    assert(!core.logical_output_enabled);
+
+    /* A later local level semantic action still takes ownership while OFF even
+     * though stock behavior intentionally emits no level frame. This is the
+     * signal the target needs to cancel a stale remote target/move transition. */
+    took_control = false;
+    for (unsigned i = 0; i < 3u; ++i) {
+        assert(glsd301p_runtime_core_poll_push_ex(&core, false, &took_control, out) ==
+               GLSD301P_RUNTIME_NO_FRAME);
+    }
+    for (unsigned i = 0; i < 6u; ++i) {
+        assert(glsd301p_runtime_core_poll_push_ex(&core, true, &took_control, out) ==
+               GLSD301P_RUNTIME_NO_FRAME);
+    }
+    for (unsigned i = 0; i < 3u; ++i) {
+        assert(glsd301p_runtime_core_poll_push_ex(&core, false, &took_control, out) ==
+               GLSD301P_RUNTIME_NO_FRAME);
+    }
+
+    result = GLSD301P_RUNTIME_NO_FRAME;
+    unsigned low_samples = 0u;
+    while (!took_control) {
+        for (unsigned i = 0; i < 10u && !took_control; ++i) {
+            result = glsd301p_runtime_core_poll_push_ex(&core, false, &took_control, out);
+            ++low_samples;
+        }
+        if (!took_control) {
+            for (unsigned i = 0; i < 10u; ++i) {
+                assert(glsd301p_runtime_core_poll_push_ex(&core, true, &took_control, out) ==
+                       GLSD301P_RUNTIME_NO_FRAME);
+                assert(!took_control);
+            }
+        }
+    }
+    assert(low_samples == 1001u);
+    assert(took_control);
+    assert(result == GLSD301P_RUNTIME_NO_FRAME);
+    assert(!core.logical_output_enabled);
+    assert(core.current_level == 100u);
+}
+
 static void test_fault_invalidates_state_and_requires_restore(void)
 {
     glsd301p_runtime_core_t core;
@@ -203,6 +278,7 @@ int main(void)
     test_boot_and_restore_gate();
     test_normal_and_pb4_paths_share_guard();
     test_push_updates_guarded_logical_state();
+    test_push_takeover_metadata_covers_off_and_local_dimming();
     test_fault_invalidates_state_and_requires_restore();
 
     return 0;

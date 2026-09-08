@@ -156,14 +156,18 @@ glsd301p_runtime_result_t glsd301p_runtime_core_apply_state(
     return GLSD301P_RUNTIME_FRAME_READY;
 }
 
-glsd301p_runtime_result_t glsd301p_runtime_core_poll_push(
+glsd301p_runtime_result_t glsd301p_runtime_core_poll_push_ex(
     glsd301p_runtime_core_t *core,
     bool pc2_high,
+    bool *took_control,
     uint8_t out[GLSD301P_CONTROL_FRAME_SIZE])
 {
     glsd301p_push_event_t event;
     glsd301p_output_guard_result_t result;
 
+    if (took_control != NULL) {
+        *took_control = false;
+    }
     if (core == NULL || out == NULL) {
         return GLSD301P_RUNTIME_INVALID_ARGUMENT;
     }
@@ -171,6 +175,9 @@ glsd301p_runtime_result_t glsd301p_runtime_core_poll_push(
     event = glsd301p_push_decoder_poll(&core->push_decoder, pc2_high);
     if (event == GLSD301P_PUSH_EVENT_NONE) {
         return GLSD301P_RUNTIME_NO_FRAME;
+    }
+    if (took_control != NULL) {
+        *took_control = true;
     }
 
     if (!core->state_restored) {
@@ -217,6 +224,14 @@ glsd301p_runtime_result_t glsd301p_runtime_core_poll_push(
     }
 
     return GLSD301P_RUNTIME_NO_FRAME;
+}
+
+glsd301p_runtime_result_t glsd301p_runtime_core_poll_push(
+    glsd301p_runtime_core_t *core,
+    bool pc2_high,
+    uint8_t out[GLSD301P_CONTROL_FRAME_SIZE])
+{
+    return glsd301p_runtime_core_poll_push_ex(core, pc2_high, NULL, out);
 }
 
 glsd301p_runtime_result_t glsd301p_runtime_core_poll_pb4(

@@ -39,7 +39,7 @@ defs=(
   -DMCU_STARTUP_8258=1
 )
 telink_first=(-D_SIZE_T -D_SIZE_T_ -D__SIZE_T -D__SIZE_T__)
-cflags=(-O2 -ffunction-sections -fdata-sections -fshort-enums -finline-small-functions -std=gnu99 -funsigned-char -fshort-wchar -fms-extensions -nostartfiles -nostdlib)
+cflags=(-O2 -ffunction-sections -fdata-sections -fshort-enums -finline-small-functions -std=gnu99 -funsigned-char -fshort-wchar -fms-extensions -fpack-struct -nostartfiles -nostdlib)
 asflags=(-fomit-frame-pointer -fshort-enums -fdata-sections -ffunction-sections)
 
 sdk_sources=(
@@ -106,6 +106,7 @@ sdk_sources=(
 
 app_sources=(
   "$CORE/glsd301p_uart_frame.c"
+  "$CORE/glsd301p_uart_transport.c"
   "$CORE/glsd301p_power_stage_policy.c"
   "$CORE/glsd301p_output_guard.c"
   "$CORE/glsd301p_push_input.c"
@@ -119,7 +120,7 @@ app_sources=(
 compile_one() {
   local source="$1" obj="$2" sdk_source="$3"
   local f=("${cflags[@]}")
-  [[ "$sdk_source" == 1 ]] && f+=(-fpack-struct)
+  : "$sdk_source"  # retained to keep SDK/app call sites explicit for ABI probes
   mkdir -p "$(dirname "$obj")"
   case "$source" in
     *.S) "$TC32_CC" "${asflags[@]}" "${defs[@]}" "${includes[@]}" -c "$source" -o "$obj" ;;
@@ -140,8 +141,14 @@ grep -q 'POWER_MODE_RECEIVER_SYNCHRONIZED_WHEN_ON_IDLE' "$TARGET/glsd301p_telink
 grep -q 'POWER_SRC_MAINS_POWER' "$TARGET/glsd301p_telink_target.c"
 grep -q 'UART_TX_PB1, UART_RX_PA0' "$TARGET/glsd301p_telink_target.c"
 [[ "$(grep -c 'drv_uart_tx_start' "$TARGET/glsd301p_telink_target.c")" -eq 1 ]] || {
-  echo 'ERROR: target must have exactly one UART transmit choke point' >&2; exit 1;
+  echo 'ERROR: target must retain exactly one blocking UART call for boot OFF only' >&2; exit 1;
 }
+[[ "$(grep -Ec '^[[:space:]]*if[[:space:]]*\(uart_dma_send\(g_uart_tx_dma\)\)' "$TARGET/glsd301p_telink_target.c")" -eq 1 ]] || {
+  echo 'ERROR: runtime UART must contain exactly one nonblocking DMA start' >&2; exit 1;
+}
+if grep -Eq 'while[[:space:]]*\([^)]*(uart|UART)' "$TARGET/glsd301p_telink_target.c"; then
+  echo 'ERROR: target UART runtime contains a polling loop' >&2; exit 1
+fi
 if grep -E 'GLSD301P_CONTROL_FAMILY_OPERATION' \
     "$TARGET/glsd301p_telink_target.c" "$CORE/glsd301p_runtime_core.c" \
     "$CORE/glsd301p_output_guard.c" "$CORE/glsd301p_power_stage_policy.c"; then
@@ -181,8 +188,28 @@ for sym in "${gc_only_sentinels[@]}"; do
 done
 
 rm -rf "$DIR"
-mkdir -p "$DIR/obj/sdk" "$DIR/obj/app"
+mkdir -p "$DIR/obj/sdk" "$DIR/obj/app" "$DIR/obj/abi"
 objects=()
+
+# Compile the real pinned SDK type through both translation-unit flag contexts.
+# zcl_register() consumes this application-owned array, so a successful link is
+# insufficient unless the layouts are byte-for-byte identical.
+abi_probe_body='
+#include "tl_common.h"
+#include "zb_api.h"
+#include "zcl_include.h"
+#define ABI_ASSERT(name, expr) typedef char name[(expr) ? 1 : -1]
+ABI_ASSERT(glsd_zcl_spec_size, sizeof(zcl_specClusterInfo_t) == 18u);
+ABI_ASSERT(glsd_zcl_spec_attr, __builtin_offsetof(zcl_specClusterInfo_t, attrTbl) == 6u);
+ABI_ASSERT(glsd_zcl_spec_reg, __builtin_offsetof(zcl_specClusterInfo_t, clusterRegisterFunc) == 10u);
+ABI_ASSERT(glsd_zcl_spec_cb, __builtin_offsetof(zcl_specClusterInfo_t, clusterAppCb) == 14u);
+int glsd301p_abi_probe(void) { return (int)sizeof(zcl_specClusterInfo_t); }
+'
+printf '%s' "$abi_probe_body" > "$DIR/sdk_abi_probe.c"
+printf '%s' "$abi_probe_body" > "$DIR/glsd301p_telink_abi_probe.c"
+compile_one "$DIR/sdk_abi_probe.c" "$DIR/obj/abi/sdk-context.o" 1
+compile_one "$DIR/glsd301p_telink_abi_probe.c" "$DIR/obj/abi/app-context.o" 0
+echo 'ZCL_SPEC_CLUSTER_INFO_ABI=size18,attrTbl@6,register@10,appCb@14'
 
 for rel in "${sdk_sources[@]}"; do
   src="$SDK/$rel"
@@ -202,8 +229,9 @@ done
 
 app_obj="$DIR/obj/app/glsd301p_telink_target.o"
 "$TC32_NM" "$app_obj" | grep -Eq ' T user_init$' || { echo 'ERROR: target user_init missing' >&2; exit 1; }
-"$TC32_NM" -u "$app_obj" | grep -Eq ' U drv_uart_tx_start$' || { echo 'ERROR: PB1 UART transmit dependency missing' >&2; exit 1; }
-"$TC32_NM" -u "$app_obj" | grep -Eq ' U glsd301p_runtime_core_(apply_state|poll_push|poll_pb4)' || {
+"$TC32_NM" -u "$app_obj" | grep -Eq ' U drv_uart_tx_start$' || { echo 'ERROR: boot-OFF UART dependency missing' >&2; exit 1; }
+"$TC32_NM" -u "$app_obj" | grep -Eq ' U uart_dma_send$' || { echo 'ERROR: nonblocking runtime UART dependency missing' >&2; exit 1; }
+"$TC32_NM" -u "$app_obj" | grep -Eq ' U glsd301p_runtime_core_(apply_state|poll_push_ex|poll_pb4)' || {
   echo 'ERROR: target is not wired through guarded runtime core' >&2; exit 1;
 }
 
@@ -276,8 +304,9 @@ text_vma=$((16#$text_vma_hex))
 for sym in \
   user_init \
   glsd301p_runtime_core_apply_state \
-  glsd301p_runtime_core_poll_push \
-  glsd301p_runtime_core_poll_pb4; do
+  glsd301p_runtime_core_poll_push_ex \
+  glsd301p_runtime_core_poll_pb4 \
+  glsd301p_uart_transport_offer; do
   "$TC32_NM" "$elf" | grep -Eq " [Tt] ${sym}$" || {
     echo "ERROR: required reachable runtime symbol missing: $sym" >&2
     exit 1
@@ -313,6 +342,8 @@ grep -q 'libzb_ed' "$map" || { echo 'ERROR: End Device stack archive absent from
   echo REACHABLE_TARGET_RUNTIME_CHAIN=PASS
   echo ADC_FLASH_SAFETY_PIN=GPIO_PB3_VENDOR_FIRMWARE_CONFIRMED
   echo UART=9600_8N1_PB1_TX_PA0_RX
+  echo ZCL_SPEC_CLUSTER_INFO_ABI=size18_attrTbl6_register10_appCb14
+  echo UART_RUNTIME_TRANSPORT=NONBLOCKING_OFF_PRIORITY_LATEST_NORMAL
   echo "RAW_BINARY_SIZE=$raw_bytes"
   echo "FINAL_BINARY_SIZE=$final_bytes"
   printf 'TEXT_VMA=0x%08x\n' "$text_vma"

@@ -69,7 +69,19 @@ glsd301p_runtime_result_t glsd301p_runtime_core_apply_state(
 /**
  * Feed one 1 ms PC2 sample.  PUSH semantic events are translated into the same
  * guarded logical OnOff/Level path; no direct UART bypass exists here.
+ *
+ * If took_control is non-NULL it is set whenever a decoded physical PUSH
+ * semantic action occurs, including a local level action that intentionally
+ * emits no frame while logical output is OFF.  Targets use this signal to
+ * cancel superseded remote Level transitions before they can re-energize.
  */
+glsd301p_runtime_result_t glsd301p_runtime_core_poll_push_ex(
+    glsd301p_runtime_core_t *core,
+    bool pc2_high,
+    bool *took_control,
+    uint8_t out[GLSD301P_CONTROL_FRAME_SIZE]);
+
+/** Compatibility wrapper for callers that do not need takeover metadata. */
 glsd301p_runtime_result_t glsd301p_runtime_core_poll_push(
     glsd301p_runtime_core_t *core,
     bool pc2_high,

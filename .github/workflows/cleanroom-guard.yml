@@ -36,8 +36,10 @@ jobs:
           cc -std=c11 -Wall -Wextra -Werror -pedantic -Isrc src/glsd301p_uart_frame.c src/glsd301p_power_stage_policy.c tests/test_glsd301p_uart_frame.c -o build/host-tests/test_glsd301p_uart_frame
           cc -std=c11 -Wall -Wextra -Werror -pedantic -Isrc src/glsd301p_push_input.c tests/test_glsd301p_push_input.c -o build/host-tests/test_glsd301p_push_input
           cc -std=c11 -Wall -Wextra -Werror -pedantic -Isrc src/glsd301p_uart_frame.c src/glsd301p_pb4_compat.c tests/test_glsd301p_pb4_compat.c -o build/host-tests/test_glsd301p_pb4_compat
+          cc -std=c11 -Wall -Wextra -Werror -pedantic -Isrc src/glsd301p_uart_transport.c tests/test_glsd301p_uart_transport.c -o build/host-tests/test_glsd301p_uart_transport
           cc -std=c11 -Wall -Wextra -Werror -pedantic -Isrc src/glsd301p_uart_frame.c src/glsd301p_power_stage_policy.c src/glsd301p_output_guard.c tests/test_glsd301p_output_guard.c -o build/host-tests/test_glsd301p_output_guard
           cc -std=c11 -Wall -Wextra -Werror -pedantic -Isrc src/glsd301p_uart_frame.c src/glsd301p_power_stage_policy.c src/glsd301p_output_guard.c src/glsd301p_push_input.c src/glsd301p_pb4_compat.c src/glsd301p_runtime_core.c tests/test_glsd301p_runtime_core.c -o build/host-tests/test_glsd301p_runtime_core
+          cc -std=c11 -Wall -Wextra -Werror -pedantic -Isrc src/glsd301p_uart_frame.c src/glsd301p_uart_transport.c src/glsd301p_power_stage_policy.c src/glsd301p_output_guard.c src/glsd301p_push_input.c src/glsd301p_pb4_compat.c src/glsd301p_runtime_core.c tests/test_glsd301p_runtime_transport.c -o build/host-tests/test_glsd301p_runtime_transport
       - name: Run host-side interoperability tests
         shell: bash
         run: |
@@ -45,8 +47,10 @@ jobs:
           build/host-tests/test_glsd301p_uart_frame
           build/host-tests/test_glsd301p_push_input
           build/host-tests/test_glsd301p_pb4_compat
+          build/host-tests/test_glsd301p_uart_transport
           build/host-tests/test_glsd301p_output_guard
           build/host-tests/test_glsd301p_runtime_core
+          build/host-tests/test_glsd301p_runtime_transport
       - name: Adversarially verify End Device architecture firewall
         shell: bash
         run: bash tests/test_glsd301p_target_contract.sh
