@@ -1,0 +1,89 @@
+name: Migrate GL-SD-301P vendor reference
+
+on:
+  push:
+    branches:
+      - cleanroom/glsd301p-interoperability-20260907
+    paths:
+      - '.github/workflows/migrate-glsd301p-vendor-reference.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  migrate-reference:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout target branch
+        uses: actions/checkout@v4
+        with:
+          ref: cleanroom/glsd301p-interoperability-20260907
+          fetch-depth: 0
+
+      - name: Fetch research evidence branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin \
+            research/glsd301p-powerstage-20260907:refs/remotes/origin/research/glsd301p-powerstage-20260907
+
+      - name: Reconstruct canonical byte-identical OTA
+        shell: bash
+        run: |
+          set -euo pipefail
+          source_ref='origin/research/glsd301p-powerstage-20260907'
+          prefix='devices/gl-sd-301p/vendor-firmware/.incoming/GL-SD-301P_V20851203_20251230.ota.xz.b64.part'
+          work="$RUNNER_TEMP/glsd301p-vendor"
+          mkdir -p "$work" devices/gl-sd-301p/vendor-firmware/originals
+          : > "$work/reference.ota.xz.b64"
+          for i in $(seq -f '%03g' 0 20); do
+            git show "$source_ref:$prefix$i" >> "$work/reference.ota.xz.b64"
+          done
+          tr -d '\r\n' < "$work/reference.ota.xz.b64" | base64 -d > "$work/reference.ota.xz"
+          echo 'b0ff5e95767b2e39548e853cc1220891775e8e3b5bcc932b43c08e770f722637  '"$work/reference.ota.xz" | sha256sum -c -
+          xz -dc "$work/reference.ota.xz" > devices/gl-sd-301p/vendor-firmware/originals/GL-SD-301P_V20851203_20251230.ota
+          out='devices/gl-sd-301p/vendor-firmware/originals/GL-SD-301P_V20851203_20251230.ota'
+          test "$(stat -c%s "$out")" = 208946
+          echo '16595a38ab9783d3afc4eb58ab4ec32625249bd569c1fa6dbaf468bddc76dd72  '"$out" | sha256sum -c -
+
+          python3 - <<'PY'
+          from pathlib import Path
+          import hashlib, json, struct
+
+          out = Path('devices/gl-sd-301p/vendor-firmware/originals/GL-SD-301P_V20851203_20251230.ota')
+          d = out.read_bytes()
+          assert struct.unpack_from('<I', d, 0)[0] == 0x0BEEF11E
+          assert struct.unpack_from('<H', d, 10)[0] == 0x124F
+          assert struct.unpack_from('<H', d, 12)[0] == 0x1416
+          assert struct.unpack_from('<I', d, 14)[0] == 0x28013001
+          assert struct.unpack_from('<I', d, 52)[0] == len(d)
+          assert hashlib.sha256(d).hexdigest() == '16595a38ab9783d3afc4eb58ab4ec32625249bd569c1fa6dbaf468bddc76dd72'
+
+          manifest_path = Path('devices/gl-sd-301p/vendor-firmware/MANIFEST.json')
+          manifest = json.loads(manifest_path.read_text())
+          entry = manifest['artifacts'][0]
+          assert entry['filename'] == out.name
+          entry['storage_state'] = 'canonical-original'
+          manifest_path.write_text(json.dumps(manifest, indent=2) + '\n')
+          print('VENDOR_REFERENCE_RECONSTRUCTION=PASS')
+          PY
+
+      - name: Validate repository boundary with canonical reference present
+        run: python3 tools/check_cleanroom.py
+
+      - name: Commit canonical reference
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -f \
+            devices/gl-sd-301p/vendor-firmware/originals/GL-SD-301P_V20851203_20251230.ota \
+            devices/gl-sd-301p/vendor-firmware/MANIFEST.json
+          if git diff --cached --quiet; then
+            echo 'Canonical reference already present; nothing to commit.'
+            exit 0
+          fi
+          git commit -m 'Archive canonical GLEDOPTO GL-SD-301P vendor reference'
+          git push origin HEAD:cleanroom/glsd301p-interoperability-20260907

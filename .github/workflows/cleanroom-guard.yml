@@ -1,0 +1,163 @@
+name: Interoperability boundary and host tests
+
+on:
+  push:
+    branches:
+      - main
+      - cleanroom/glsd301p-interoperability-20260907
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  boundary-and-tests:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate third-party/reference/implementation boundary
+        run: python3 tools/check_cleanroom.py
+      - name: Check target build harness syntax
+        run: |
+          bash -n tools/build_glsd301p_ed_tc32.sh
+          bash -n tools/probe_telink_role_symbol_ownership.sh
+          python3 -m py_compile devices/gl-sd-301p/vendor-firmware/reference-analysis/analyze_adc_flash_guard.py
+          python3 -m py_compile devices/gl-sd-301p/vendor-firmware/reference-analysis/analyze_adc_flash_guard_callsite.py
+          python3 -m py_compile devices/gl-sd-301p/vendor-firmware/reference-analysis/analyze_adc_flash_guard_semantics.py
+          python3 -m py_compile devices/gl-sd-301p/vendor-firmware/reference-analysis/analyze_adc_flash_guard_callgraph.py
+          python3 -m py_compile devices/gl-sd-301p/vendor-firmware/reference-analysis/diagnose_adc_call_abi.py
+          python3 -m py_compile devices/gl-sd-301p/vendor-firmware/reference-analysis/analyze_adc_flash_guard_argflow.py
+      - name: Build host-side interoperability tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p build/host-tests
+          cc -std=c11 -Wall -Wextra -Werror -pedantic -Isrc src/glsd301p_uart_frame.c src/glsd301p_power_stage_policy.c tests/test_glsd301p_uart_frame.c -o build/host-tests/test_glsd301p_uart_frame
+          cc -std=c11 -Wall -Wextra -Werror -pedantic -Isrc src/glsd301p_push_input.c tests/test_glsd301p_push_input.c -o build/host-tests/test_glsd301p_push_input
+          cc -std=c11 -Wall -Wextra -Werror -pedantic -Isrc src/glsd301p_uart_frame.c src/glsd301p_pb4_compat.c tests/test_glsd301p_pb4_compat.c -o build/host-tests/test_glsd301p_pb4_compat
+          cc -std=c11 -Wall -Wextra -Werror -pedantic -Isrc src/glsd301p_uart_transport.c tests/test_glsd301p_uart_transport.c -o build/host-tests/test_glsd301p_uart_transport
+          cc -std=c11 -Wall -Wextra -Werror -pedantic -Isrc src/glsd301p_uart_frame.c src/glsd301p_power_stage_policy.c src/glsd301p_output_guard.c tests/test_glsd301p_output_guard.c -o build/host-tests/test_glsd301p_output_guard
+          cc -std=c11 -Wall -Wextra -Werror -pedantic -Isrc src/glsd301p_uart_frame.c src/glsd301p_power_stage_policy.c src/glsd301p_output_guard.c src/glsd301p_push_input.c src/glsd301p_pb4_compat.c src/glsd301p_runtime_core.c tests/test_glsd301p_runtime_core.c -o build/host-tests/test_glsd301p_runtime_core
+          cc -std=c11 -Wall -Wextra -Werror -pedantic -Isrc src/glsd301p_uart_frame.c src/glsd301p_uart_transport.c src/glsd301p_power_stage_policy.c src/glsd301p_output_guard.c src/glsd301p_push_input.c src/glsd301p_pb4_compat.c src/glsd301p_runtime_core.c tests/test_glsd301p_runtime_transport.c -o build/host-tests/test_glsd301p_runtime_transport
+      - name: Run host-side interoperability tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          build/host-tests/test_glsd301p_uart_frame
+          build/host-tests/test_glsd301p_push_input
+          build/host-tests/test_glsd301p_pb4_compat
+          build/host-tests/test_glsd301p_uart_transport
+          build/host-tests/test_glsd301p_output_guard
+          build/host-tests/test_glsd301p_runtime_core
+          build/host-tests/test_glsd301p_runtime_transport
+      - name: Adversarially verify End Device architecture firewall
+        shell: bash
+        run: bash tests/test_glsd301p_target_contract.sh
+
+  tc32-end-device-target:
+    name: Pinned TC32 TLSR8258 RX-on-idle End Device target
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout implementation
+        uses: actions/checkout@v4
+      - name: Checkout pinned public Telink SDK
+        uses: actions/checkout@v4
+        with:
+          repository: telink-semi/telink_zigbee_sdk
+          ref: V3.7.2.0
+          path: telink-sdk
+      - name: Verify exact SDK commit
+        shell: bash
+        run: |
+          set -euo pipefail
+          actual="$(git -C telink-sdk rev-parse HEAD)"
+          expected='d5bc2f7b0c1f8536fe21c8127ca680ea8214bc8e'
+          test "$actual" = "$expected"
+          echo "TELINK_SDK_COMMIT=$actual"
+      - name: Acquire hash-pinned official TC32 toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          url='https://shyboy.oss-cn-shenzhen.aliyuncs.com/readonly/tc32_gcc_v2.0.tar.bz2'
+          expected='33b854be3e3db3dba4b4dacdda2cd4ea1c94dfd4d562864a095956de7991b430'
+          archive="$RUNNER_TEMP/tc32_gcc_v2.0.tar.bz2"
+          root="$RUNNER_TEMP/tc32"
+          curl --fail --location --retry 3 --output "$archive" "$url"
+          echo "$expected  $archive" | sha256sum --check --strict
+          mkdir -p "$root"
+          tar -xjf "$archive" -C "$root"
+          bindir="$(dirname "$(find "$root" -type f -name tc32-elf-gcc -print -quit)")"
+          test -x "$bindir/tc32-elf-gcc"
+          chmod +x "$bindir"/* || true
+          echo "TC32_CC=$bindir/tc32-elf-gcc" >> "$GITHUB_ENV"
+          "$bindir/tc32-elf-gcc" --version | head -n 1
+      - name: Reference-only same-model ADC flash-guard broad analysis
+        shell: bash
+        run: |
+          set -uo pipefail
+          ota='devices/gl-sd-301p/vendor-firmware/originals/GL-SD-301P_V20851203_20251230.ota'
+          sdk="$GITHUB_WORKSPACE/telink-sdk/tl_zigbee_sdk"
+          set +e
+          python3 devices/gl-sd-301p/vendor-firmware/reference-analysis/analyze_adc_flash_guard.py --ota "$ota" --sdk-root "$sdk" --tc32-cc "$TC32_CC" | tee "$RUNNER_TEMP/adc-flash-guard-reference.json"
+          rc=${PIPESTATUS[0]}; set -e
+          if [[ "$rc" -eq 0 ]]; then echo 'VENDOR_ADC_FLASH_GUARD_BROAD_REFERENCE=STRONG_MATCH'; elif [[ "$rc" -eq 3 ]]; then echo 'VENDOR_ADC_FLASH_GUARD_BROAD_REFERENCE=INCONCLUSIVE'; else exit "$rc"; fi
+      - name: Reference-only relocation-anchored ADC flash-guard callsite analysis
+        shell: bash
+        run: |
+          set -uo pipefail
+          ota='devices/gl-sd-301p/vendor-firmware/originals/GL-SD-301P_V20851203_20251230.ota'
+          sdk="$GITHUB_WORKSPACE/telink-sdk/tl_zigbee_sdk"
+          set +e
+          python3 devices/gl-sd-301p/vendor-firmware/reference-analysis/analyze_adc_flash_guard_callsite.py --ota "$ota" --sdk-root "$sdk" --tc32-cc "$TC32_CC" | tee "$RUNNER_TEMP/adc-flash-guard-callsite.json"
+          rc=${PIPESTATUS[0]}; set -e
+          if [[ "$rc" -eq 0 ]]; then echo 'VENDOR_ADC_FLASH_GUARD_CALLSITE=STRONG_MATCH'; elif [[ "$rc" -eq 3 ]]; then echo 'VENDOR_ADC_FLASH_GUARD_CALLSITE=INCONCLUSIVE'; else exit "$rc"; fi
+      - name: Reference-only narrow semantic ADC flash-guard analysis
+        shell: bash
+        run: |
+          set -uo pipefail
+          ota='devices/gl-sd-301p/vendor-firmware/originals/GL-SD-301P_V20851203_20251230.ota'
+          sdk="$GITHUB_WORKSPACE/telink-sdk/tl_zigbee_sdk"
+          set +e
+          python3 devices/gl-sd-301p/vendor-firmware/reference-analysis/analyze_adc_flash_guard_semantics.py --ota "$ota" --sdk-root "$sdk" --tc32-cc "$TC32_CC" | tee "$RUNNER_TEMP/adc-flash-guard-semantics.json"
+          rc=${PIPESTATUS[0]}; set -e
+          if [[ "$rc" -eq 0 ]]; then echo 'VENDOR_ADC_FLASH_GUARD_SEMANTICS=STRONG_MATCH'; elif [[ "$rc" -eq 3 ]]; then echo 'VENDOR_ADC_FLASH_GUARD_SEMANTICS=INCONCLUSIVE'; else exit "$rc"; fi
+      - name: Reference-only exact-anchor ADC caller analysis
+        shell: bash
+        run: |
+          set -uo pipefail
+          ota='devices/gl-sd-301p/vendor-firmware/originals/GL-SD-301P_V20851203_20251230.ota'
+          sdk="$GITHUB_WORKSPACE/telink-sdk/tl_zigbee_sdk"
+          set +e
+          python3 devices/gl-sd-301p/vendor-firmware/reference-analysis/analyze_adc_flash_guard_callgraph.py --ota "$ota" --sdk-root "$sdk" --tc32-cc "$TC32_CC" | tee "$RUNNER_TEMP/adc-flash-guard-callgraph.json"
+          rc=${PIPESTATUS[0]}; set -e
+          if [[ "$rc" -eq 0 ]]; then echo 'VENDOR_ADC_FLASH_GUARD_CALLGRAPH=STRONG_MATCH'; elif [[ "$rc" -eq 3 ]]; then echo 'VENDOR_ADC_FLASH_GUARD_CALLGRAPH=INCONCLUSIVE'; else exit "$rc"; fi
+      - name: Require exact semantic ADC flash-guard argument flow
+        shell: bash
+        run: |
+          set -euo pipefail
+          ota='devices/gl-sd-301p/vendor-firmware/originals/GL-SD-301P_V20851203_20251230.ota'
+          sdk="$GITHUB_WORKSPACE/telink-sdk/tl_zigbee_sdk"
+          python3 devices/gl-sd-301p/vendor-firmware/reference-analysis/analyze_adc_flash_guard_argflow.py --ota "$ota" --sdk-root "$sdk" --tc32-cc "$TC32_CC" | tee "$RUNNER_TEMP/adc-flash-guard-argflow.json"
+          python3 -c "import json,sys; r=json.load(open(sys.argv[1])); assert r['confidence_gate']=='PASS'; assert r['derived_pin']=='GPIO_PB3'; assert r['vendor_argument_state']['mode_value']==r['compiler_derived_abi']['vbat_mode_value']; print('VENDOR_ADC_FLASH_SAFETY_PIN=GPIO_PB3_CONFIRMED')" "$RUNNER_TEMP/adc-flash-guard-argflow.json"
+          echo 'REFERENCE_ANALYSIS_ARTIFACT_UPLOAD=NONE'
+      - name: Probe unresolved symbols across Telink role archives
+        shell: bash
+        run: |
+          set -euo pipefail
+          export TELINK_SDK_ROOT="$GITHUB_WORKSPACE/telink-sdk/tl_zigbee_sdk"
+          bash tools/probe_telink_role_symbol_ownership.sh
+      - name: Compile, link and finalize quarantined End Device target
+        shell: bash
+        run: |
+          set -euo pipefail
+          export TELINK_SDK_ROOT="$GITHUB_WORKSPACE/telink-sdk/tl_zigbee_sdk"
+          export OUT_DIR="$RUNNER_TEMP/glsd301p-ed"
+          bash tools/build_glsd301p_ed_tc32.sh
+          cat "$OUT_DIR/target/manifest.txt"
+      - name: Enforce no deployment artifact publication
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo 'CI_ARTIFACT_UPLOAD=NONE'
+          echo 'FIRST_FLASHABLE_CANARY_ALLOWED=NO'
