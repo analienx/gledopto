@@ -1,13 +1,32 @@
 /*
- * Minimal application-owned closure for Telink stack hooks that remain linked
- * even though the GL-SD-301P target does not expose the corresponding feature.
+ * Application-owned closure for Telink hooks retained by the prebuilt stack
+ * even though this GL-SD-301P target deliberately disables Touchlink.
  *
- * Touchlink is disabled in app_cfg.h and no Touchlink cluster is registered.
- * The public Telink End Device stack nevertheless references this response-state
- * byte from its inter-PAN receive path. Keeping it permanently zero closes that
- * optional hook without importing Touchlink behavior.
+ * These definitions are intentionally inert. They must never create a ZLL
+ * commissioning surface or mutate security state. CI separately proves
+ * TOUCHLINK_SUPPORT=0 and ZCL_ZLL_COMMISSIONING_SUPPORT=0.
  */
 
 #include "tl_common.h"
+#include "zcl_include.h"
+#include "zcl_zll_commissioning.h"
 
 u8 deviceInfoRsp = 0u;
+
+void touchlink_keyModeSet(u8 keyType, u8 *key)
+{
+    (void)keyType;
+    (void)key;
+}
+
+void touchlink_lqiThresholdSet(u8 lqi)
+{
+    (void)lqi;
+}
+
+status_t zcl_touchlink_register(u8 endpoint, const zcl_touchlinkAppCallbacks_t *cb)
+{
+    (void)endpoint;
+    (void)cb;
+    return ZCL_STA_UNSUP_CLUSTER_COMMAND;
+}
