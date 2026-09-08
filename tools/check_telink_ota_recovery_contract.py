@@ -27,7 +27,12 @@ def _define_value(text: str, name: str) -> str | None:
     return match.group(1) if match else None
 
 
-def analyze_contract(ota_source: str, app_cfg: str, target_source: str) -> dict:
+def analyze_contract(
+    ota_source: str,
+    app_cfg: str,
+    target_source: str,
+    zcl_config: str | None = None,
+) -> dict:
     errors: list[str] = []
     if _define_value(app_cfg, "ZCL_OTA_SUPPORT") != "1":
         errors.append("ZCL_OTA_SUPPORT must remain 1")
@@ -55,15 +60,30 @@ def analyze_contract(ota_source: str, app_cfg: str, target_source: str) -> dict:
     if ww_attr not in handler:
         errors.append("WWAH downgrade-disable attribute gate not found")
 
-    # In the pinned implementation the only lower-version rejection is compiled
-    # in the WWAH block. Require the preprocessor boundary to remain visible near
-    # that comparison; this deliberately fails if upstream behavior is refactored.
+    # V3.7.2.0 compiles the lower-version rejection only under ZCL_WWAH.
+    # zcl_config.h, in turn, defines ZCL_WWAH only when ZCL_WWAH_SUPPORT is
+    # nonzero. The target pins ZCL_WWAH_SUPPORT to 0, so a lower same-identity
+    # vendor image is not unconditionally rejected by file-version ordering.
+    wwah_block_confined = False
     if downgrade_expr in handler:
         pos = handler.find(downgrade_expr)
         before = handler[max(0, pos - 1800):pos]
         after = handler[pos:pos + 1800]
-        if "#if ZCL_WWAH_SUPPORT" not in before or "#endif" not in after:
-            errors.append("lower-version rejection is not demonstrably confined to ZCL_WWAH_SUPPORT")
+        wwah_block_confined = "#ifdef ZCL_WWAH" in before and "#endif" in after
+        if not wwah_block_confined:
+            errors.append("lower-version rejection is not demonstrably confined to #ifdef ZCL_WWAH")
+
+    zcl_macro_mapping = None
+    if zcl_config is not None:
+        compact = re.sub(r"\s+", " ", zcl_config)
+        zcl_macro_mapping = bool(
+            re.search(
+                r"#if\s+ZCL_WWAH_SUPPORT\s+#define\s+ZCL_WWAH\b",
+                compact,
+            )
+        )
+        if not zcl_macro_mapping:
+            errors.append("zcl_config.h no longer maps ZCL_WWAH_SUPPORT to ZCL_WWAH as expected")
 
     if VENDOR_RECOVERY_FILE_VERSION >= CUSTOM_FILE_VERSION:
         errors.append("test constants no longer exercise an actual downgrade")
@@ -77,11 +97,10 @@ def analyze_contract(ota_source: str, app_cfg: str, target_source: str) -> dict:
         "vendorRecoveryIsDowngrade": VENDOR_RECOVERY_FILE_VERSION < CUSTOM_FILE_VERSION,
         "zclOtaSupport": _define_value(app_cfg, "ZCL_OTA_SUPPORT"),
         "zclWwahSupport": _define_value(app_cfg, "ZCL_WWAH_SUPPORT"),
+        "zclWwahMacroMappingProven": zcl_macro_mapping,
         "otaClientClusterPresent": "ZCL_CLUSTER_OTA" in target_source,
         "otaClientInitialized": "ota_init(" in target_source and "g_ota_info" in target_source,
-        "downgradeRejectionWwahConditional": not errors or not any(
-            "lower-version rejection" in error for error in errors
-        ),
+        "downgradeRejectionWwahConditional": wwah_block_confined,
         "authorizationGranted": False,
         "scope": "POST_BOOT_VENDOR_RECOVERY_ONLY",
         "firstValidCustomBootRecoveryProven": False,
@@ -114,11 +133,13 @@ def main(argv: list[str] | None = None) -> int:
         raise SystemExit(
             f"ERROR: Telink SDK commit {actual_commit} != pinned {EXPECTED_SDK_COMMIT}"
         )
-    ota_path = args.sdk_root / "stack/zigbee/ota/ota.c"
+    ota_path = args.sdk_root / "zigbee/ota/ota.c"
+    zcl_config_path = args.sdk_root / "zigbee/zcl/zcl_config.h"
     report = analyze_contract(
         ota_path.read_text(encoding="utf-8", errors="replace"),
         args.app_cfg.read_text(encoding="utf-8"),
         args.target_source.read_text(encoding="utf-8"),
+        zcl_config_path.read_text(encoding="utf-8", errors="replace"),
     )
     report["sdkCommit"] = actual_commit
     if args.json_out:
