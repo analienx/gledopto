@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """Reference-zone analysis of the same-model GLEDOPTO ADC/flash guard pin.
 
-This tool is deliberately confined to vendor-firmware/reference-analysis.  It
+This tool is deliberately confined to vendor-firmware/reference-analysis. It
 uses public Telink SDK source + the pinned TC32 compiler to create differential
 machine-code signatures for each TLSR8258 ADC-capable GPIO, then compares those
 signatures against a lawfully obtained same-model vendor OTA.
 
-It prints only derived facts/scores.  It never emits the vendor payload,
+It prints only derived facts/scores. It never emits the vendor payload,
 disassembly, or reconstructed source, and is not an implementation dependency.
 """
 from __future__ import annotations
@@ -14,7 +14,6 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
-import os
 from pathlib import Path
 import re
 import shutil
@@ -33,7 +32,17 @@ ADC_PINS = (
 
 
 def run(argv: list[str], *, cwd: Path | None = None, text: bool = True) -> subprocess.CompletedProcess:
-    return subprocess.run(argv, cwd=cwd, check=True, capture_output=True, text=text)
+    cp = subprocess.run(argv, cwd=cwd, check=False, capture_output=True, text=text)
+    if cp.returncode:
+        # Tool output here is public SDK/compiler diagnostics only. Never print
+        # vendor payload/disassembly from this helper.
+        stderr = cp.stderr if isinstance(cp.stderr, str) else "<binary stderr>"
+        stdout = cp.stdout if isinstance(cp.stdout, str) else "<binary stdout>"
+        raise RuntimeError(
+            f"command failed rc={cp.returncode}: {' '.join(argv[:4])}\n"
+            f"stdout:\n{stdout[-4000:]}\nstderr:\n{stderr[-8000:]}"
+        )
+    return cp
 
 
 def extract_ota_payload(path: Path) -> bytes:
@@ -92,8 +101,6 @@ def relocation_mask(length: int, relocations: Iterable[int]) -> set[int]:
     """Mask conservatively around each TC32 relocation-bearing instruction."""
     masked: set[int] = set()
     for off in relocations:
-        # TC32 instructions are 16/32-bit.  Mask the relocation and the preceding
-        # halfword so linked call/load immediates cannot create false mismatches.
         for i in range(max(0, off - 2), min(length, off + 6)):
             masked.add(i)
     return masked
@@ -116,13 +123,8 @@ def best_window_match(payload: bytes, sig: bytes, compare_positions: list[int]) 
     best_off = -1
     exact_count = 0
     required = len(compare_positions)
-    # A pure-Python scan over ~209 KiB x a few hundred selected bytes is small
-    # enough for CI and avoids external reverse-engineering dependencies.
     for off in range(0, len(payload) - len(sig) + 1, 2):
-        score = 0
-        for i in compare_positions:
-            if payload[off + i] == sig[i]:
-                score += 1
+        score = sum(payload[off + i] == sig[i] for i in compare_positions)
         if score > best_score:
             best_score = score
             best_off = off
@@ -155,9 +157,20 @@ def sdk_include_args(sdk: Path, cfg: Path, core: Path) -> list[str]:
         for p in root.rglob("*"):
             if p.is_dir():
                 dirs.add(p)
-    # Keep target config first; remainder deterministic.
     rest = sorted((p for p in dirs if p != cfg), key=lambda p: str(p))
     return [f"-I{cfg}"] + [f"-I{p}" for p in rest]
+
+
+def common_compile_args(cc: Path, sdk: Path, cfg: Path, core: Path) -> list[str]:
+    return [
+        str(cc),
+        "-O2", "-ffunction-sections", "-fdata-sections", "-fshort-enums",
+        "-finline-small-functions", "-std=gnu99", "-funsigned-char", "-fshort-wchar",
+        "-fms-extensions", "-nostartfiles", "-nostdlib",
+        "-DMCU_CORE_8258=1", "-DEND_DEVICE=1", "-DROUTER=0", "-DCOORDINATOR=0",
+        "-DMCU_STARTUP_8258=1", "-D_SIZE_T", "-D_SIZE_T_", "-D__SIZE_T", "-D__SIZE_T__",
+        *sdk_include_args(sdk, cfg, core),
+    ]
 
 
 def compile_drv_hw_variant(cc: Path, sdk: Path, target: Path, core: Path, pin: str, out: Path) -> Path:
@@ -165,16 +178,9 @@ def compile_drv_hw_variant(cc: Path, sdk: Path, target: Path, core: Path, pin: s
     cfg.mkdir(parents=True)
     copy_target_cfg(target, cfg, pin)
     obj = out / "drv_hw.o"
-    argv = [
-        str(cc),
-        "-O2", "-ffunction-sections", "-fdata-sections", "-fshort-enums",
-        "-finline-small-functions", "-std=gnu99", "-funsigned-char", "-fshort-wchar",
-        "-fms-extensions", "-nostartfiles", "-nostdlib", "-fpack-struct",
-        "-DMCU_CORE_8258=1", "-DEND_DEVICE=1", "-DROUTER=0", "-DCOORDINATOR=0",
-        "-DMCU_STARTUP_8258=1",
-        *sdk_include_args(sdk, cfg, core),
-        "-c", str(sdk / "proj" / "drivers" / "drv_hw.c"), "-o", str(obj),
-    ]
+    argv = common_compile_args(cc, sdk, cfg, core)
+    argv.insert(10, "-fpack-struct")
+    argv += ["-c", str(sdk / "proj" / "drivers" / "drv_hw.c"), "-o", str(obj)]
     run(argv)
     return obj
 
@@ -186,6 +192,7 @@ def compile_helper_variant(cc: Path, sdk: Path, target: Path, core: Path, pin: s
     src = out / "helper.c"
     src.write_text(
         "#include \"tl_common.h\"\n"
+        "#include \"drv_adc.h\"\n"
         "__attribute__((noinline)) void glsd_adc_flash_guard_signature(void) {\n"
         "    drv_adc_init();\n"
         f"    drv_adc_mode_pin_set(DRV_ADC_VBAT_MODE, {pin});\n"
@@ -194,16 +201,8 @@ def compile_helper_variant(cc: Path, sdk: Path, target: Path, core: Path, pin: s
         encoding="utf-8",
     )
     obj = out / "helper.o"
-    argv = [
-        str(cc),
-        "-O2", "-ffunction-sections", "-fdata-sections", "-fshort-enums",
-        "-finline-small-functions", "-std=gnu99", "-funsigned-char", "-fshort-wchar",
-        "-fms-extensions", "-nostartfiles", "-nostdlib",
-        "-DMCU_CORE_8258=1", "-DEND_DEVICE=1", "-DROUTER=0", "-DCOORDINATOR=0",
-        "-DMCU_STARTUP_8258=1", "-D_SIZE_T", "-D_SIZE_T_", "-D__SIZE_T", "-D__SIZE_T__",
-        *sdk_include_args(sdk, cfg, core),
-        "-c", str(src), "-o", str(obj),
-    ]
+    argv = common_compile_args(cc, sdk, cfg, core)
+    argv += ["-c", str(src), "-o", str(obj)]
     run(argv)
     return obj
 
@@ -231,21 +230,15 @@ def analyze_family(payload: bytes, variants: dict[str, bytes], relocations: set[
     variable = differential_positions(variants)
     length = len(next(iter(variants.values())))
     masked = relocation_mask(length, relocations)
-    # Compare all stable instruction bytes plus the bytes that distinguish pins.
     positions = [i for i in range(length) if i not in masked]
     if len(variable - masked) < 1:
         raise RuntimeError("pin variants produced no unmasked differentiating byte")
     scores = {}
     for pin, sig in variants.items():
         score, off, ties = best_window_match(payload, sig, positions)
-        scores[pin] = {
-            "score": round(score, 6),
-            "offset": off,
-            "best_score_ties": ties,
-        }
+        scores[pin] = {"score": round(score, 6), "offset": off, "best_score_ties": ties}
     ranking = sorted(scores, key=lambda p: (-scores[p]["score"], p))
-    winner = ranking[0]
-    runner = ranking[1]
+    winner, runner = ranking[:2]
     return {
         "signature_length": length,
         "compared_bytes": len(positions),
@@ -286,9 +279,6 @@ def main() -> int:
     helper = results["helper"]
     platform = results["platform"]
     same = helper["winner"] == platform["winner"]
-    # Strict automatic classification: two independently generated public-source
-    # signatures must agree, each must be a strong normalized match, and each
-    # must separate its winner from the next candidate.
     strong = (
         same
         and helper["winner_score"] >= 0.90
