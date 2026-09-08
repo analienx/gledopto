@@ -31,8 +31,6 @@ def parse_disassembly(objdump: Path, raw: Path) -> list[dict]:
         addr = int(m.group(1), 16)
         mnemonic = m.group(2).lower()
         operands = m.group(3).strip()
-        # Remove objdump annotations/symbol decorations while preserving register
-        # names, numeric immediates and effective-address expressions.
         operands = operands.split(";", 1)[0].strip()
         operands = re.sub(r"<[^>]*>", "", operands).strip()
         out.append({"addr": addr, "mnemonic": mnemonic, "operands": operands})
@@ -44,10 +42,10 @@ def parse_object_function(objdump: Path, obj: Path, function: str) -> list[dict]
     active = False
     out: list[dict] = []
     for line in cp.stdout.splitlines():
-        if re.match(rf"^[0-9a-fA-F]+\s+<{re.escape(function)}>":, line):
+        if re.match(rf"^[0-9a-fA-F]+\s+<{re.escape(function)}>:$", line.strip()):
             active = True
             continue
-        if active and re.match(r"^[0-9a-fA-F]+\s+<[^>]+>:", line):
+        if active and re.match(r"^[0-9a-fA-F]+\s+<[^>]+>:$", line.strip()):
             break
         if not active:
             continue
@@ -140,7 +138,6 @@ def main() -> int:
             wrappers[pin] = [
                 {"relative": row["addr"], "mnemonic": row["mnemonic"], "operands": row["operands"]}
                 for row in parse_object_function(objdump, obj, "glsd_mode_caller")
-                if row["mnemonic"] != "tjl" or True
             ]
 
     print(json.dumps({
