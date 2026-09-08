@@ -4,6 +4,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SRC="$ROOT/tests/test_glsd301p_target_contract.c"
 INC="$ROOT/firmware/glsd301p-ed"
+CFG="$INC/app_cfg.h"
 CC="${CC:-cc}"
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
@@ -62,6 +63,18 @@ expect_fail() {
   fi
   echo "TARGET_CONTRACT_REJECT_${name}=PASS"
 }
+
+# The actual target configuration is part of the contract, not just the numeric
+# host fixture. This blocks a future SDK-board-example regression back to PC5.
+grep -Eq '^#define[[:space:]]+VOLTAGE_DETECT_ADC_PIN[[:space:]]+GPIO_PB3[[:space:]]*$' "$CFG" || {
+  echo 'ERROR: GL-SD-301P ADC flash-safety pin must remain GPIO_PB3' >&2
+  exit 1
+}
+if grep -Eq '^#define[[:space:]]+VOLTAGE_DETECT_ADC_PIN[[:space:]]+GPIO_PC5([[:space:]]|$)' "$CFG"; then
+  echo 'ERROR: obsolete PC5 ADC fixture returned to production target' >&2
+  exit 1
+fi
+echo 'TARGET_ADC_FLASH_SAFETY_PIN_GPIO_PB3=PASS'
 
 compile_ok
 echo 'TARGET_CONTRACT_VALID_END_DEVICE=PASS'
