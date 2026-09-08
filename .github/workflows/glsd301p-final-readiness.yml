@@ -151,7 +151,7 @@ jobs:
           echo '16595a38ab9783d3afc4eb58ab4ec32625249bd569c1fa6dbaf468bddc76dd72  '"$vendor" | sha256sum --check --strict
           actual_sha512="$(sha512sum "$vendor" | awk '{print $1}')"
           echo "VENDOR_RECOVERY_SHA512_ACTUAL=$actual_sha512"
-          test "$actual_sha512" = '3e8d9101157ee5363ab91352d3f09d3955a5a0403030d8aa7f48ae429161423902203991324c5156403399725e4d3ddedb659523dc1c7988fdcdb5b054aa3cb0'
+          test "$actual_sha512" = '508b261b5b2ea46510a2ad295a5e468cfa5ff4e33530819fd2b4cbb7cd323c9c3e88fc40aaf69e22dec48d43e939cca735f73e1827a9d53a6c30d9da9a753576'
           echo 'SAME_MODEL_VENDOR_RECOVERY_BYTES=PASS'
       - name: Exercise complete no-spare preflight path without authorizing it
         shell: bash
