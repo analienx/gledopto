@@ -1,0 +1,181 @@
+name: GL-SD-301P final no-spare readiness
+
+on:
+  push:
+    branches:
+      - cleanroom/glsd301p-interoperability-20260907
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  final-policy-regression:
+    name: Final wrapper/preflight/release policy
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout exact source head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Record exact source head
+        shell: bash
+        run: echo "SOURCE_HEAD=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
+      - name: Compile finalization tools
+        run: |
+          python3 -m py_compile tools/make_glsd301p_ed_ota.py
+          python3 -m py_compile tools/glsd301p_final_preflight.py
+          python3 -m py_compile tools/glsd301p_release_plan.py
+          python3 -m py_compile tools/check_telink_ota_recovery_contract.py
+      - name: Run adversarial finalization tests
+        run: python3 tools/tests/test_glsd301p_finalization.py -v
+      - name: Prove policy never authorizes live execution
+        shell: bash
+        run: |
+          set -euo pipefail
+          ! grep -R -E 'authorizationGranted["'"']?[[:space:]]*[:=][[:space:]]*True|AUTHORIZATION_GRANTED["'"']?[[:space:]]*[:=][[:space:]]*True' \
+            tools/make_glsd301p_ed_ota.py tools/glsd301p_final_preflight.py tools/glsd301p_release_plan.py
+          echo 'FINAL_POLICY_AUTHORIZATION_TRUE_PATH=NONE'
+          echo 'FINAL_POLICY_NETWORK_EXECUTION=NONE'
+
+  exact-head-tc32-final-readiness:
+    name: Exact-head TC32 + vendor recovery + inert release plan
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout exact implementation head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Record exact source head
+        shell: bash
+        run: echo "SOURCE_HEAD=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
+      - name: Checkout pinned public Telink SDK
+        uses: actions/checkout@v4
+        with:
+          repository: telink-semi/telink_zigbee_sdk
+          ref: V3.7.2.0
+          path: telink-sdk
+      - name: Verify exact SDK commit
+        shell: bash
+        run: |
+          set -euo pipefail
+          actual="$(git -C telink-sdk rev-parse HEAD)"
+          expected='d5bc2f7b0c1f8536fe21c8127ca680ea8214bc8e'
+          test "$actual" = "$expected"
+          echo "TELINK_SDK_COMMIT=$actual"
+      - name: Acquire hash-pinned official TC32 toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          url='https://shyboy.oss-cn-shenzhen.aliyuncs.com/readonly/tc32_gcc_v2.0.tar.bz2'
+          expected='33b854be3e3db3dba4b4dacdda2cd4ea1c94dfd4d562864a095956de7991b430'
+          archive="$RUNNER_TEMP/tc32_gcc_v2.0.tar.bz2"
+          root="$RUNNER_TEMP/tc32"
+          curl --fail --location --retry 3 --output "$archive" "$url"
+          echo "$expected  $archive" | sha256sum --check --strict
+          mkdir -p "$root"
+          tar -xjf "$archive" -C "$root"
+          bindir="$(dirname "$(find "$root" -type f -name tc32-elf-gcc -print -quit)")"
+          test -x "$bindir/tc32-elf-gcc"
+          chmod +x "$bindir"/* || true
+          echo "TC32_CC=$bindir/tc32-elf-gcc" >> "$GITHUB_ENV"
+          "$bindir/tc32-elf-gcc" --version | head -n 1
+      - name: Re-derive same-model PB3 safety pin
+        shell: bash
+        run: |
+          set -euo pipefail
+          ota='devices/gl-sd-301p/vendor-firmware/originals/GL-SD-301P_V20851203_20251230.ota'
+          sdk="$GITHUB_WORKSPACE/telink-sdk/tl_zigbee_sdk"
+          python3 devices/gl-sd-301p/vendor-firmware/reference-analysis/analyze_adc_flash_guard_argflow.py \
+            --ota "$ota" --sdk-root "$sdk" --tc32-cc "$TC32_CC" > "$RUNNER_TEMP/pb3.json"
+          python3 -c "import json,sys; r=json.load(open(sys.argv[1])); assert r['confidence_gate']=='PASS' and r['derived_pin']=='GPIO_PB3'; print('PB3_VENDOR_SEMANTIC_GATE=PASS')" "$RUNNER_TEMP/pb3.json"
+      - name: Prove post-boot vendor recovery source contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/check_telink_ota_recovery_contract.py \
+            --sdk-root "$GITHUB_WORKSPACE/telink-sdk/tl_zigbee_sdk" \
+            --app-cfg firmware/glsd301p-ed/app_cfg.h \
+            --target-source firmware/glsd301p-ed/glsd301p_telink_target.c \
+            --json-out "$RUNNER_TEMP/recovery-contract.json"
+      - name: Build real quarantined End Device target
+        shell: bash
+        run: |
+          set -euo pipefail
+          export TELINK_SDK_ROOT="$GITHUB_WORKSPACE/telink-sdk/tl_zigbee_sdk"
+          export OUT_DIR="$RUNNER_TEMP/glsd301p-ed"
+          bash tools/build_glsd301p_ed_tc32.sh
+          cat "$OUT_DIR/target/manifest.txt"
+      - name: Wrap exact target as quarantined hw2 OTA
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="$RUNNER_TEMP/glsd301p-ed/target"
+          python3 tools/make_glsd301p_ed_ota.py "$root/glsd301p-ed.final.bin" \
+            --build-manifest "$root/manifest.txt" \
+            --out "$root/glsd301p-ed.quarantined.ota" \
+            --source-head "$SOURCE_HEAD" \
+            --offline-build-quarantined > "$root/wrapper.json"
+          cat "$root/wrapper.json"
+      - name: Validate same-model vendor recovery artifact
+        shell: bash
+        run: |
+          set -euo pipefail
+          vendor='devices/gl-sd-301p/vendor-firmware/originals/GL-SD-301P_V20851203_20251230.ota'
+          test "$(stat -c %s "$vendor")" -eq 208946
+          echo '16595a38ab9783d3afc4eb58ab4ec32625249bd569c1fa6dbaf468bddc76dd72  '"$vendor" | sha256sum --check --strict
+          echo '3e8d9101157ee5363ab91352d3f09d3955a5a0403030d8aa7f48ae429161423902203991324c5156403399725e4d3ddedb659523dc1c7988fdcdb5b054aa3cb0  '"$vendor" | sha512sum --check --strict
+          echo 'SAME_MODEL_VENDOR_RECOVERY_BYTES=PASS'
+      - name: Exercise complete no-spare preflight path without authorizing it
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="$RUNNER_TEMP/glsd301p-ed/target"
+          cat > "$RUNNER_TEMP/live-stock.json" <<'JSON'
+          {
+            "ieee": "0xa4c13850cfcdb3a4",
+            "model": "GL-SD-301P",
+            "manufacturer": "GLEDOPTO",
+            "swBuildId": "20651203",
+            "dateCode": "20240704",
+            "hwVersion": 2,
+            "appVersion": 1,
+            "stackVersion": 2,
+            "manufacturerCode": 4687,
+            "imageType": 5142,
+            "fileVersion": 637612033
+          }
+          JSON
+          python3 tools/glsd301p_final_preflight.py \
+            "$root/glsd301p-ed.quarantined.ota" \
+            "$root/glsd301p-ed.quarantined.ota.quarantine.json" \
+            --vendor-ota devices/gl-sd-301p/vendor-firmware/originals/GL-SD-301P_V20851203_20251230.ota \
+            --vendor-manifest devices/gl-sd-301p/vendor-firmware/MANIFEST.json \
+            --recovery-contract "$RUNNER_TEMP/recovery-contract.json" \
+            --live-tuple "$RUNNER_TEMP/live-stock.json" \
+            --expected-source-head "$SOURCE_HEAD" \
+            --full-size-shadow-passed \
+            --post-rejection-power-cycle-passed \
+            --accept-first-valid-custom-boot-risk \
+            --out "$RUNNER_TEMP/final-preflight.json" > /dev/null
+          python3 -c "import json,sys; r=json.load(open(sys.argv[1])); assert r['SOFTWARE_PREFLIGHT_PASS'] and r['CANARY_DECISION_READY']; assert r['AUTHORIZATION_GRANTED'] is False and r['EXECUTION_PERMITTED'] is False; assert r['directProductionGeometryProven'] is False; print('NO_SPARE_FINAL_PREFLIGHT_POLICY=PASS_AUTH_FALSE')" "$RUNNER_TEMP/final-preflight.json"
+      - name: Generate exact-IEEE inert release review plan
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="$RUNNER_TEMP/glsd301p-ed/target"
+          python3 tools/glsd301p_release_plan.py \
+            "$root/glsd301p-ed.quarantined.ota" \
+            "$root/glsd301p-ed.quarantined.ota.quarantine.json" \
+            "$RUNNER_TEMP/final-preflight.json" \
+            --url 'https://example.invalid/glsd301p-ed.quarantined.ota' \
+            --out "$RUNNER_TEMP/release-plan.json" > /dev/null
+          python3 -c "import json,sys; p=json.load(open(sys.argv[1])); assert p['targetIeee']=='0xa4c13850cfcdb3a4'; assert p['usesGlobalOverrideIndex'] is False; assert p['authorizationGranted'] is False and p['executionPermitted'] is False; assert p['plannedUpdateRequest']['payload']['id']=='0xa4c13850cfcdb3a4'; print('EXACT_IEEE_INERT_RELEASE_PLAN=PASS_AUTH_FALSE')" "$RUNNER_TEMP/release-plan.json"
+      - name: Enforce quarantine/no publication
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo 'CI_ARTIFACT_UPLOAD=NONE'
+          echo 'LIVE_CUSTOM_OTA=NO_GO'
+          echo 'PRODUCTION_DEVICE_MUTATION=NO_GO'
