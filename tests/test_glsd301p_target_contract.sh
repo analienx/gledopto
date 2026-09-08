@@ -5,6 +5,7 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SRC="$ROOT/tests/test_glsd301p_target_contract.c"
 INC="$ROOT/firmware/glsd301p-ed"
 CFG="$INC/app_cfg.h"
+TARGET_SRC="$INC/glsd301p_telink_target.c"
 CC="${CC:-cc}"
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
@@ -64,6 +65,14 @@ expect_fail() {
   echo "TARGET_CONTRACT_REJECT_${name}=PASS"
 }
 
+require_source() {
+  local pattern="$1" label="$2"
+  grep -Eq "$pattern" "$TARGET_SRC" || {
+    echo "ERROR: target source pin role missing/drifted: $label" >&2
+    exit 1
+  }
+}
+
 # The actual target configuration is part of the contract, not just the numeric
 # host fixture. This blocks a future SDK-board-example regression back to PC5.
 grep -Eq '^#define[[:space:]]+VOLTAGE_DETECT_ADC_PIN[[:space:]]+GPIO_PB3[[:space:]]*$' "$CFG" || {
@@ -74,7 +83,32 @@ if grep -Eq '^#define[[:space:]]+VOLTAGE_DETECT_ADC_PIN[[:space:]]+GPIO_PC5([[:s
   echo 'ERROR: obsolete PC5 ADC fixture returned to production target' >&2
   exit 1
 fi
+
+# Lock implementation pin roles separately from evidence confidence. PB3 is
+# vendor-firmware-confirmed by the semantic reference gate. PB1/PA0 are HIGH,
+# PC2 is HIGH/functional, and PB4's pin/behavior is confirmed while its physical
+# business meaning intentionally remains unknown.
+require_source 'drv_uart_pin_set\(UART_TX_PB1,[[:space:]]*UART_RX_PA0\)' 'UART PB1 TX / PA0 RX'
+require_source 'drv_gpio_read\(GPIO_PC2\)' 'PC2 PUSH read'
+require_source 'drv_gpio_func_set\(GPIO_PC2\)' 'PC2 PUSH GPIO mode'
+require_source 'drv_gpio_output_en\(GPIO_PC2,[[:space:]]*false\)' 'PC2 PUSH output disabled'
+require_source 'drv_gpio_input_en\(GPIO_PC2,[[:space:]]*true\)' 'PC2 PUSH input enabled'
+require_source 'drv_gpio_read\(GPIO_PB4\)' 'PB4 auxiliary read'
+require_source 'drv_gpio_func_set\(GPIO_PB4\)' 'PB4 auxiliary GPIO mode'
+require_source 'drv_gpio_output_en\(GPIO_PB4,[[:space:]]*false\)' 'PB4 auxiliary output disabled'
+require_source 'drv_gpio_input_en\(GPIO_PB4,[[:space:]]*true\)' 'PB4 auxiliary input enabled'
+require_source 'drv_gpio_up_down_resistor\(GPIO_PB4,[[:space:]]*PM_PIN_PULLDOWN_100K\)' 'PB4 100k pulldown'
+
+if grep -q 'GPIO_PB3' "$TARGET_SRC"; then
+  echo 'ERROR: PB3 is reserved for ADC flash-safety handling and must not be reused by application GPIO code' >&2
+  exit 1
+fi
+
 echo 'TARGET_ADC_FLASH_SAFETY_PIN_GPIO_PB3=PASS'
+echo 'TARGET_UART_PIN_ROLE_PB1_PA0=PASS'
+echo 'TARGET_PUSH_PIN_ROLE_PC2=PASS'
+echo 'TARGET_AUX_PIN_ROLE_PB4=PASS'
+echo 'TARGET_ADC_PB3_APPLICATION_REUSE=NONE'
 
 compile_ok
 echo 'TARGET_CONTRACT_VALID_END_DEVICE=PASS'
