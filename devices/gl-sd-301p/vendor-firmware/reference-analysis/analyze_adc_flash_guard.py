@@ -138,6 +138,18 @@ def copy_target_cfg(target: Path, dst: Path, pin: str) -> None:
     )
     if count != 1:
         raise RuntimeError("could not replace VOLTAGE_DETECT_ADC_PIN exactly once")
+
+    # Synthetic reference wrappers intentionally explore alternate GPIO values.
+    # They must not weaken the real target contract, so disable the SDK pin
+    # assertions only inside this temporary copied configuration.
+    text, assert_count = re.subn(
+        r"^#define\s+GLSD301P_TARGET_ENABLE_SDK_PIN_ASSERTS\s+1\s*$",
+        "#define GLSD301P_TARGET_ENABLE_SDK_PIN_ASSERTS  0",
+        text,
+        flags=re.MULTILINE,
+    )
+    if assert_count != 1:
+        raise RuntimeError("could not disable SDK pin assertions in synthetic config")
     p.write_text(text, encoding="utf-8")
 
 
