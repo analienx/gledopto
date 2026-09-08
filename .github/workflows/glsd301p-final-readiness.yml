@@ -149,7 +149,9 @@ jobs:
           vendor='devices/gl-sd-301p/vendor-firmware/originals/GL-SD-301P_V20851203_20251230.ota'
           test "$(stat -c %s "$vendor")" -eq 208946
           echo '16595a38ab9783d3afc4eb58ab4ec32625249bd569c1fa6dbaf468bddc76dd72  '"$vendor" | sha256sum --check --strict
-          echo '3e8d9101157ee5363ab91352d3f09d3955a5a0403030d8aa7f48ae429161423902203991324c5156403399725e4d3ddedb659523dc1c7988fdcdb5b054aa3cb0  '"$vendor" | sha512sum --check --strict
+          actual_sha512="$(sha512sum "$vendor" | awk '{print $1}')"
+          echo "VENDOR_RECOVERY_SHA512_ACTUAL=$actual_sha512"
+          test "$actual_sha512" = '3e8d9101157ee5363ab91352d3f09d3955a5a0403030d8aa7f48ae429161423902203991324c5156403399725e4d3ddedb659523dc1c7988fdcdb5b054aa3cb0'
           echo 'SAME_MODEL_VENDOR_RECOVERY_BYTES=PASS'
       - name: Exercise complete no-spare preflight path without authorizing it
         shell: bash
