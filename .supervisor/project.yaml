@@ -2,6 +2,13 @@ schema_version: 1
 project_id: gledopto-gl-sd-301p
 repo: analienx/gledopto
 lifecycle: active
+
+execution:
+  schema_version: 1
+  default_mode: host_specialist
+  optional_modes: [foundry_isolated]
+  build_lane: firmware builder CI
+  host_specialist: USB, MQTT, HA API
 canonical_skill:
   repo: analienx/config
   path: skills/supervisor-executor/SKILL.md
