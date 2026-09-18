@@ -9,21 +9,41 @@ execution:
   optional_modes: [foundry_isolated]
   build_lane: firmware builder CI
   host_specialist: USB, MQTT, HA API
+
 canonical_skill:
   repo: analienx/config
+  ref: main
   path: skills/supervisor-executor/SKILL.md
+canonical_capability_policy:
+  repo: analienx/config
+  ref: main
+  path: skills/supervisor-executor/CAPABILITY_PROFILES.md
+canonical_mutation_policy:
+  repo: analienx/config
+  ref: main
+  path: skills/mutation-safety/SKILL.md
+canonical_project_context_policy:
+  repo: analienx/config
+  ref: main
+  path: skills/supervisor-executor/PROJECT_CONTEXT_ARTIFACT.md
 registry:
   repo: analienx/config
+  ref: main
   path: supervisor/projects.yaml
+
 context:
   root_agents: AGENTS.md
+  project_context: CHATGPT_PROJECT_CONTEXT.md
   device_ledger: devices/gl-sd-301p/README.md
   device_status: devices/gl-sd-301p/STATUS.md
+
 control:
   mode: task_issue
   primary_issue: 1
+
 user_shorthand:
   ".": supervise_latest
+
 executor:
   environment: windows_notebook
   management_paths:
@@ -31,7 +51,11 @@ executor:
     - ssh_ha
     - zigbee2mqtt_mqtt
     - home_assistant_api
+
 notes: >-
-  Registered here first; add to analienx/config:supervisor/projects.yaml when
-  the control plane is next updated. Phase 1 software-only rules of issue #1
-  apply to all work on the installed production unit.
+  External GitHub control-plane state is authoritative. Default execution is
+  host_specialist for device/runtime work; foundry_isolated is the optional
+  isolated implementation/review mode. Capability profile and autonomy scope
+  are selected separately from execution mode. The production-only/no-spare
+  canary track and its exact-SHA safety gates are governed by issue #1 newest
+  comments; do not infer live-device authorization from CI alone.
