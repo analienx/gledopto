@@ -93,3 +93,7 @@ when clear and bounded and should be mirrored minimally to the issue ledger.
 conversation context first, otherwise from the canonical registry and newest
 issue/executor activity. Fetch GitHub state directly; do not ask the user to
 relay routine executor output.
+
+## Canonical Home Assistant diagnostics and Zigbee device identification
+
+For any live Home Assistant access, Zigbee2MQTT NWK/address mapping or route-error investigation, load the **single canonical** [Home Assistant read-only skill](https://github.com/analienx/config/blob/main/skills/home-assistant-readonly/SKILL.md) from `analienx/config` (main). It provides the existing SSH alias, a host-key-verified Paramiko fallback for Windows OpenSSH exit-255 failures, and the reusable `ha_readonly.py` live inventory helper. Keep implementation and credentials in the canonical location; do not copy the helper or SSH settings here. This does not authorize Zigbee firmware flashing, HA mutations or bypass of this repository's own safety/deployment rules.
