@@ -46,6 +46,7 @@ jobs:
           cp "$sdk/proj/os/ev_rtc.h" build/host-sdk/proj/os/
           cp "$sdk/proj/os/ev.h" build/host-sdk/proj/os/
           cp "$sdk/proj/common/utlist.h" build/host-sdk/proj/common/
+          cp "$sdk/proj/common/types.h" build/host-sdk/proj/common/
           cp tests/host/tl_common.h build/host-sdk/proj/tl_common.h
           python3 - build/sdk-patches-harness.json <<'PY'
           import hashlib, json, sys

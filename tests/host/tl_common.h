@@ -16,7 +16,7 @@
 #include <stdint.h>
 #include <string.h>
 
-#include "host_types.h"
+#include "common/types.h"
 
 #include "common/utlist.h"
 #include "os/ev.h"
