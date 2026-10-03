@@ -8,6 +8,7 @@
 #include "drv_uart.h"
 #include "drv_gpio.h"
 
+#include "glsd301p_bdb_adapter.h"
 #include "glsd301p_control.h"
 #include "glsd301p_health.h"
 #include "glsd301p_hw_io.h"
@@ -379,6 +380,7 @@ static int glsd_retry_cb(void *data)
 static void glsd_bdb_init_cb(u8 status, u8 joined_network)
 {
     bool factory_new = zb_isDeviceFactoryNew() ? true : false;
+    glsd301p_bdb_action_t action;
 
     glsd301p_health_note_bdb_status(&g_health, status);
     glsd301p_health_note_network(
@@ -387,12 +389,20 @@ static void glsd_bdb_init_cb(u8 status, u8 joined_network)
                       ? GLSD301P_HEALTH_NET_JOINED
                       : GLSD301P_HEALTH_NET_JOINING));
     if (status == BDB_INIT_STATUS_SUCCESS) {
-        if (glsd301p_rejoin_note_joined(&g_rejoin, joined_network != 0u)) {
+        action = glsd301p_bdb_handle_event(
+            &g_rejoin,
+            joined_network != 0u ? GLSD301P_BDB_INIT_JOINED
+                                 : GLSD301P_BDB_INIT_NOT_JOINED,
+            factory_new);
+        if (action.stop_retry) {
             glsd301p_timer_retry_stop();
         }
         return;
     }
-    if (glsd301p_rejoin_note_init_failure(&g_rejoin, factory_new)) {
+    action = glsd301p_bdb_handle_event(&g_rejoin,
+                                       GLSD301P_BDB_INIT_FAILURE,
+                                       factory_new);
+    if (action.start_attempt) {
         glsd_rejoin_start_attempt(false);
     }
 }
@@ -400,29 +410,41 @@ static void glsd_bdb_init_cb(u8 status, u8 joined_network)
 static void glsd_bdb_commission_cb(u8 status, void *arg)
 {
     bool factory_new = zb_isDeviceFactoryNew() ? true : false;
+    bool joined = zb_isDeviceJoinedNwk() ? true : false;
+    glsd301p_bdb_action_t action;
 
     (void)arg;
     glsd301p_health_note_bdb_status(&g_health, status);
     glsd301p_health_note_network(
         &g_health,
-        (uint8_t)((status == BDB_COMMISSION_STA_SUCCESS &&
-                   zb_isDeviceJoinedNwk())
+        (uint8_t)((status == BDB_COMMISSION_STA_SUCCESS && joined)
                       ? GLSD301P_HEALTH_NET_JOINED
                       : GLSD301P_HEALTH_NET_JOINING));
     if (status == BDB_COMMISSION_STA_SUCCESS) {
-        if (glsd301p_rejoin_note_joined(&g_rejoin, zb_isDeviceJoinedNwk())) {
+        action = glsd301p_bdb_handle_event(
+            &g_rejoin,
+            joined ? GLSD301P_BDB_COMMISSION_JOINED
+                   : GLSD301P_BDB_COMMISSION_NOT_JOINED,
+            factory_new);
+        if (action.stop_retry) {
             glsd301p_timer_retry_stop();
         }
         return;
     }
     if (status == BDB_COMMISSION_STA_PARENT_LOST) {
-        if (glsd301p_rejoin_note_parent_lost(&g_rejoin, factory_new)) {
+        action = glsd301p_bdb_handle_event(&g_rejoin,
+                                           GLSD301P_BDB_PARENT_LOST,
+                                           factory_new);
+        if (action.start_attempt) {
             glsd_rejoin_start_attempt(false);
         }
         return;
     }
     if (status == BDB_COMMISSION_STA_REJOIN_FAILURE) {
-        if (glsd301p_rejoin_note_rejoin_failure(&g_rejoin, factory_new)) {
+        action = glsd301p_bdb_handle_event(&g_rejoin,
+                                           GLSD301P_BDB_REJOIN_FAILURE,
+                                           factory_new);
+        if (action.start_attempt) {
             glsd_rejoin_start_attempt(false);
         }
     }

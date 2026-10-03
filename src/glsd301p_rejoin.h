@@ -67,9 +67,11 @@ void glsd301p_rejoin_note_start_result(glsd301p_rejoin_t *rejoin,
                                        bool accepted);
 
 /*
- * Authoritative joined-state reconciliation. Counts each false->true edge
- * once as a success, returns to IDLE, and returns true so the caller can
- * cancel a scheduled retry.
+ * Authoritative joined-state reconciliation. A true observation always
+ * returns to IDLE and returns true so the caller stops any application
+ * retry; each false->true edge additionally counts once as a success.
+ * Duplicate true observations while already IDLE return false. Loss and
+ * failure observations invalidate the cached joined edge.
  */
 bool glsd301p_rejoin_note_joined(glsd301p_rejoin_t *rejoin, bool joined);
 

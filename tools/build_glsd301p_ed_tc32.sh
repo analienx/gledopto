@@ -118,6 +118,7 @@ app_sources=(
   "$CORE/glsd301p_control.c"
   "$CORE/glsd301p_zcl_commands.c"
   "$CORE/glsd301p_rejoin.c"
+  "$CORE/glsd301p_bdb_adapter.c"
   "$CORE/glsd301p_health.c"
   "$TARGET/glsd301p_telink_inert_glue.c"
   "$TARGET/glsd301p_telink_link_sentinels.c"

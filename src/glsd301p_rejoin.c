@@ -33,6 +33,10 @@ bool glsd301p_rejoin_note_parent_lost(glsd301p_rejoin_t *rejoin,
     if (rejoin == NULL) {
         return false;
     }
+    /* R3: observed loss invalidates the cached joined edge, so the next
+     * authoritative success reconciles instead of looking like a
+     * duplicate of an older join. */
+    rejoin->last_joined = false;
     rejoin->parent_losses = glsd301p_sat_inc_u32(rejoin->parent_losses);
     return glsd301p_rejoin_decide_attempt(rejoin, factory_new);
 }
@@ -43,6 +47,7 @@ bool glsd301p_rejoin_note_rejoin_failure(glsd301p_rejoin_t *rejoin,
     if (rejoin == NULL) {
         return false;
     }
+    rejoin->last_joined = false;
     if (rejoin->state == GLSD301P_REJOIN_SDK_ACTIVE) {
         /*
          * Intermediate failure of an accepted attempt: count it, keep the
@@ -63,6 +68,7 @@ bool glsd301p_rejoin_note_init_failure(glsd301p_rejoin_t *rejoin,
     if (rejoin == NULL) {
         return false;
     }
+    rejoin->last_joined = false;
     if (!factory_new) {
         rejoin->failures = glsd301p_sat_inc_u32(rejoin->failures);
     }
@@ -99,14 +105,26 @@ bool glsd301p_rejoin_note_joined(glsd301p_rejoin_t *rejoin, bool joined)
     if (rejoin == NULL) {
         return false;
     }
-    edge = joined && !rejoin->last_joined;
-    rejoin->last_joined = joined;
+    if (!joined) {
+        rejoin->last_joined = false;
+        return false;
+    }
+    /*
+     * R3: authoritative joined evidence always reconciles to IDLE and
+     * tells the caller to stop any application retry, even if the edge
+     * bookkeeping somehow already reads joined. Success counting stays
+     * edge-deduplicated separately.
+     */
+    edge = !rejoin->last_joined;
+    rejoin->last_joined = true;
     if (edge) {
         rejoin->successes = glsd301p_sat_inc_u32(rejoin->successes);
+    }
+    if (rejoin->state != GLSD301P_REJOIN_IDLE) {
         rejoin->state = GLSD301P_REJOIN_IDLE;
         return true;
     }
-    return false;
+    return edge;
 }
 
 uint8_t glsd301p_rejoin_state(const glsd301p_rejoin_t *rejoin)
