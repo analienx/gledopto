@@ -347,12 +347,18 @@ fi
 }
 zclcmd_obj="$DIR/obj/app/glsd301p_zcl_commands.o"
 rejoin_obj="$DIR/obj/app/glsd301p_rejoin.o"
+adapter_obj="$DIR/obj/app/glsd301p_bdb_adapter.o"
 "$TC32_NM" -u "$app_obj" | grep -Eq ' U glsd301p_zcl_(onoff|level)_command$' || {
   echo 'ERROR: target is not wired through shared ZCL command policy' >&2; exit 1;
 }
-"$TC32_NM" -u "$app_obj" | grep -Eq ' U glsd301p_rejoin_note_(parent_lost|rejoin_failure|init_failure)$' || {
-  echo 'ERROR: target is not wired through rejoin ownership' >&2; exit 1;
+"$TC32_NM" -u "$app_obj" | grep -Eq ' U glsd301p_bdb_handle_event$' || {
+  echo 'ERROR: target is not wired through the shared BDB adapter' >&2; exit 1;
 }
+for sym in glsd301p_rejoin_note_joined glsd301p_rejoin_note_parent_lost glsd301p_rejoin_note_rejoin_failure glsd301p_rejoin_note_init_failure; do
+  "$TC32_NM" -u "$adapter_obj" | grep -Eq " U $sym\$" || {
+    echo "ERROR: BDB adapter does not drive rejoin ownership ($sym)" >&2; exit 1;
+  }
+done
 "$TC32_NM" -u "$zclcmd_obj" | grep -Eq ' U glsd301p_control_(emit|level_start_target|level_start_move|level_cancel)$' || {
   echo 'ERROR: ZCL command policy is not wired through guarded control plane' >&2; exit 1;
 }
