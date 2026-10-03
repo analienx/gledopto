@@ -118,6 +118,8 @@ jobs:
           bash -n tools/build_glsd301p_ed_tc32.sh
           bash -n tools/probe_telink_role_symbol_ownership.sh
           python3 -m py_compile tools/apply_glsd301p_sdk_patches.py
+          python3 -m py_compile tools/glsd301p_health_decode.py
+          python3 -m py_compile tools/tests/test_glsd301p_health_decode.py
           python3 -m py_compile devices/gl-sd-301p/vendor-firmware/reference-analysis/analyze_adc_flash_guard.py
           python3 -m py_compile devices/gl-sd-301p/vendor-firmware/reference-analysis/analyze_adc_flash_guard_callsite.py
           python3 -m py_compile devices/gl-sd-301p/vendor-firmware/reference-analysis/analyze_adc_flash_guard_semantics.py
@@ -182,6 +184,9 @@ jobs:
           # shellcheck disable=SC2086
           cc $strict $inc src/glsd301p_timebase.c src/glsd301p_rejoin.c \
             tests/test_glsd301p_rejoin.c -o build/host-tests/test_glsd301p_rejoin
+          # shellcheck disable=SC2086
+          cc $strict $inc src/glsd301p_health.c tests/test_glsd301p_health.c \
+            -o build/host-tests/test_glsd301p_health
       - name: Build M4 dispatch harness (real patched SDK ZCL + ASan/UBSan)
         shell: bash
         run: |
@@ -230,6 +235,12 @@ jobs:
           build/host-tests/test_glsd301p_control
           build/host-tests/test_glsd301p_rejoin
           build/host-tests/test_glsd301p_zcl_dispatch
+          build/host-tests/test_glsd301p_health
+      - name: Run health decoder fixtures
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/tests/test_glsd301p_health_decode.py -v
       - name: Adversarially verify End Device architecture firewall
         shell: bash
         run: bash tests/test_glsd301p_target_contract.sh

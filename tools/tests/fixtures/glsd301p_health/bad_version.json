@@ -1,0 +1,1 @@
+{"description": "Version 1 payload must be rejected (decoder only knows v2).", "expect_error": "unsupported health version 1", "hex": "010000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000", "name": "bad_version"}

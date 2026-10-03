@@ -142,6 +142,14 @@ grep -Eq 'glsd301p_zcl_(onoff|level)_command' "$TARGET_SRC" || {
   echo 'ERROR: target no longer delegates to the shared ZCL command policy' >&2
   exit 1
 }
+grep -Eq 'GLSD301P_HEALTH_ATTR_ID, ZCL_DATA_TYPE_OCTET_STR, ACCESS_CONTROL_READ, g_basic_health' "$TARGET_SRC" || {
+  echo 'ERROR: Basic:0xFF10 health attribute entry missing or not read-only' >&2
+  exit 1
+}
+if grep 'GLSD301P_HEALTH_ATTR_ID' "$TARGET_SRC" | grep -Eq 'WRITE|REPORTABLE'; then
+  echo 'ERROR: health attribute must be read-only and never reported' >&2
+  exit 1
+fi
 require_source 'uart_tx_is_busy\(\)' 'nonblocking UART busy probe'
 require_source 'uart_dma_send\(g_uart_tx_dma\)' 'nonblocking UART DMA start'
 require_control_source 'glsd301p_timebase_age_ms' 'elapsed-time deadline basis'

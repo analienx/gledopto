@@ -20,7 +20,7 @@ APP_SLOT_SIZE=0x34000
 BANK_B_BASE=0x40000
 BANK_B_SLOT_END=0x74000
 MAC_REGION_START=0x76000
-FILE_VERSION=0x7F020001
+FILE_VERSION=0x7F030001
 
 [[ -f "$SDK/platform/boot/8258/boot_8258.link" ]] || { echo 'ERROR: pinned TLSR8258 SDK fixture incomplete' >&2; exit 2; }
 [[ -f "$SDK/zigbee/lib/tc32/libzb_ed.a" ]] || { echo 'ERROR: libzb_ed.a missing' >&2; exit 2; }
@@ -118,6 +118,7 @@ app_sources=(
   "$CORE/glsd301p_control.c"
   "$CORE/glsd301p_zcl_commands.c"
   "$CORE/glsd301p_rejoin.c"
+  "$CORE/glsd301p_health.c"
   "$TARGET/glsd301p_telink_inert_glue.c"
   "$TARGET/glsd301p_telink_link_sentinels.c"
   "$TARGET/glsd301p_telink_target.c"
@@ -203,6 +204,34 @@ grep -q 'glsd301p_timer_retry_start_oneshot' "$TARGET/glsd301p_telink_target.c" 
 }
 grep -q 'glsd301p_rejoin_init' "$TARGET/glsd301p_telink_target.c" || {
   echo 'ERROR: rejoin ownership state is never initialized' >&2; exit 1;
+}
+
+# M5: RAM-only v2 health snapshot on Basic:0xFF10, read-only, refreshed by
+# the owned 1 s event; development identity GLSD-ED-002 / 0x7F030001.
+grep -q 'GLSD301P_HEALTH_ATTR_ID, ZCL_DATA_TYPE_OCTET_STR, ACCESS_CONTROL_READ, g_basic_health' \
+  "$TARGET/glsd301p_telink_target.c" || {
+  echo 'ERROR: Basic:0xFF10 health attribute entry missing or not read-only' >&2; exit 1;
+}
+if grep 'GLSD301P_HEALTH_ATTR_ID' "$TARGET/glsd301p_telink_target.c" | grep -q 'WRITE\|REPORTABLE'; then
+  echo 'ERROR: health attribute must be read-only and never reported' >&2; exit 1;
+fi
+grep -q 'glsd301p_timer_health_start' "$TARGET/glsd301p_telink_target.c" || {
+  echo 'ERROR: health snapshot is never refreshed by the owned 1 s event' >&2; exit 1;
+}
+grep -q 'glsd301p_health_note_bdb_status' "$TARGET/glsd301p_telink_target.c" || {
+  echo 'ERROR: BDB status is never noted into health state' >&2; exit 1;
+}
+if grep -q 'nv_\|zcl_nv\|reportAttr\|zcl_report' "$CORE/glsd301p_health.c"; then
+  echo 'ERROR: health snapshot must not touch NVM or reporting' >&2; exit 1;
+fi
+grep -q '#define FILE_VERSION[[:space:]]*0x7F030001' "$TARGET/version_cfg.h" || {
+  echo 'ERROR: FILE_VERSION must be the allocated 0x7F030001' >&2; exit 1;
+}
+grep -q '#define APP_BUILD[[:space:]]*0x03' "$TARGET/version_cfg.h" || {
+  echo 'ERROR: APP_BUILD must be the allocated 03' >&2; exit 1;
+}
+[[ "$FILE_VERSION" == '0x7F030001' ]] || {
+  echo 'ERROR: build FILE_VERSION drifted from allocated identity' >&2; exit 1;
 }
 
 # Disabled Touchlink closure is allowed only in the dedicated inert glue.
@@ -329,6 +358,12 @@ rejoin_obj="$DIR/obj/app/glsd301p_rejoin.o"
 "$TC32_NM" -u "$rejoin_obj" | grep -Eq ' U glsd301p_sat_inc_u32$' || {
   echo 'ERROR: rejoin counters are not wired through saturating increment' >&2; exit 1;
 }
+"$TC32_NM" -u "$app_obj" | grep -Eq ' U glsd301p_health_snapshot$' || {
+  echo 'ERROR: target never refreshes the RAM health snapshot' >&2; exit 1;
+}
+"$TC32_NM" -u "$app_obj" | grep -Eq ' U T_evtExcept$' || {
+  echo 'ERROR: health exception record is not wired to SDK ev.c' >&2; exit 1;
+}
 for obj in "$DIR"/obj/app/*.o; do
   if "$TC32_NM" -u "$obj" 2>/dev/null | grep -Eq ' U ev_timer_task(Post|Cancel)$'; then
     echo "ERROR: pooled timer API referenced by application object: $obj" >&2; exit 1;
@@ -415,6 +450,8 @@ for sym in \
   glsd301p_zcl_onoff_command \
   glsd301p_zcl_level_command \
   glsd301p_rejoin_init \
+  glsd301p_health_snapshot \
+  glsd301p_timer_health_start \
   glsd301p_hw_uart_send_frame \
   glsd301p_uart_transport_offer; do
   "$TC32_NM" "$elf" | grep -Eq " [Tt] ${sym}$" || {
@@ -459,6 +496,8 @@ grep -q 'libzb_ed' "$map" || { echo 'ERROR: End Device stack archive absent from
   echo UART_BOOT=STATIC_DMA_SINGLE_ATTEMPT_DEFERRED_ARM
   echo ZCL_COMMAND_POLICY=SHARED_DISPATCH_HARNESSED
   echo REJOIN=OWNED_SINGLE_ATTEMPT_ZDO_SUCCESS_MAPPED_ONESHOT_RETRY_5S
+  echo HEALTH_SNAPSHOT=RAM_V2_48B_BASIC_0xFF10_READONLY_1S_OWNED
+  echo DEV_IDENTITY=GLSD-ED-002_APP_BUILD_03_FILE_VERSION_0x7F030001_DATE_20261003
   python3 - "$DIR/sdk-patches.json" <<'PY'
 import json, sys
 report = json.load(open(sys.argv[1]))
