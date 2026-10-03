@@ -156,12 +156,13 @@ Source: `src/glsd301p_uart_service.c:82-112`,
 Trigger: queue ON at t=0; link rejects DMA starts or stays busy to t=31;
 idle+accept at t=32. Service raises the deadline fault AND starts ON; OFF
 is queued only after service returns. A newly faulted device energizes.
-Original repro: pending (G1 hosted test through control/service/transport,
-asserting captured frame sequence).
-Proposed fix: detect queue deadlines before any normal hardware start;
-discard/quarantine stale normal traffic, latch/cancel output state before
-transmission; bounded confirmed-OFF recovery continues.
-Fix commit: TBD. Hosted proof: TBD.
+Original repro: hosted red run 37142138291 (`!ev.frame_sent` assert in
+`test_r1_reject_to_accept_boundary_drops_stale_on` on pre-fix code).
+Fix (G1 @ 6eb2bef): queue-deadline trip drops the expired normal slot
+before any hardware start; no normal starts while latched; OFF never
+dropped; IO fault path cancels the running transition at the fault step.
+Validation: service + full-chain R1/R2 suites green at 6eb2bef
+(boundary 37142423473, readiness 37142423428).
 
 ## R2 — Pending traffic hides the accepted DMA deadline (P1, CONFIRMED)
 
@@ -170,11 +171,11 @@ Trigger: ON accepted at t=0, link stays busy, fresh frame queued at t=31,
 serviced at t=32: queue age is 1 ms so no fault, although the original
 transfer has been busy 32 ms. Coalescing can further move the observed
 stamp.
-Original repro: pending (G1 hosted test: first accepted transfer must
-fault at its own deadline regardless of newer pending work).
-Proposed fix: retire/check owned in-flight transfer before pending-queue
-handling on every step; stable in-flight stamp; separate queue deadlines.
-Fix commit: TBD. Hosted proof: TBD.
+Original repro: same G1 red run 37142138291 (suite aborts at the first
+R1 assert; R2 variants traced to the same pre-fix service ordering).
+Fix (G1 @ 6eb2bef): in-flight retire/check moved before pending-queue
+handling on every step; stable start stamp; separate queue deadlines.
+Validation: green at 6eb2bef (boundary 37142423473).
 
 ## R3 — Successful rejoin does not clear ownership (P1, CONFIRMED)
 

@@ -4,6 +4,7 @@
 #include <stdint.h>
 #include <stdio.h>
 
+#include "glsd301p_bdb_adapter.h"
 #include "glsd301p_rejoin.h"
 
 static void test_init(void)
@@ -117,6 +118,137 @@ static void test_null_safety(void)
     assert(glsd301p_rejoin_note_joined(NULL, true) == false);
 }
 
+/*
+ * R3: two complete join -> loss -> accepted recovery -> success cycles
+ * through the shared target/harness adapter. The second loss must start
+ * recovery again: a stale cached joined edge must not strand SDK_ACTIVE.
+ */
+static void test_adapter_two_accepted_cycles(void)
+{
+    glsd301p_rejoin_t r;
+    glsd301p_bdb_action_t action;
+    int cycle;
+
+    glsd301p_rejoin_init(&r);
+    action = glsd301p_bdb_handle_event(&r, GLSD301P_BDB_INIT_JOINED,
+                                       false);
+    assert(action.stop_retry == true);
+    assert(action.start_attempt == false);
+    assert(r.successes == 1u);
+
+    for (cycle = 0; cycle < 2; cycle++) {
+        action = glsd301p_bdb_handle_event(&r, GLSD301P_BDB_PARENT_LOST,
+                                           false);
+        assert(action.start_attempt == true);
+        glsd301p_rejoin_note_start_result(&r, true);
+        assert(glsd301p_rejoin_state(&r) == GLSD301P_REJOIN_SDK_ACTIVE);
+
+        /* Duplicate loss observations never start a second attempt. */
+        action = glsd301p_bdb_handle_event(&r, GLSD301P_BDB_PARENT_LOST,
+                                           false);
+        assert(action.start_attempt == false);
+
+        action = glsd301p_bdb_handle_event(
+            &r, GLSD301P_BDB_COMMISSION_JOINED, false);
+        assert(action.stop_retry == true);
+        assert(glsd301p_rejoin_state(&r) == GLSD301P_REJOIN_IDLE);
+    }
+    assert(r.starts == 2u);
+    assert(r.successes == 3u);
+}
+
+/*
+ * R3: a rejected start strands RETRY_PENDING; authoritative joined
+ * evidence arriving before the owned retry fires must reconcile to IDLE
+ * and stop the retry.
+ */
+static void test_adapter_rejected_then_external_success(void)
+{
+    glsd301p_rejoin_t r;
+    glsd301p_bdb_action_t action;
+
+    glsd301p_rejoin_init(&r);
+    action = glsd301p_bdb_handle_event(&r, GLSD301P_BDB_INIT_JOINED,
+                                       false);
+    assert(action.stop_retry == true);
+
+    action = glsd301p_bdb_handle_event(&r, GLSD301P_BDB_PARENT_LOST,
+                                       false);
+    assert(action.start_attempt == true);
+    glsd301p_rejoin_note_start_result(&r, false);
+    assert(glsd301p_rejoin_state(&r) == GLSD301P_REJOIN_RETRY_PENDING);
+
+    action = glsd301p_bdb_handle_event(
+        &r, GLSD301P_BDB_COMMISSION_JOINED, false);
+    assert(action.stop_retry == true);
+    assert(glsd301p_rejoin_state(&r) == GLSD301P_REJOIN_IDLE);
+
+    /* A stale retry fire afterwards does nothing. */
+    assert(glsd301p_rejoin_note_retry_fire(&r) == false);
+}
+
+/* Duplicate SUCCESS observations count once and request no retry stop. */
+static void test_adapter_duplicate_success_dedup(void)
+{
+    glsd301p_rejoin_t r;
+    glsd301p_bdb_action_t action;
+
+    glsd301p_rejoin_init(&r);
+    action = glsd301p_bdb_handle_event(
+        &r, GLSD301P_BDB_COMMISSION_JOINED, false);
+    assert(action.stop_retry == true);
+    assert(r.successes == 1u);
+    action = glsd301p_bdb_handle_event(
+        &r, GLSD301P_BDB_COMMISSION_JOINED, false);
+    assert(action.stop_retry == false);
+    assert(r.successes == 1u);
+    assert(glsd301p_rejoin_state(&r) == GLSD301P_REJOIN_IDLE);
+}
+
+static void test_adapter_startup_factory_and_other(void)
+{
+    glsd301p_rejoin_t r;
+    glsd301p_bdb_action_t action;
+
+    /* Non-factory startup failure starts recovery. */
+    glsd301p_rejoin_init(&r);
+    action = glsd301p_bdb_handle_event(&r, GLSD301P_BDB_INIT_FAILURE,
+                                       false);
+    assert(action.start_attempt == true);
+    assert(r.failures == 1u);
+
+    /* Factory-new startup/loss observations never start. */
+    glsd301p_rejoin_init(&r);
+    action = glsd301p_bdb_handle_event(&r, GLSD301P_BDB_INIT_FAILURE,
+                                       true);
+    assert(action.start_attempt == false);
+    assert(r.failures == 0u);
+    action = glsd301p_bdb_handle_event(&r, GLSD301P_BDB_PARENT_LOST,
+                                       true);
+    assert(action.start_attempt == false);
+    assert(r.starts == 0u);
+
+    /* SUCCESS without joined evidence only records the observation. */
+    glsd301p_rejoin_init(&r);
+    action = glsd301p_bdb_handle_event(
+        &r, GLSD301P_BDB_COMMISSION_NOT_JOINED, false);
+    assert(action.start_attempt == false);
+    assert(action.stop_retry == false);
+    assert(r.successes == 0u);
+
+    /* Other commission statuses are ignored, like the target today. */
+    action = glsd301p_bdb_handle_event(
+        &r, GLSD301P_BDB_COMMISSION_OTHER, false);
+    assert(action.start_attempt == false);
+    assert(action.stop_retry == false);
+
+    /* NULL rejoin is a safe no-op. */
+    action = glsd301p_bdb_handle_event(NULL, GLSD301P_BDB_PARENT_LOST,
+                                       false);
+    assert(action.start_attempt == false);
+    assert(action.stop_retry == false);
+}
+
 int main(void)
 {
     test_init();
@@ -125,6 +257,10 @@ int main(void)
     test_joined_reconciliation();
     test_factory_new_keeps_stock_startup();
     test_null_safety();
+    test_adapter_two_accepted_cycles();
+    test_adapter_rejected_then_external_success();
+    test_adapter_duplicate_success_dedup();
+    test_adapter_startup_factory_and_other();
     printf("GLSD301P_REJOIN=PASS\n");
     return 0;
 }

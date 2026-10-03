@@ -101,7 +101,7 @@ PUBLIC EDIT-ONLY: local inspection/authoring only; all validation hosted.
 ## Status
 
 - [x] M0/M0b bootstrap + evidence map
-- [ ] G1 UART fault boundary (R1,R2) — tests-first red, then fix green
+- [x] G1 UART fault boundary (R1,R2) — red 37142138291, fix green @ 6eb2bef (boundary 37142423473)
 - [ ] G2 joined reconciliation (R3) — target-wired adapter + fix
 - [ ] G3 elapsed-time transitions (R4) — repro + interpolation fix
 - [ ] G4 protocol bounds (R6,R7,R8) + bounded follow-ups

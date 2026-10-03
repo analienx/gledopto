@@ -183,6 +183,7 @@ jobs:
             -o build/host-tests/test_glsd301p_control
           # shellcheck disable=SC2086
           cc $strict $inc src/glsd301p_timebase.c src/glsd301p_rejoin.c \
+            src/glsd301p_bdb_adapter.c \
             tests/test_glsd301p_rejoin.c -o build/host-tests/test_glsd301p_rejoin
           # shellcheck disable=SC2086
           cc $strict $inc src/glsd301p_health.c tests/test_glsd301p_health.c \
