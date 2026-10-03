@@ -585,7 +585,7 @@ static void test_onoff_effect_and_timed(void)
 
 static void test_policy_defensive_seams(void)
 {
-    const u8 pld[] = {0x40u, 0x0Au, 0x00u};
+    moveToLvl_t direct;
 
     fixture_init();
     boot_ready();
@@ -600,9 +600,16 @@ static void test_policy_defensive_seams(void)
     assert(glsd301p_zcl_level_command(
                &g_zctx, DISPATCH_EP, ZCL_CMD_LEVEL_MOVE_TO_LEVEL_WITH_ON_OFF,
                NULL) == ZCL_STA_INVALID_FIELD);
+    /*
+     * Direct calls receive parsed SDK structs, never raw bytes (the real
+     * header pads transitionTime; only the SDK parser reads wire bytes).
+     */
+    memset(&direct, 0, sizeof(direct));
+    direct.level = 0x40u;
+    direct.transitionTime = 0x000Au;
     assert(glsd301p_zcl_level_command(&g_zctx, DISPATCH_EP,
                                       ZCL_CMD_LEVEL_MOVE_TO_LEVEL_WITH_ON_OFF,
-                                      (void *)pld) == ZCL_STA_SUCCESS);
+                                      &direct) == ZCL_STA_SUCCESS);
 }
 
 int main(void)
