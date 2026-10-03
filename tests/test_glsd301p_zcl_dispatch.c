@@ -1759,21 +1759,25 @@ static void test_r7_pool_exhaustion_exits(void)
 
 /* ---- R8: parsed-command ownership ---- */
 
-static void test_r8_null_hook_leaks_documented(void)
+static void test_r8_null_hook_returns_to_baseline(void)
 {
     const u8 read_onoff[] = {0x00u, 0x00u};
     unsigned int i;
 
     fixture_init(NULL);
 
-    /* Ten ordinary reads leak exactly ten parsed-command buffers. */
+    /*
+     * P5 R8 fix: parsed-command cleanup no longer depends on the
+     * optional hook, so ten ordinary reads with the target's NULL hook
+     * return every buffer to the pool (pre-fix: ten leaked, 16 free).
+     */
     for (i = 0u; i < 10u; i++) {
         root_frame(ZCL_CLUSTER_GEN_ON_OFF, ZCL_CMD_READ, 0u,
                    ZCL_FRAME_CLIENT_SERVER_DIR, read_onoff,
                    (u16)sizeof(read_onoff), (u8)(i + 1u));
     }
     assert(af_count == 10u);
-    assert(pool_free_total() == 16u);
+    assert(pool_free_total() == 26u);
 }
 
 static void test_r8_noop_hook_returns_to_baseline(void)
@@ -2037,7 +2041,7 @@ int main(void)
     test_r7_config_report_wrap_battery();
     test_r7_config_report_state_guarded();
     test_r7_pool_exhaustion_exits();
-    test_r8_null_hook_leaks_documented();
+    test_r8_null_hook_returns_to_baseline();
     test_r8_noop_hook_returns_to_baseline();
     test_followup_identify_accepted_no_effect();
     test_followup_level_exact_lengths();
