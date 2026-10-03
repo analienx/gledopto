@@ -72,3 +72,39 @@ live-device success. Frozen PR #6 branch/SHA must be preserved untouched.
 - [ ] M7 draft PR + evidence + stop (**independent acceptance review pending**)
 
 Next action: read baseline sources and build/CI lanes; open findings register.
+
+---
+
+# Remediation of independent review R1-R8 (goal d71ed0a9, brief sha256 `716420ff…560bb64` verified)
+
+Reviewed candidate `7184eec40d8141ccd92a005d2d6d5ef0c2bcb853` (PR #8 draft,
+quarantined) + old identity GLSD-ED-002/0x7F030001 preserved in the ledger;
+frozen baseline `760c1419` / PR #6 untouched. Forward commits on the same
+branch; no force push. Direct user authorization: "do full code review and
+for the findings set new goals for muse" (bounded remediation + hosted
+validation + PR/issue evidence; minimal mirror to issue #1 at M7).
+PUBLIC EDIT-ONLY: local inspection/authoring only; all validation hosted.
+
+## M0 bootstrap record (2026-10-03)
+
+- Canonical `analienx/config` main `b0a91d01383a` (2026-10-03); skill 2.2,
+  capability, mutation-safety, project-context, registry loaded authenticated.
+- Main checkout `629a2c5` + user-authorized AGENTS.md standing-authorization
+  edit + 4 untracked handoff/review artifacts (all preserved in place).
+- Worktree `codex/glsd301p-client-hardening` at `7184eec`, clean except the
+  same user-authorized AGENTS.md edit (committed with M0b, not unexplained).
+- Review copied verbatim to `HARDENING-INDEPENDENT-REVIEW-20261003.md`
+  (sha256 `7b783b25…bbe8b1`); R1–R8 added to `HARDENING-FINDINGS.md` as
+  CONFIRMED with repro/fix/proof TBD; ingress/ownership map in
+  `HARDENING-INGRESS-MAP.md` (public C vs opaque archives; audit limits).
+
+## Status
+
+- [x] M0/M0b bootstrap + evidence map
+- [ ] G1 UART fault boundary (R1,R2) — tests-first red, then fix green
+- [ ] G2 joined reconciliation (R3) — target-wired adapter + fix
+- [ ] G3 elapsed-time transitions (R4) — repro + interpolation fix
+- [ ] G4 protocol bounds (R6,R7,R8) + bounded follow-ups
+- [ ] G5 exact-head coverage (R5) + claims + fresh identity
+- [ ] M6 seal + full gates + two matching clean TC32 builds
+- [ ] M7 PR #8 + issue #1 + stop (**independent acceptance review pending**)

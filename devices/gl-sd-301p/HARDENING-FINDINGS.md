@@ -137,3 +137,136 @@ success while ON fails. Only genuine output-guard violations latch, and
 fault clearing never restores ON.
 Validation: hosted not-ready refusal tests for OnOff/Level/policy plus the
 control-suite readiness/fault gates.
+
+---
+
+# Independent review R1-R8 (reviewed candidate 7184eec40d8141ccd92a005d2d6d5ef0c2bcb853)
+
+Review: `HARDENING-INDEPENDENT-REVIEW-20261003.md` (verbatim copy, sha256
+`7b783b25…bbe8b1`). Decision: **REQUEST CHANGES**. Remediation branch: same
+`codex/glsd301p-client-hardening`, forward commits only; reviewed candidate
+SHA and frozen baseline `760c1419` preserved in the ledger. Repro status
+below means hosted reproduction of the original defect; each fix needs the
+new regression green at the sealed SHA plus the G5/G6 evidence gates.
+
+## R1 — Expired queued ON transmitted in the fault step (P1, CONFIRMED)
+
+Source: `src/glsd301p_uart_service.c:82-112`,
+`src/glsd301p_control.c:444-449` at 7184eec.
+Trigger: queue ON at t=0; link rejects DMA starts or stays busy to t=31;
+idle+accept at t=32. Service raises the deadline fault AND starts ON; OFF
+is queued only after service returns. A newly faulted device energizes.
+Original repro: pending (G1 hosted test through control/service/transport,
+asserting captured frame sequence).
+Proposed fix: detect queue deadlines before any normal hardware start;
+discard/quarantine stale normal traffic, latch/cancel output state before
+transmission; bounded confirmed-OFF recovery continues.
+Fix commit: TBD. Hosted proof: TBD.
+
+## R2 — Pending traffic hides the accepted DMA deadline (P1, CONFIRMED)
+
+Source: `src/glsd301p_uart_service.c:82-135` at 7184eec.
+Trigger: ON accepted at t=0, link stays busy, fresh frame queued at t=31,
+serviced at t=32: queue age is 1 ms so no fault, although the original
+transfer has been busy 32 ms. Coalescing can further move the observed
+stamp.
+Original repro: pending (G1 hosted test: first accepted transfer must
+fault at its own deadline regardless of newer pending work).
+Proposed fix: retire/check owned in-flight transfer before pending-queue
+handling on every step; stable in-flight stamp; separate queue deadlines.
+Fix commit: TBD. Hosted proof: TBD.
+
+## R3 — Successful rejoin does not clear ownership (P1, CONFIRMED)
+
+Source: `src/glsd301p_rejoin.c:30-37,95-109`,
+`firmware/glsd301p-ed/glsd301p_telink_target.c:379-428` at 7184eec.
+Trigger: initial join sets `last_joined=true`; parent loss starts an
+accepted attempt (SDK_ACTIVE); the successful rejoin's `note_joined(true)`
+sees the cached flag still true, returns false, leaves SDK_ACTIVE. A later
+loss cannot start recovery. Rejected starts similarly strand RETRY_PENDING
+(owned retry not stopped) on external success. The unit test feeds a
+`false` the target never produces, so it misses this.
+Original repro: pending (G2 hosted test through a target-wired callback
+adapter: two join/loss/recovery cycles, accepted + rejected starts).
+Proposed fix: invalidate joined-edge bookkeeping on observed loss; always
+reconcile authoritative joined evidence to IDLE and stop any app retry;
+keep success dedup separate; preserve SDK backoff.
+Fix commit: TBD. Hosted proof: TBD.
+
+## R4 — Small level changes finish long transitions early (P2, CONFIRMED)
+
+Source: `src/glsd301p_control.c:322-365` at 7184eec.
+Trigger: `ceil(diff / remaining_time)` with minimum step 1 per 100 ms
+callback. One-level change with transitionTime 1000 (100 s) finishes in
+the first 100 ms; 2->254 with that duration finishes in 25.2 s.
+RemainingTime is callback-count based, so gaps distort duration too.
+Original repro: pending (G3 hosted one-level/100 s + full-range tests).
+Proposed fix: bounded integer elapsed-time interpolation (origin/target/
+start/duration state); documented zero/reserved/default handling; preserve
+policy, bounds, OFF/PUSH cancellation, replacement, no overshoot; check
+Move rate timing for the same distortion.
+Fix commit: TBD. Hosted proof: TBD.
+
+## R5 — Host regressions check the merge commit, not the head (P2, CONFIRMED)
+
+Source: `.github/workflows/cleanroom-guard.yml:18,252-253` at 7184eec.
+Run 37127418335 logs merge commit `2edf21c` (7184eec into 629a2c5) for
+boundary-and-tests: integration evidence, not exact-head regression
+evidence. (Readiness workflow already pins the head explicitly.)
+Original repro: N/A (workflow semantics; run log is the evidence).
+Proposed fix: pin implementation checkouts to
+`github.event.pull_request.head.sha || github.sha` (same pattern as the
+readiness workflow); assert/log actual HEAD; keep merge testing separate
+if useful.
+Fix commit: TBD. Hosted proof: TBD.
+
+## R6 — Identify/Groups parsers read past malformed payloads (P1, CONFIRMED)
+
+Source: pinned SDK `d5bc2f7b` `zigbee/zcl/general/zcl_identify.c:144,151-152,180`
+and `zcl_group.c` Add/View/Remove/GetMembership/AddIfIdentify paths,
+compiled into the target (`tools/build_glsd301p_ed_tc32.sh:93-94`).
+Identify reads payload[0:2] unguarded; Groups reads group id unguarded and
+`count` + `count*2` bytes unguarded (`{count=1}` alone over-reads), reaching
+group-table ops before validation. Existing harness stages Level/OnOff only.
+(Groups response-builder offset checked: intentional, not a defect.)
+Original repro: pending (G4 hosted sanitizer harness with real Identify/
+Groups bodies + truncated/oversized corpus, expected-failure on original).
+Proposed fix: narrow pinned-SDK minimum/count-length guards (or complete
+pre-dispatch boundary) before reads, callbacks, table or storage mutation;
+both reachable directions; truthful response statuses.
+Fix commit: TBD. Hosted proof: TBD.
+
+## R7 — Foundation parsers over-read; configure-report length wraps (P1, CONFIRMED)
+
+Source: pinned SDK `d5bc2f7b` `zigbee/zcl/zcl.c` write parser 1266-1311,
+configure-report parser 1709-1781, root dispatch 835-837 (status
+normalization), compiled by `tools/build_glsd301p_ed_tc32.sh:89`.
+Write loop skips 2 bytes and reads a type without a 3-byte record header;
+`zcl_getAttrSize`+`memcpy` consume values without a bounded remaining
+contract (1-byte payload already over-reads). Configure-report consumes
+records unvalidated; allocation prefix uses **u8 len** (1742) for
+`sizeof(command)+numAttr*sizeof(record)` (wraps at large counts while the
+second pass writes numAttr records); discrete scan advances an extra byte
+(1735) the second pass omits (miscount). Root dispatch erases foundation
+error detail (835-837). Only Level/OnOff callbacks are currently harnessed.
+Original repro: pending (G4 hosted sanitizer corpus through actual zcl.c
+dispatch + target ABI probes for exact overflow thresholds).
+Proposed fix: bounded cursors, complete record validation, checked
+allocation arithmetic at target widths, capacity limits, single ownership;
+reject before attribute/report-table changes; preserve specific statuses;
+inventory all enabled foundation/OTA ingress paths.
+Fix commit: TBD. Hosted proof: TBD.
+
+## R8 — NULL foundation hook leaks parsed-command buffers (P1, CONFIRMED)
+
+Source: target `glsd301p_telink_target.c:531` (`zcl_init(NULL)`); pinned SDK
+`zigbee/zcl/zcl.c:866` (cleanup inside `if (hookFn && toAppFlg && attrCmd)`).
+Read/Write allocate parsed commands into `pCmd->attrCmd` (1086-1090,
+1325-1329); with a NULL hook ordinary requests never free them. Repeated
+Basic reads (incl. health polling) can exhaust the shared event-buffer pool.
+Original repro: pending (G4 hosted allocation accounting through root
+dispatch with target NULL-hook config).
+Proposed fix: cleanup independent of optional notification, or a documented
+complete no-op hook; no double frees; allocations return to baseline after
+each settled command.
+Fix commit: TBD. Hosted proof: TBD.
