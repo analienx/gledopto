@@ -312,5 +312,175 @@ int glsd301p_control_level_cb(void *data)
     now_ms = glsd301p_timebase_now_ms();
 
     /* No stale transition may survive: every stop resets the mode. */
-    if (ctx->level->mode == GLSD301P_LEVEL
-...[truncated 3869 chars]
+    if (ctx->level->mode == GLSD301P_LEVEL_IDLE ||
+        !glsd301p_runtime_core_is_ready(ctx->runtime)) {
+        glsd301p_control_level_cancel(ctx);
+        return -1;
+    }
+    next = ctx->level->current_level;
+
+    if (ctx->level->mode == GLSD301P_LEVEL_TARGET) {
+        if (ctx->level->current_level == ctx->level->target) {
+            glsd301p_control_level_cancel(ctx);
+            return -1;
+        }
+        if (ctx->level->remaining_time <= 1u) {
+            next = ctx->level->target;
+            ctx->level->remaining_time = 0u;
+        } else {
+            uint16_t diff;
+            uint32_t num;
+            uint32_t step;
+            diff = ctx->level->current_level > ctx->level->target
+                       ? (uint16_t)(ctx->level->current_level -
+                                    ctx->level->target)
+                       : (uint16_t)(ctx->level->target -
+                                    ctx->level->current_level);
+            /*
+             * Ceiling division in 32 bits: the baseline u16 form wraps
+             * past (diff + remaining - 1) > 0xFFFF for long transitions.
+             * step <= diff always, so the step below never overshoots.
+             */
+            num = (uint32_t)diff + (uint32_t)ctx->level->remaining_time - 1u;
+            step = num / (uint32_t)ctx->level->remaining_time;
+            if (step == 0u) {
+                step = 1u;
+            }
+            if (ctx->level->current_level > ctx->level->target) {
+                next = (uint8_t)((uint32_t)ctx->level->current_level - step);
+            } else {
+                next = (uint8_t)((uint32_t)ctx->level->current_level + step);
+            }
+            ctx->level->remaining_time--;
+        }
+        if (glsd301p_control_apply_level(
+                ctx, next, ctx->level->with_onoff,
+                (uint8_t)(next >= ctx->level->current_level ? 1u : 0u),
+                now_ms) == 0u) {
+            glsd301p_control_level_cancel(ctx);
+            return -1;
+        }
+        if (next == ctx->level->target) {
+            glsd301p_control_level_cancel(ctx);
+            return -1;
+        }
+        return 0;
+    }
+
+    if (ctx->level->mode == GLSD301P_LEVEL_MOVE) {
+        uint8_t delta;
+        ctx->level->rate_accum_tenths =
+            (uint16_t)(ctx->level->rate_accum_tenths + ctx->level->rate);
+        delta = (uint8_t)(ctx->level->rate_accum_tenths / 10u);
+        ctx->level->rate_accum_tenths =
+            (uint16_t)(ctx->level->rate_accum_tenths % 10u);
+        if (ctx->level->direction_up) {
+            next = glsd301p_control_clamp_level(
+                ctx, (uint16_t)ctx->level->current_level + delta);
+        } else {
+            next = ctx->level->current_level > delta
+                       ? (uint8_t)(ctx->level->current_level - delta)
+                       : ctx->min_level;
+        }
+        if (glsd301p_control_apply_level(ctx, next, ctx->level->with_onoff,
+                                         ctx->level->direction_up,
+                                         now_ms) == 0u) {
+            glsd301p_control_level_cancel(ctx);
+            return -1;
+        }
+        if ((ctx->level->direction_up && next >= ctx->max_level) ||
+            (!ctx->level->direction_up && next <= ctx->min_level)) {
+            glsd301p_control_level_cancel(ctx);
+            return -1;
+        }
+        return 0;
+    }
+
+    glsd301p_control_level_cancel(ctx);
+    return -1;
+}
+
+void glsd301p_control_io_step(glsd301p_control_ctx_t *ctx,
+                              bool pc2_high,
+                              bool pb4_high,
+                              uint32_t now_ms)
+{
+    glsd301p_runtime_result_t result;
+    glsd301p_uart_service_event_t ev;
+    uint8_t frame[GLSD301P_CONTROL_FRAME_SIZE];
+    bool took_control = false;
+
+    if (ctx == NULL || ctx->runtime == NULL || ctx->transport == NULL ||
+        ctx->uart == NULL) {
+        return;
+    }
+
+    /* Delayed IO gaps are recorded honestly, never interpolated. */
+    if (ctx->io_serviced_once) {
+        uint32_t gap = glsd301p_timebase_age_ms(ctx->io_last_ms, now_ms);
+        if (gap > ctx->io_max_gap_ms) {
+            ctx->io_max_gap_ms = gap;
+        }
+    } else {
+        ctx->io_serviced_once = true;
+    }
+    ctx->io_last_ms = now_ms;
+
+    /* Both physical inputs are sampled before the UART transport moves. */
+    result = glsd301p_runtime_core_poll_push_ex(ctx->runtime, pc2_high,
+                                                &took_control, frame);
+    if (took_control) {
+        glsd301p_control_level_cancel(ctx);
+    }
+    if (result != GLSD301P_RUNTIME_NO_FRAME) {
+        (void)glsd301p_control_emit(ctx, result, frame, now_ms);
+    }
+
+    result = glsd301p_runtime_core_poll_pb4(ctx->runtime, pb4_high, frame);
+    if (result != GLSD301P_RUNTIME_NO_FRAME) {
+        (void)glsd301p_control_emit(ctx, result, frame, now_ms);
+    }
+
+    ev = glsd301p_uart_service_step(ctx->uart, ctx->transport, now_ms);
+    if (ev.fault_raised) {
+        (void)glsd301p_runtime_core_latch_fault(ctx->runtime, frame);
+        (void)glsd301p_uart_transport_offer(ctx->transport, frame, now_ms);
+        glsd301p_control_sync_from_runtime(ctx);
+    }
+    if (ev.boot_completed) {
+        /*
+         * ON readiness is unreachable unless the essential IO event is
+         * registered; reaching this step proves it, and the check below
+         * keeps that ordering explicit for future edits.
+         */
+        if (!glsd301p_timer_io_registered()) {
+            return;
+        }
+        result = glsd301p_runtime_core_restore_state(
+            ctx->runtime, false, ctx->boot_level, ctx->boot_min, false,
+            frame);
+        if (result == GLSD301P_RUNTIME_FRAME_READY) {
+            (void)glsd301p_control_emit(ctx, result, frame, now_ms);
+        } else {
+            (void)glsd301p_runtime_core_latch_fault(ctx->runtime, frame);
+            (void)glsd301p_uart_transport_offer(ctx->transport, frame,
+                                                now_ms);
+            glsd301p_control_sync_from_runtime(ctx);
+        }
+    }
+}
+
+int glsd301p_control_io_cb(void *data)
+{
+    glsd301p_control_ctx_t *ctx = (glsd301p_control_ctx_t *)data;
+    bool pc2;
+    bool pb4;
+
+    if (ctx == NULL) {
+        return 0;
+    }
+    pc2 = glsd301p_hw_gpio_pc2_high();
+    pb4 = glsd301p_hw_gpio_pb4_high();
+    glsd301p_control_io_step(ctx, pc2, pb4, glsd301p_timebase_now_ms());
+    return 0;
+}
