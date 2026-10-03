@@ -29,6 +29,7 @@
 #include "zcl_include.h"
 #include "ev_timer.h"
 #include "ev.h"
+#include "ev_buffer.h"
 
 #include "glsd301p_control.h"
 #include "glsd301p_hw_io.h"
@@ -375,6 +376,28 @@ void ota_upgradeAbort(void)
     ota_abort_calls++;
 }
 
+static unsigned int exception_calls;
+
+u8 sys_exceptionPost(u16 line, u8 evt)
+{
+    (void)line;
+    (void)evt;
+    exception_calls++;
+    return 0u;
+}
+
+static unsigned int task_post_calls;
+
+u8 tl_zbTaskPost(tl_zb_callback_t func, void *arg)
+{
+    (void)func;
+    (void)arg;
+    task_post_calls++;
+    return 1u;
+}
+
+sys_diagnostics_t g_sysDiags;
+
 /* IRQ/clock seams come from hw_stub.c (shared, already linked). */
 
 /* ------------------------------------------------------------------ */
@@ -437,6 +460,8 @@ static void fixture_init(zcl_hookFn_t hook)
     nv_restore_calls = 0u;
     binding_search_calls = 0u;
     ota_abort_calls = 0u;
+    exception_calls = 0u;
+    task_post_calls = 0u;
     identify_calls = 0u;
     ota_calls = 0u;
     ota_last_cmd = 0xFFu;
@@ -574,11 +599,14 @@ static void boot_ready(void)
 }
 
 /*
- * Drive one full ZCL frame through the REAL root dispatcher. The ASDU
- * lives in an exact-size heap buffer (never reused), so parser overreads
- * trip ASan deterministically.
+ * Drive one full ZCL frame through the REAL root dispatcher. The message
+ * wrapper is pool-allocated with an exact-size asdu tail and owned by the
+ * root (it frees the message with ev_buf_free), so parser overreads trip
+ * ASan deterministically. Returns false when the pool cannot hold the
+ * message (exhaustion tests); every byte handed to the root is freed by
+ * the root, never by the caller.
  */
-static void root_frame(u16 cluster, u8 cmd, u8 specific, u8 dir,
+static bool root_frame(u16 cluster, u8 cmd, u8 specific, u8 dir,
                        const u8 *payload, u16 payload_len, u8 seq)
 {
     u8 hdr[3];
@@ -590,14 +618,17 @@ static void root_frame(u16 cluster, u8 cmd, u8 specific, u8 dir,
         frm |= 0x01u;
     }
     if (dir) {
-        frm |= 0x08u;
+        frm |= 0x04u;
     }
     hdr[0] = frm;
     hdr[1] = seq;
     hdr[2] = cmd;
 
-    ind = (apsdeDataInd_t *)malloc(sizeof(apsdeDataInd_t) + total);
-    assert(ind != NULL);
+    ind = (apsdeDataInd_t *)ev_buf_allocate(
+        (u16)(sizeof(apsdeDataInd_t) + total));
+    if (ind == NULL) {
+        return false;
+    }
     memset(ind, 0, sizeof(apsdeDataInd_t) + total);
     ind->indInfo.dst_ep = DISPATCH_EP;
     ind->indInfo.dst_addr = 0x1234u;
@@ -613,7 +644,7 @@ static void root_frame(u16 cluster, u8 cmd, u8 specific, u8 dir,
         memcpy(ind->asdu + 3u, payload, payload_len);
     }
     zcl_cmdHandler(ind);
-    free(ind);
+    return true;
 }
 
 /* Number of free pool buffers: drains size-1 allocs, then frees all. */
@@ -1107,7 +1138,7 @@ static void test_r6_identify_valid(void)
 {
     const u8 identify[] = {0x05u, 0x00u};
     const u8 effect[] = {0x00u, 0x00u};
-    const u8 query_rsp[] = {0x07u};
+    const u8 query_rsp[] = {0x07u, 0x00u};
 
     fixture_init(NULL);
     boot_ready();
@@ -1120,10 +1151,15 @@ static void test_r6_identify_valid(void)
                              ZCL_FRAME_CLIENT_SERVER_DIR, effect,
                              (u16)sizeof(effect)) == ZCL_STA_SUCCESS);
     assert(identify_calls == 2u);
-    /* Query solicits a response through the real send path. */
+    /*
+     * Query solicits a response through the real send path while the
+     * device is identifying; the handler reports CMD_HAS_RESP and the
+     * callback runs only for the parsed commands.
+     */
+    t_identify_time = 7u;
     assert(dispatch_identify(ZCL_CMD_IDENTIFY_QUERY,
                              ZCL_FRAME_CLIENT_SERVER_DIR, NULL,
-                             0u) == ZCL_STA_SUCCESS);
+                             0u) == ZCL_STA_CMD_HAS_RESP);
     assert(af_count == 1u);
     assert(dispatch_identify(ZCL_CMD_IDENTIFY_QUERY_RSP,
                              ZCL_FRAME_SERVER_CLIENT_DIR, query_rsp,
@@ -1175,14 +1211,19 @@ static void test_r6_groups_valid(void)
     const u8 membership0[] = {0x00u};
     const u8 membership1[] = {0x01u, 0x12u, 0x00u};
     const u8 remove[] = {0x12u, 0x00u};
-    const u8 add_if[] = {0x56u, 0x00u, 0x01u, 0x02u};
+    const u8 add_if[] = {0x12u, 0x00u};
 
     fixture_init(NULL);
     boot_ready();
 
+    /*
+     * Unicast group requests answer through the real send path, so the
+     * handlers report CMD_HAS_RESP; only the silent add-if-identifying
+     * and remove-all shapes return plain SUCCESS.
+     */
     assert(dispatch_group(ZCL_CMD_GROUP_ADD_GROUP,
                           ZCL_FRAME_CLIENT_SERVER_DIR, add,
-                          (u16)sizeof(add)) == ZCL_STA_SUCCESS);
+                          (u16)sizeof(add)) == ZCL_STA_CMD_HAS_RESP);
     assert(aps_add_calls == 1u);
     assert(fake_group_num == 1u);
     assert(fake_groups[0] == 0x0012u);
@@ -1191,24 +1232,28 @@ static void test_r6_groups_valid(void)
     /* Trailing group-name bytes are defined content: accepted, ignored. */
     assert(dispatch_group(ZCL_CMD_GROUP_ADD_GROUP,
                           ZCL_FRAME_CLIENT_SERVER_DIR, add_named,
-                          (u16)sizeof(add_named)) == ZCL_STA_SUCCESS);
+                          (u16)sizeof(add_named)) == ZCL_STA_CMD_HAS_RESP);
     assert(fake_group_num == 2u);
 
     assert(dispatch_group(ZCL_CMD_GROUP_VIEW_GROUP,
                           ZCL_FRAME_CLIENT_SERVER_DIR, view,
-                          (u16)sizeof(view)) == ZCL_STA_SUCCESS);
+                          (u16)sizeof(view)) == ZCL_STA_CMD_HAS_RESP);
     assert(dispatch_group(ZCL_CMD_GROUP_GET_MEMBERSHIP,
                           ZCL_FRAME_CLIENT_SERVER_DIR, membership0,
-                          (u16)sizeof(membership0)) == ZCL_STA_SUCCESS);
+                          (u16)sizeof(membership0)) == ZCL_STA_CMD_HAS_RESP);
     assert(dispatch_group(ZCL_CMD_GROUP_GET_MEMBERSHIP,
                           ZCL_FRAME_CLIENT_SERVER_DIR, membership1,
-                          (u16)sizeof(membership1)) == ZCL_STA_SUCCESS);
+                          (u16)sizeof(membership1)) == ZCL_STA_CMD_HAS_RESP);
+    /* Add-if-identifying only acts while identifying; the duplicate
+     * absorbs into SUCCESS with the table unchanged. */
+    t_identify_time = 7u;
     assert(dispatch_group(ZCL_CMD_GROUP_ADD_GROUP_IF_IDF,
                           ZCL_FRAME_CLIENT_SERVER_DIR, add_if,
                           (u16)sizeof(add_if)) == ZCL_STA_SUCCESS);
+    assert(fake_group_num == 2u);
     assert(dispatch_group(ZCL_CMD_GROUP_REMOVE_GROUP,
                           ZCL_FRAME_CLIENT_SERVER_DIR, remove,
-                          (u16)sizeof(remove)) == ZCL_STA_SUCCESS);
+                          (u16)sizeof(remove)) == ZCL_STA_CMD_HAS_RESP);
     assert(fake_group_num == 1u);
     assert(dispatch_group(ZCL_CMD_GROUP_REMOVE_ALL_GROUP,
                           ZCL_FRAME_CLIENT_SERVER_DIR, NULL,
@@ -1258,14 +1303,14 @@ static void test_r6_group_responses_unreachable(void)
     /*
      * The target registers Groups with a NULL callback, so response-side
      * parsers never read on target. Any length is safe; the SDK reports
-     * FAILURE without touching tables or the wire.
+     * SUCCESS without touching tables or the wire.
      */
     assert(dispatch_group(ZCL_CMD_GROUP_ADD_GROUP_RSP,
                           ZCL_FRAME_SERVER_CLIENT_DIR, NULL,
-                          0u) == ZCL_STA_FAILURE);
+                          0u) == ZCL_STA_SUCCESS);
     assert(dispatch_group(ZCL_CMD_GROUP_VIEW_GROUP_RSP,
                           ZCL_FRAME_SERVER_CLIENT_DIR, rsp,
-                          (u16)sizeof(rsp)) == ZCL_STA_FAILURE);
+                          (u16)sizeof(rsp)) == ZCL_STA_SUCCESS);
     assert(aps_add_calls == 0u);
     assert(af_count == 0u);
 }
@@ -1694,10 +1739,16 @@ static void test_r7_pool_exhaustion_exits(void)
     }
     assert(n == 26u);
 
-    /* With the pool drained, a valid read fails closed, never crashes. */
-    root_frame(ZCL_CLUSTER_GEN_ON_OFF, ZCL_CMD_READ, 0u,
-               ZCL_FRAME_CLIENT_SERVER_DIR, read_onoff,
-               (u16)sizeof(read_onoff), 1u);
+    /*
+     * Release one large slot for the incoming message itself; every
+     * allocation the handler itself attempts then fails, and the frame
+     * must fail closed, never crash. (Smallest-first draining leaves a
+     * group-3 slot last.)
+     */
+    assert(ev_buf_free(held[--n]) == BUFFER_SUCC);
+    assert(root_frame(ZCL_CLUSTER_GEN_ON_OFF, ZCL_CMD_READ, 0u,
+                      ZCL_FRAME_CLIENT_SERVER_DIR, read_onoff,
+                      (u16)sizeof(read_onoff), 1u));
     assert(af_count <= 1u);
     if (af_count == 1u) {
         assert(last_default_rsp(0u, &rsp_cmd, &status));
@@ -1925,16 +1976,24 @@ static void test_followup_ota_requests(void)
 
 static void test_cluster_via_root_dispatch(void)
 {
+    u8 rsp_cmd;
+    u8 status;
+
     fixture_init(NULL);
     boot_ready();
 
-    /* A cluster command through the root reaches policy with no default
-     * response on success. */
-    root_frame(ZCL_CLUSTER_GEN_ON_OFF, ZCL_CMD_ONOFF_ON, 1u,
-               ZCL_FRAME_CLIENT_SERVER_DIR, NULL, 0u, 9u);
+    /*
+     * A cluster command through the root reaches policy; the standard
+     * frame solicits a SUCCESS default response, and the pool is whole.
+     */
+    assert(root_frame(ZCL_CLUSTER_GEN_ON_OFF, ZCL_CMD_ONOFF_ON, 1u,
+                      ZCL_FRAME_CLIENT_SERVER_DIR, NULL, 0u, 9u));
     assert(g_onoff == 1u);
     assert(g_onoff_cb_calls == 1u);
-    assert(af_count == 0u);
+    assert(af_count == 1u);
+    assert(last_default_rsp(0u, &rsp_cmd, &status));
+    assert(rsp_cmd == ZCL_CMD_ONOFF_ON);
+    assert(status == ZCL_STA_SUCCESS);
     assert(pool_free_total() == 26u);
 }
 

@@ -51,6 +51,9 @@ jobs:
           cp "$sdk/zigbee/zcl/zcl.c" "$sdk/zigbee/zcl/zcl_reporting.c" \
             "$sdk/zigbee/zcl/zcl.h" "$sdk/zigbee/zcl/zcl_const.h" \
             "$sdk/zigbee/zcl/zcl_config.h" build/orig-sdk/zigbee/zcl/
+          # zcl.c includes "ota.h" (real path zigbee/ota/ota.h); co-locate
+          # it so the include resolves without new -I roots.
+          cp "$sdk/zigbee/ota/ota.h" build/orig-sdk/zigbee/zcl/ota.h
           cp "$sdk/zigbee/zcl/general/zcl_basic.c" \
             "$sdk/zigbee/zcl/general/zcl_identify.c" \
             "$sdk/zigbee/zcl/general/zcl_group.c" \
@@ -119,6 +122,9 @@ jobs:
           cp "$sdk/zigbee/zcl/ota_upgrading/zcl_ota.h" build/host-sdk/zigbee/zcl/ota_upgrading/
           cp "$sdk/zigbee/zcl/zcl.h" "$sdk/zigbee/zcl/zcl_const.h" \
             "$sdk/zigbee/zcl/zcl_config.h" build/host-sdk/zigbee/zcl/
+          # zcl.c includes "ota.h" (real path zigbee/ota/ota.h); co-locate
+          # it so the include resolves without new -I roots.
+          cp "$sdk/zigbee/ota/ota.h" build/host-sdk/zigbee/zcl/ota.h
           cp "$sdk/zigbee/af/zb_af.h" build/host-sdk/zigbee/af/
           cp "$sdk/zigbee/aps/aps_api.h" build/host-sdk/zigbee/aps/
           cp tests/host/zcl_shim/zcl_include.h build/host-sdk/zigbee/zcl/zcl_include.h
@@ -281,7 +287,7 @@ jobs:
           zclsrc='build/host-sdk/zigbee/zcl/general'
           for unit in ev_timer ev_rtc; do
             # shellcheck disable=SC2086
-            cc -m32 $sdkflags -Ibuild/host-sdk/proj/os $zclinc \
+            cc -m32 $sdkflags -Isrc -Itests/host -Ibuild/host-sdk/proj/os $zclinc \
               -c "build/host-sdk/proj/os/$unit.c" -o "build/host-tests/obj32/$unit.o"
           done
           # shellcheck disable=SC2086
@@ -292,16 +298,18 @@ jobs:
             -c build/host-sdk/proj/os/ev_buffer.c -o build/host-tests/obj32/ev_buffer.o
           for unit in zcl zcl_reporting; do
             # shellcheck disable=SC2086
-            cc -m32 $sdkflags $zclinc -c "build/host-sdk/zigbee/zcl/$unit.c" \
+            cc -m32 $sdkflags -Ibuild/host-sdk/proj/os $zclinc \
+              -c "build/host-sdk/zigbee/zcl/$unit.c" \
               -o "build/host-tests/obj32/$unit.o"
           done
           for unit in zcl_basic zcl_identify zcl_group zcl_level zcl_onoff; do
             # shellcheck disable=SC2086
-            cc -m32 $sdkflags $zclinc -c "$zclsrc/$unit.c" \
+            cc -m32 $sdkflags -Ibuild/host-sdk/proj/os $zclinc \
+              -c "$zclsrc/$unit.c" \
               -o "build/host-tests/obj32/$unit.o"
           done
           # shellcheck disable=SC2086
-          cc -m32 $sdkflags $zclinc \
+          cc -m32 $sdkflags -Ibuild/host-sdk/proj/os $zclinc \
             -c build/host-sdk/zigbee/zcl/ota_upgrading/zcl_ota.c \
             -o build/host-tests/obj32/zcl_ota.o
           # shellcheck disable=SC2086
@@ -342,16 +350,16 @@ jobs:
             -c build/orig-sdk/proj/os/ev_buffer.c \
             -o build/host-tests/obj32/repro_ev_buffer.o
           for unit in zcl zcl_reporting; do
-            gcc -m32 $sdkflags $oinc \
+            gcc -m32 $sdkflags -Ibuild/orig-sdk/proj/os $oinc \
               -c "build/orig-sdk/zigbee/zcl/$unit.c" \
               -o "build/host-tests/obj32/repro_$unit.o"
           done
           for unit in zcl_basic zcl_identify zcl_group zcl_onoff; do
-            gcc -m32 $sdkflags $oinc \
+            gcc -m32 $sdkflags -Ibuild/orig-sdk/proj/os $oinc \
               -c "build/orig-sdk/zigbee/zcl/general/$unit.c" \
               -o "build/host-tests/obj32/repro_$unit.o"
           done
-          gcc -m32 $sdkflags $oinc \
+          gcc -m32 $sdkflags -Ibuild/orig-sdk/proj/os $oinc \
             -c build/orig-sdk/zigbee/zcl/ota_upgrading/zcl_ota.c \
             -o build/host-tests/obj32/repro_zcl_ota.o
           reproobj='build/host-tests/obj32/repro_ev_timer.o build/host-tests/obj32/repro_ev_rtc.o build/host-tests/obj32/repro_mempool.o build/host-tests/obj32/repro_ev_buffer.o build/host-tests/obj32/repro_zcl.o build/host-tests/obj32/repro_zcl_reporting.o build/host-tests/obj32/repro_zcl_basic.o build/host-tests/obj32/repro_zcl_identify.o build/host-tests/obj32/repro_zcl_group.o build/host-tests/obj32/repro_zcl_onoff.o build/host-tests/obj32/repro_zcl_ota.o'
@@ -360,7 +368,7 @@ jobs:
             tests/host/hw_stub.c tests/repro_glsd301p_original_bodies.c \
             -o build/host-tests/repro_original_bodies
           fails=0
-          for c in identify0 identify1 triggereffect1 queryrsp0 groupadd1 groupview1 groupmember1 write1 cfgwrap40 discrsp0 dfltrsp1 otaqueryrsp2 otablockshort r8leak; do
+          for c in identify0 identify1 triggereffect1 queryrsp0 groupadd1 groupview1 groupmember1 write1 cfgwrap40 cfgtrunc discrsp0 dfltrsp1 dflt0 readrsp4 writersp2 cfgrsp3 report4 disc1 disc2 disc4 readodd otaqueryrsp2 otablockshort r8leak; do
             set +e
             build/host-tests/repro_original_bodies "$c" > "build/repro-$c.log" 2>&1
             rc=$?

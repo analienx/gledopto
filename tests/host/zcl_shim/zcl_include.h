@@ -41,6 +41,86 @@
 #include "common/utility.h"
 #include "common/bit.h"
 
+/*
+ * Real OS headers (staged): the reporting body needs the timer API and
+ * the exception-post macro, which the target chain provides through
+ * zb_common.h. Requires -I<tree>/proj/os on every compile unit that
+ * parses this shim.
+ */
+#include "ev_timer.h"
+#include "ev.h"
+
+/*
+ * zb_common.h / nwk.h fragments the staged bodies need but whose full
+ * headers drag the MAC/NWK/ZDO/BDB archives. Each value is an exact
+ * copy at the pinned commit (tl_zigbee_sdk d5bc2f7b0c1f8536fe21c8127ca680ea8214bc8e):
+ * TL_SETSTRUCTCONTENT + EXT_ADDR_LEN + ZB_64BIT_ADDR_COPY from
+ * zigbee/common/includes/zb_common.h, NWK_BROADCAST_ROUTER_COORDINATOR
+ * from zigbee/nwk/includes/nwk.h, TL_SCHEDULE_TASK from
+ * zigbee/common/includes/zb_task_queue.h.
+ */
+#define TL_SETSTRUCTCONTENT(s, v) (memset((u8 *)&s, v, sizeof(s)))
+#define NWK_BROADCAST_ROUTER_COORDINATOR 0xFFFCu
+#define EXT_ADDR_LEN 8
+#define ZB_64BIT_ADDR_COPY(dst, src) (memcpy(dst, src, EXT_ADDR_LEN))
+#define ZB_IEEE_ADDR_COPY ZB_64BIT_ADDR_COPY
+typedef void (*tl_zb_callback_t)(void *arg);
+u8 tl_zbTaskPost(tl_zb_callback_t func, void *arg);
+#define TL_SCHEDULE_TASK tl_zbTaskPost
+
+/*
+ * Stack diagnostics block (exact member mirror of sys_diagnostics_t in
+ * zigbee/common/includes/zb_common.h at the pinned commit). The read
+ * handler stamps last-message LQI/RSSI here; the harness owns the
+ * storage since the ZB archive is not linked.
+ */
+typedef struct {
+    u16 numberOfResets;
+    u16 persistentMemoryWrites;
+    u32 macRxCrcFail;
+    u32 macTxCcaFail;
+    u32 macRxBcast;
+    u32 macTxBcast;
+    u32 macRxUcast;
+    u32 macTxUcast;
+    u16 macTxUcastRetry;
+    u16 macTxUcastFail;
+    u16 nwkTxCnt;
+    u16 nwkTxEnDecryptFail;
+    u16 apsRxBcast;
+    u16 apsTxBcast;
+    u16 apsRxUcast;
+    u16 apsTxUcastSuccess;
+    u16 apsTxUcastRetry;
+    u16 apsTxUcastFail;
+    u16 routeDiscInitiated;
+    u16 neighborAdded;
+    u16 neighborRemoved;
+    u16 neighborStale;
+    u16 joinIndication;
+    u16 childMoved;
+    u32 panIdConflictCheck;
+    u16 nwkFCFailure;
+    u16 apsFCFailure;
+    u16 apsUnauthorizedKey;
+    u16 nwkDecryptFailures;
+    u16 apsDecryptFailures;
+    u16 packetBufferAllocateFailures;
+    u16 relayedUcast;
+    u16 phytoMACqueuelimitreached;
+    u16 packetValidateDropCount;
+    u8 lastMessageLQI;
+    s8 lastMessageRSSI;
+    u8 macTxIrqTimeoutCnt;
+    u8 macTxIrqCnt;
+    u8 macRxIrqCnt;
+    u8 phyLengthError;
+    u8 panIdConflict;
+    u8 panIdModified;
+    u8 nwkAddrConflict;
+} sys_diagnostics_t;
+extern sys_diagnostics_t g_sysDiags;
+
 /* SDK compiler.h spellings (verified at the pinned commit). */
 #define _attribute_packed_ __attribute__((packed))
 #define _attribute_aligned_(s) __attribute__((aligned(s)))
@@ -88,10 +168,11 @@
  * the pinned commit spells it exactly so; zb_api.h itself cannot be
  * staged because it drags the MAC/NWK/ZDO/BDB stacks). indInfo is the
  * first member and is the REAL staged aps_data_ind_t, so every offset
- * the staged SDK bodies touch (msg->indInfo.dst_ep) is exact. The
- * flexible asdu tail is never read through msg: payloads arrive via
- * pData in exact-size ASan buffers owned by the test. This precedes
- * zcl.h, which names the wrapper in zclIncoming_t.
+ * the staged SDK bodies touch (msg->indInfo.*, asduLen, asdu) is exact.
+ * Root-dispatch tests pool-allocate this wrapper (the real root frees
+ * the message with ev_buf_free) with an exact-size asdu tail, so parser
+ * overreads trip ASan deterministically. This precedes zcl.h, which
+ * names the wrapper in zclIncoming_t.
  */
 typedef struct apsdeDataInd_s {
     aps_data_ind_t indInfo;
