@@ -105,3 +105,24 @@ typedef struct apsdeDataInd_s {
 #include "zcl.h"
 #include "general/zcl_level.h"
 #include "general/zcl_onoff.h"
+#include "general/zcl_identify.h"
+#include "general/zcl_group.h"
+#include "ota_upgrading/zcl_ota.h"
+
+/*
+ * Declarations for the seams the staged bodies call that live outside the
+ * staged set (opaque archives, MCU/NV drivers, OTA core). Signatures mirror
+ * the pinned SDK; scripted definitions live in the dispatch test.
+ * NV_SUCC is the first nv_sts_t enumerator at the pinned commit
+ * (proj/drivers/drv_nv.h), i.e. 0.
+ */
+typedef enum {
+    NV_SUCC_SHIM = 0
+} nv_sts_t_shim;
+#define NV_SUCC 0
+nv_sts_t_shim zcl_reportingTab_save(void);
+nv_sts_t_shim zcl_reportingTab_restore(void);
+void *zb_bindingTblSearched(u16 clusterId, u8 endpoint);
+bool zb_isDeviceJoinedNwk(void);
+u32 zb_random(void);
+void ota_upgradeAbort(void);

@@ -30,6 +30,52 @@ jobs:
           expected='d5bc2f7b0c1f8536fe21c8127ca680ea8214bc8e'
           test "$actual" = "$expected"
           echo "TELINK_SDK_COMMIT=$actual"
+      - name: Snapshot pristine SDK bodies for original-body repro
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p build/orig-sdk/proj/os build/orig-sdk/proj/common
+          mkdir -p build/orig-sdk/zigbee/zcl/general
+          mkdir -p build/orig-sdk/zigbee/zcl/ota_upgrading
+          mkdir -p build/orig-sdk/zigbee/af build/orig-sdk/zigbee/aps
+          sdk='telink-sdk/tl_zigbee_sdk'
+          cp "$sdk/proj/os/ev_buffer.c" "$sdk/proj/os/ev_buffer.h" build/orig-sdk/proj/os/
+          cp "$sdk/proj/os/ev_timer.c" "$sdk/proj/os/ev_timer.h" build/orig-sdk/proj/os/
+          cp "$sdk/proj/os/ev_rtc.c" "$sdk/proj/os/ev_rtc.h" build/orig-sdk/proj/os/
+          cp "$sdk/proj/os/ev.h" build/orig-sdk/proj/os/
+          cp "$sdk/proj/common/mempool.c" "$sdk/proj/common/mempool.h" build/orig-sdk/proj/common/
+          cp "$sdk/proj/common/utlist.h" "$sdk/proj/common/types.h" \
+            "$sdk/proj/common/utility.h" "$sdk/proj/common/bit.h" \
+            "$sdk/proj/common/macro_trick.h" build/orig-sdk/proj/common/
+          cp tests/host/tl_common.h build/orig-sdk/proj/tl_common.h
+          cp "$sdk/zigbee/zcl/zcl.c" "$sdk/zigbee/zcl/zcl_reporting.c" \
+            "$sdk/zigbee/zcl/zcl.h" "$sdk/zigbee/zcl/zcl_const.h" \
+            "$sdk/zigbee/zcl/zcl_config.h" build/orig-sdk/zigbee/zcl/
+          cp "$sdk/zigbee/zcl/general/zcl_basic.c" \
+            "$sdk/zigbee/zcl/general/zcl_identify.c" \
+            "$sdk/zigbee/zcl/general/zcl_group.c" \
+            "$sdk/zigbee/zcl/general/zcl_level.c" \
+            "$sdk/zigbee/zcl/general/zcl_onoff.c" \
+            build/orig-sdk/zigbee/zcl/general/
+          cp "$sdk/zigbee/zcl/general/zcl_identify.h" \
+            "$sdk/zigbee/zcl/general/zcl_group.h" \
+            "$sdk/zigbee/zcl/general/zcl_level.h" \
+            "$sdk/zigbee/zcl/general/zcl_onoff.h" \
+            build/orig-sdk/zigbee/zcl/general/
+          cp "$sdk/zigbee/zcl/ota_upgrading/zcl_ota.c" \
+            "$sdk/zigbee/zcl/ota_upgrading/zcl_ota.h" \
+            build/orig-sdk/zigbee/zcl/ota_upgrading/
+          cp "$sdk/zigbee/af/zb_af.h" build/orig-sdk/zigbee/af/
+          cp "$sdk/zigbee/aps/aps_api.h" build/orig-sdk/zigbee/aps/
+          cp tests/host/zcl_shim/zcl_include.h build/orig-sdk/zigbee/zcl/zcl_include.h
+          echo 'PRISTINE_SDK_BODY_HASHES (pre-patch, sha256):'
+          (cd telink-sdk/tl_zigbee_sdk && sha256sum \
+            proj/os/ev_buffer.c proj/os/ev_timer.c proj/os/ev_rtc.c \
+            proj/common/mempool.c zigbee/zcl/zcl.c \
+            zigbee/zcl/zcl_reporting.c zigbee/zcl/general/zcl_basic.c \
+            zigbee/zcl/general/zcl_identify.c zigbee/zcl/general/zcl_group.c \
+            zigbee/zcl/general/zcl_level.c zigbee/zcl/general/zcl_onoff.c \
+            zigbee/zcl/ota_upgrading/zcl_ota.c)
       - name: Apply pinned SDK patches + stage harness shadow tree
         shell: bash
         run: |
@@ -41,22 +87,36 @@ jobs:
           mkdir -p build/host-sdk/proj/os build/host-sdk/proj/common
           mkdir -p build/host-sdk/zigbee/zcl/general build/host-sdk/zigbee/af
           mkdir -p build/host-sdk/zigbee/aps
+          mkdir -p build/host-sdk/zigbee/zcl/ota_upgrading
           sdk='telink-sdk/tl_zigbee_sdk'
           cp "$sdk/proj/os/ev_timer.c" build/host-sdk/proj/os/
           cp "$sdk/proj/os/ev_timer.h" build/host-sdk/proj/os/
           cp "$sdk/proj/os/ev_rtc.c" build/host-sdk/proj/os/
           cp "$sdk/proj/os/ev_rtc.h" build/host-sdk/proj/os/
           cp "$sdk/proj/os/ev.h" build/host-sdk/proj/os/
+          cp "$sdk/proj/os/ev_buffer.c" build/host-sdk/proj/os/
+          cp "$sdk/proj/os/ev_buffer.h" build/host-sdk/proj/os/
           cp "$sdk/proj/common/utlist.h" build/host-sdk/proj/common/
           cp "$sdk/proj/common/types.h" build/host-sdk/proj/common/
           cp "$sdk/proj/common/utility.h" build/host-sdk/proj/common/
           cp "$sdk/proj/common/bit.h" build/host-sdk/proj/common/
           cp "$sdk/proj/common/macro_trick.h" build/host-sdk/proj/common/
+          cp "$sdk/proj/common/mempool.c" build/host-sdk/proj/common/
+          cp "$sdk/proj/common/mempool.h" build/host-sdk/proj/common/
           cp tests/host/tl_common.h build/host-sdk/proj/tl_common.h
+          cp "$sdk/zigbee/zcl/zcl.c" build/host-sdk/zigbee/zcl/
+          cp "$sdk/zigbee/zcl/zcl_reporting.c" build/host-sdk/zigbee/zcl/
+          cp "$sdk/zigbee/zcl/general/zcl_basic.c" build/host-sdk/zigbee/zcl/general/
+          cp "$sdk/zigbee/zcl/general/zcl_identify.c" build/host-sdk/zigbee/zcl/general/
+          cp "$sdk/zigbee/zcl/general/zcl_group.c" build/host-sdk/zigbee/zcl/general/
           cp "$sdk/zigbee/zcl/general/zcl_level.c" build/host-sdk/zigbee/zcl/general/
           cp "$sdk/zigbee/zcl/general/zcl_onoff.c" build/host-sdk/zigbee/zcl/general/
+          cp "$sdk/zigbee/zcl/general/zcl_identify.h" build/host-sdk/zigbee/zcl/general/
+          cp "$sdk/zigbee/zcl/general/zcl_group.h" build/host-sdk/zigbee/zcl/general/
           cp "$sdk/zigbee/zcl/general/zcl_level.h" build/host-sdk/zigbee/zcl/general/
           cp "$sdk/zigbee/zcl/general/zcl_onoff.h" build/host-sdk/zigbee/zcl/general/
+          cp "$sdk/zigbee/zcl/ota_upgrading/zcl_ota.c" build/host-sdk/zigbee/zcl/ota_upgrading/
+          cp "$sdk/zigbee/zcl/ota_upgrading/zcl_ota.h" build/host-sdk/zigbee/zcl/ota_upgrading/
           cp "$sdk/zigbee/zcl/zcl.h" "$sdk/zigbee/zcl/zcl_const.h" \
             "$sdk/zigbee/zcl/zcl_config.h" build/host-sdk/zigbee/zcl/
           cp "$sdk/zigbee/af/zb_af.h" build/host-sdk/zigbee/af/
@@ -188,11 +248,22 @@ jobs:
           # shellcheck disable=SC2086
           cc $strict $inc src/glsd301p_health.c tests/test_glsd301p_health.c \
             -o build/host-tests/test_glsd301p_health
+      - name: Install 32-bit toolchain for pool-exact harnesses
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y gcc-multilib libc6-dev-i386
+          ls /usr/lib32/libasan* /usr/lib32/libubsan* 2>/dev/null || true
+          echo 'int main(void){return 0;}' > build/m32probe.c
+          cc -m32 -fsanitize=address,undefined build/m32probe.c -o build/m32probe
+          build/m32probe
+          echo 'M32_TOOLCHAIN=PASS'
       - name: Build M4 dispatch harness (real patched SDK ZCL + ASan/UBSan)
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p build/host-tests/obj
+          mkdir -p build/host-tests/obj build/host-tests/obj32
           # Own code stays -Werror, but the dispatch translation units
           # necessarily include the real vendor ZCL headers (compiler
           # attributes), so they compile as gnu11 without -pedantic; the
@@ -200,25 +271,115 @@ jobs:
           # -DWIN32 is the SDK's own size_t opt-out (types.h); own code
           # keys nothing off it, and the staging gate above proves the
           # staged ZCL set behavior-neutral under it.
+          # Everything in this binary is -m32: ev_buffer.c and mempool.c
+          # carry 32-bit layout assumptions (like the TC32 target), so the
+          # host pool matches the target pool exactly.
           strict_zcl="-std=gnu11 -DWIN32 -Wall -Wextra -Werror -fsanitize=address,undefined -fno-omit-frame-pointer"
           sdkflags="-std=gnu11 -DWIN32 -fsanitize=address,undefined -fno-omit-frame-pointer"
           inc="-Isrc -Itests/host"
           zclinc="-Ibuild/host-sdk/zigbee -Ibuild/host-sdk/zigbee/zcl -Ibuild/host-sdk/proj"
           zclsrc='build/host-sdk/zigbee/zcl/general'
+          for unit in ev_timer ev_rtc; do
+            # shellcheck disable=SC2086
+            cc -m32 $sdkflags -Ibuild/host-sdk/proj/os $zclinc \
+              -c "build/host-sdk/proj/os/$unit.c" -o "build/host-tests/obj32/$unit.o"
+          done
           # shellcheck disable=SC2086
-          cc $sdkflags $zclinc -c "$zclsrc/zcl_level.c" -o build/host-tests/obj/zcl_level.o
+          cc -m32 $sdkflags $zclinc -c build/host-sdk/proj/common/mempool.c \
+            -o build/host-tests/obj32/mempool.o
           # shellcheck disable=SC2086
-          cc $sdkflags $zclinc -c "$zclsrc/zcl_onoff.c" -o build/host-tests/obj/zcl_onoff.o
-          sdkobj='build/host-tests/obj/ev_timer.o build/host-tests/obj/ev_rtc.o'
+          cc -m32 $sdkflags -Ibuild/host-sdk/proj/os $zclinc \
+            -c build/host-sdk/proj/os/ev_buffer.c -o build/host-tests/obj32/ev_buffer.o
+          for unit in zcl zcl_reporting; do
+            # shellcheck disable=SC2086
+            cc -m32 $sdkflags $zclinc -c "build/host-sdk/zigbee/zcl/$unit.c" \
+              -o "build/host-tests/obj32/$unit.o"
+          done
+          for unit in zcl_basic zcl_identify zcl_group zcl_level zcl_onoff; do
+            # shellcheck disable=SC2086
+            cc -m32 $sdkflags $zclinc -c "$zclsrc/$unit.c" \
+              -o "build/host-tests/obj32/$unit.o"
+          done
           # shellcheck disable=SC2086
-          cc $strict_zcl -Ibuild/host-sdk/proj/os $zclinc $inc $sdkobj \
-            build/host-tests/obj/timer_events.o build/host-tests/obj/zcl_level.o \
-            build/host-tests/obj/zcl_onoff.o src/glsd301p_uart_frame.c \
+          cc -m32 $sdkflags $zclinc \
+            -c build/host-sdk/zigbee/zcl/ota_upgrading/zcl_ota.c \
+            -o build/host-tests/obj32/zcl_ota.o
+          # shellcheck disable=SC2086
+          cc -m32 $strict_zcl -Isrc -Itests/host -Ibuild/host-sdk/proj/os $zclinc \
+            -c src/glsd301p_timer_events.c \
+            -o build/host-tests/obj32/timer_events.o
+          sdkobj32='build/host-tests/obj32/ev_timer.o build/host-tests/obj32/ev_rtc.o build/host-tests/obj32/mempool.o build/host-tests/obj32/ev_buffer.o build/host-tests/obj32/zcl.o build/host-tests/obj32/zcl_reporting.o build/host-tests/obj32/zcl_basic.o build/host-tests/obj32/zcl_identify.o build/host-tests/obj32/zcl_group.o build/host-tests/obj32/zcl_level.o build/host-tests/obj32/zcl_onoff.o build/host-tests/obj32/zcl_ota.o'
+          # shellcheck disable=SC2086
+          cc -m32 $strict_zcl -Ibuild/host-sdk/proj/os $zclinc $inc $sdkobj32 \
+            build/host-tests/obj32/timer_events.o src/glsd301p_uart_frame.c \
             src/glsd301p_power_stage_policy.c src/glsd301p_output_guard.c \
             src/glsd301p_push_input.c src/glsd301p_pb4_compat.c src/glsd301p_runtime_core.c \
             src/glsd301p_uart_transport.c src/glsd301p_timebase.c src/glsd301p_uart_service.c \
             src/glsd301p_control.c src/glsd301p_zcl_commands.c tests/host/hw_stub.c \
             tests/test_glsd301p_zcl_dispatch.c -o build/host-tests/test_glsd301p_zcl_dispatch
+      - name: Run original-body reproductions (pristine SDK, expect failure)
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Each repro case must FAIL (sanitizer abort or REPRO marker):
+          # exit 0 means the original defect did not reproduce and fails
+          # this step.
+          strict_repro="-std=gnu11 -DWIN32 -Wall -Wextra -Werror -fsanitize=address,undefined -fno-omit-frame-pointer"
+          sdkflags="-std=gnu11 -DWIN32 -fsanitize=address,undefined -fno-omit-frame-pointer"
+          oinc='-Itests/host -Ibuild/orig-sdk/zigbee -Ibuild/orig-sdk/zigbee/zcl -Ibuild/orig-sdk/proj'
+          # Same unit list as the M4 dispatch link (minus the level parser,
+          # which no repro case drives) so the pristine external surface
+          # resolves exactly as it does for the hardened harness.
+          for unit in ev_timer ev_rtc; do
+            gcc -m32 $sdkflags -Ibuild/orig-sdk/proj/os $oinc \
+              -c "build/orig-sdk/proj/os/$unit.c" \
+              -o "build/host-tests/obj32/repro_$unit.o"
+          done
+          gcc -m32 $sdkflags $oinc \
+            -c build/orig-sdk/proj/common/mempool.c \
+            -o build/host-tests/obj32/repro_mempool.o
+          gcc -m32 $sdkflags -Ibuild/orig-sdk/proj/os $oinc \
+            -c build/orig-sdk/proj/os/ev_buffer.c \
+            -o build/host-tests/obj32/repro_ev_buffer.o
+          for unit in zcl zcl_reporting; do
+            gcc -m32 $sdkflags $oinc \
+              -c "build/orig-sdk/zigbee/zcl/$unit.c" \
+              -o "build/host-tests/obj32/repro_$unit.o"
+          done
+          for unit in zcl_basic zcl_identify zcl_group zcl_onoff; do
+            gcc -m32 $sdkflags $oinc \
+              -c "build/orig-sdk/zigbee/zcl/general/$unit.c" \
+              -o "build/host-tests/obj32/repro_$unit.o"
+          done
+          gcc -m32 $sdkflags $oinc \
+            -c build/orig-sdk/zigbee/zcl/ota_upgrading/zcl_ota.c \
+            -o build/host-tests/obj32/repro_zcl_ota.o
+          reproobj='build/host-tests/obj32/repro_ev_timer.o build/host-tests/obj32/repro_ev_rtc.o build/host-tests/obj32/repro_mempool.o build/host-tests/obj32/repro_ev_buffer.o build/host-tests/obj32/repro_zcl.o build/host-tests/obj32/repro_zcl_reporting.o build/host-tests/obj32/repro_zcl_basic.o build/host-tests/obj32/repro_zcl_identify.o build/host-tests/obj32/repro_zcl_group.o build/host-tests/obj32/repro_zcl_onoff.o build/host-tests/obj32/repro_zcl_ota.o'
+          # shellcheck disable=SC2086
+          cc -m32 $strict_repro -Ibuild/orig-sdk/proj/os $oinc $reproobj \
+            tests/host/hw_stub.c tests/repro_glsd301p_original_bodies.c \
+            -o build/host-tests/repro_original_bodies
+          fails=0
+          for c in identify0 identify1 triggereffect1 queryrsp0 groupadd1 groupview1 groupmember1 write1 cfgwrap40 discrsp0 dfltrsp1 otaqueryrsp2 otablockshort r8leak; do
+            set +e
+            build/host-tests/repro_original_bodies "$c" > "build/repro-$c.log" 2>&1
+            rc=$?
+            set -e
+            # A nonzero exit only counts when the log proves the defect
+            # fired (sanitizer abort or REPRO marker): fixture assertion
+            # failures must fail this step, never masquerade as repro.
+            if [ "$rc" -eq 0 ]; then
+              echo "REPRO-NOT-REPRODUCED: $c (exit 0)" >&2
+              fails=$((fails + 1))
+            elif grep -Eq 'AddressSanitizer|runtime error:|^REPRO: ' "build/repro-$c.log"; then
+              echo "REPRO-OK: $c exit=$rc $(grep -Eo 'AddressSanitizer: [A-Za-z-]+|runtime error: [^ ]+|^REPRO: .*' build/repro-$c.log | head -c 160 | tr '\n' ' ')"
+            else
+              echo "REPRO-INFRA-FAIL: $c exit=$rc $(tail -c 200 build/repro-$c.log | tr '\n' ' ')" >&2
+              fails=$((fails + 1))
+            fi
+          done
+          test "$fails" -eq 0
+          echo 'ORIGINAL_BODY_REPRO=PASS all pristine defects reproduced'
       - name: Run host-side interoperability tests
         shell: bash
         run: |
