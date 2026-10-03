@@ -40,6 +40,7 @@ jobs:
             --provenance-out build/sdk-patches-harness.json
           mkdir -p build/host-sdk/proj/os build/host-sdk/proj/common
           mkdir -p build/host-sdk/zigbee/zcl/general build/host-sdk/zigbee/af
+          mkdir -p build/host-sdk/zigbee/aps
           sdk='telink-sdk/tl_zigbee_sdk'
           cp "$sdk/proj/os/ev_timer.c" build/host-sdk/proj/os/
           cp "$sdk/proj/os/ev_timer.h" build/host-sdk/proj/os/
@@ -57,6 +58,7 @@ jobs:
           cp "$sdk/zigbee/zcl/zcl.h" "$sdk/zigbee/zcl/zcl_const.h" \
             "$sdk/zigbee/zcl/zcl_config.h" build/host-sdk/zigbee/zcl/
           cp "$sdk/zigbee/af/zb_af.h" build/host-sdk/zigbee/af/
+          cp "$sdk/zigbee/aps/aps_api.h" build/host-sdk/zigbee/aps/
           cp tests/host/zcl_shim/zcl_include.h build/host-sdk/zigbee/zcl/zcl_include.h
           # The staged ZCL files must not key any behavior off the -DWIN32
           # size_t opt-out used for the host compile (types.h itself, which

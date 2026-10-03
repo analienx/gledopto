@@ -300,9 +300,9 @@ timers_obj="$DIR/obj/app/glsd301p_timer_events.o"
 if "$TC32_NM" -u "$app_obj" | grep -Eq ' U drv_uart_tx_start$'; then
   echo 'ERROR: blocking boot UART dependency must be gone' >&2; exit 1;
 fi
-"$TC32_NM" -u "$app_obj" | grep -Eq ' U glsd301p_control_emit$' || {
-  echo 'ERROR: target is not wired through shared control emit' >&2; exit 1;
-}
+# M4: the target reaches control emit through the shared ZCL command policy
+# (target -> glsd301p_zcl_*_command -> glsd301p_control_emit); the two M4
+# nm gates below pin both edges of that chain instead of a direct edge.
 "$TC32_NM" -u "$app_obj" | grep -Eq ' U glsd301p_timer_io_start$' || {
   echo 'ERROR: target is not wired through owned timer events' >&2; exit 1;
 }
