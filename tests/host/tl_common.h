@@ -6,9 +6,17 @@
  * CI stages a shadow tree (build/host-sdk/proj/...) holding byte-identical
  * copies of the pinned SDK bodies under test plus this file. The SDK bodies
  * keep their own relative includes ("../tl_common.h" lands here); the real
- * SDK headers (ev_timer.h, ev_rtc.h, ev.h, common/utlist.h) are used
- * unmodified. Only narrow hardware/opaque seams are stubbed, and they live
- * in tests/host/hw_stub.* with scripted behavior owned by each test.
+ * SDK headers (common/types.h, utility.h, bit.h, mempool.h, utlist.h and
+ * os/ev.h) are used unmodified. Only narrow hardware/opaque seams are
+ * stubbed, and they live in tests/host/hw_stub.* with scripted behavior
+ * owned by each test.
+ *
+ * NOTE: the real zcl_config.h includes ../../proj/tl_common.h, so this
+ * file is parsed by every translation unit that parses the ZCL shim,
+ * including the -Werror test sources. Never define anything here that
+ * collides with the C library (notably assert: the SDK no-op assert is
+ * injected surgically with -D on the single ev_buffer.c compile lines
+ * that need it, never through this header).
  */
 
 #include <stdbool.h>
@@ -20,13 +28,6 @@
 #include "common/utility.h"
 #include "common/bit.h"
 #include "common/mempool.h"
-/*
- * Real SDK assert.h: assert() is a no-op unless ASSERT_DEBUG_MODE (off
- * here, as #if treats the undefined macro as 0). Included ONLY through
- * this header, which only SDK bodies parse; test/app translation units
- * keep the C library assertion facility.
- */
-#include "common/assert.h"
 
 #include "common/utlist.h"
 #include "os/ev.h"

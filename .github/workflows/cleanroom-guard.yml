@@ -46,8 +46,7 @@ jobs:
           cp "$sdk/proj/common/mempool.c" "$sdk/proj/common/mempool.h" build/orig-sdk/proj/common/
           cp "$sdk/proj/common/utlist.h" "$sdk/proj/common/types.h" \
             "$sdk/proj/common/utility.h" "$sdk/proj/common/bit.h" \
-            "$sdk/proj/common/macro_trick.h" "$sdk/proj/common/assert.h" \
-            build/orig-sdk/proj/common/
+            "$sdk/proj/common/macro_trick.h" build/orig-sdk/proj/common/
           cp tests/host/tl_common.h build/orig-sdk/proj/tl_common.h
           cp "$sdk/zigbee/zcl/zcl.c" "$sdk/zigbee/zcl/zcl_reporting.c" \
             "$sdk/zigbee/zcl/zcl.h" "$sdk/zigbee/zcl/zcl_const.h" \
@@ -106,7 +105,6 @@ jobs:
           cp "$sdk/proj/common/utility.h" build/host-sdk/proj/common/
           cp "$sdk/proj/common/bit.h" build/host-sdk/proj/common/
           cp "$sdk/proj/common/macro_trick.h" build/host-sdk/proj/common/
-          cp "$sdk/proj/common/assert.h" build/host-sdk/proj/common/
           cp "$sdk/proj/common/mempool.c" build/host-sdk/proj/common/
           cp "$sdk/proj/common/mempool.h" build/host-sdk/proj/common/
           cp tests/host/tl_common.h build/host-sdk/proj/tl_common.h
@@ -297,8 +295,13 @@ jobs:
           # shellcheck disable=SC2086
           cc -m32 $sdkflags $zclinc -c build/host-sdk/proj/common/mempool.c \
             -o build/host-tests/obj32/mempool.o
+          # ev_buffer.c is the only staged body using the SDK assert()
+          # (common/assert.h: no-op unless ASSERT_DEBUG_MODE, off). It is
+          # injected here surgically: routing it through tl_common.h would
+          # poison the C assertions of every TU parsing the ZCL shim.
           # shellcheck disable=SC2086
-          cc -m32 $sdkflags -Ibuild/host-sdk/proj/os $zclinc \
+          cc -m32 $sdkflags "-Dassert(ignore)=((void)0)" \
+            -Ibuild/host-sdk/proj/os $zclinc \
             -c build/host-sdk/proj/os/ev_buffer.c -o build/host-tests/obj32/ev_buffer.o
           for unit in zcl zcl_reporting; do
             # shellcheck disable=SC2086
@@ -350,7 +353,8 @@ jobs:
           gcc -m32 $sdkflags $oinc \
             -c build/orig-sdk/proj/common/mempool.c \
             -o build/host-tests/obj32/repro_mempool.o
-          gcc -m32 $sdkflags -Ibuild/orig-sdk/proj/os $oinc \
+          gcc -m32 $sdkflags "-Dassert(ignore)=((void)0)" \
+            -Ibuild/orig-sdk/proj/os $oinc \
             -c build/orig-sdk/proj/os/ev_buffer.c \
             -o build/host-tests/obj32/repro_ev_buffer.o
           for unit in zcl zcl_reporting; do
