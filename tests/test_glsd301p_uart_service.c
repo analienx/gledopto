@@ -36,7 +36,7 @@ static void test_idle_step_is_quiet(void)
     assert(glsd301p_uart_service_deadline_faults(&svc) == 0u);
 }
 
-static void test_send_accepted_commits_and_goes_inflight(void)
+static void test_send_accepted_commits_and_retires_on_idle(void)
 {
     glsd301p_uart_service_t svc;
     glsd301p_uart_transport_t transport;
@@ -53,17 +53,39 @@ static void test_send_accepted_commits_and_goes_inflight(void)
     assert(host_uart_last_frame(last));
     assert(memcmp(last, NORMAL_ON, sizeof(last)) == 0);
 
-    /* Fresh transfer completes only after hardware was observed busy. */
+    /*
+     * An idle link retires the transfer on the next step: a later stuck
+     * busy therefore opens no deadline episode for the retired transfer.
+     */
     ev = glsd301p_uart_service_step(&svc, &transport, 1u);
     assert(!ev.fault_raised);
     host_uart_set_busy(true);
-    ev = glsd301p_uart_service_step(&svc, &transport, 2u);
-    host_uart_set_busy(false);
-    ev = glsd301p_uart_service_step(&svc, &transport, 8u);
-    assert(!ev.fault_raised);
-    /* In-flight cleared: a later stuck busy starts a new episode, un faulted. */
+    for (uint32_t t = 2u; t < 40u; t++) {
+        ev = glsd301p_uart_service_step(&svc, &transport, t);
+        assert(!ev.fault_raised);
+    }
+    assert(glsd301p_uart_service_deadline_faults(&svc) == 0u);
+}
+
+static void test_busy_then_idle_completes_transfer(void)
+{
+    glsd301p_uart_service_t svc;
+    glsd301p_uart_transport_t transport;
+    glsd301p_uart_service_event_t ev;
+
+    setup(&svc, &transport);
+    assert(glsd301p_uart_transport_offer(&transport, NORMAL_ON, 0u));
+    ev = glsd301p_uart_service_step(&svc, &transport, 0u);
+    assert(ev.frame_sent);
+
+    /* Normal transfer shape: busy while owned, idle when done. */
     host_uart_set_busy(true);
-    ev = glsd301p_uart_service_step(&svc, &transport, 9u);
+    ev = glsd301p_uart_service_step(&svc, &transport, 1u);
+    assert(!ev.fault_raised);
+    ev = glsd301p_uart_service_step(&svc, &transport, 6u);
+    assert(!ev.fault_raised);
+    host_uart_set_busy(false);
+    ev = glsd301p_uart_service_step(&svc, &transport, 7u);
     assert(!ev.fault_raised);
     assert(glsd301p_uart_service_deadline_faults(&svc) == 0u);
 }
@@ -202,7 +224,8 @@ static void test_off_frame_uses_same_service_path(void)
 int main(void)
 {
     test_idle_step_is_quiet();
-    test_send_accepted_commits_and_goes_inflight();
+    test_send_accepted_commits_and_retires_on_idle();
+    test_busy_then_idle_completes_transfer();
     test_busy_defers_send_without_attempt();
     test_dma_rejection_retries_with_bounded_work();
     test_pending_deadline_uses_elapsed_time();

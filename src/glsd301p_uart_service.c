@@ -24,7 +24,6 @@ void glsd301p_uart_service_init(glsd301p_uart_service_t *service)
 
     service->fault_latched = false;
     service->inflight_active = false;
-    service->inflight_seen_busy = false;
     service->inflight_since_ms = 0u;
     service->boot_pending = false;
     service->boot_since_ms = 0u;
@@ -107,30 +106,27 @@ glsd301p_uart_service_event_t glsd301p_uart_service_step(
         if (glsd301p_hw_uart_send_frame(frame)) {
             glsd301p_uart_transport_commit_sent(transport, is_off);
             service->inflight_active = true;
-            service->inflight_seen_busy = false;
             service->inflight_since_ms = now_ms;
             event.frame_sent = true;
         }
         return event;
     }
 
-    /* Empty queue: still track the in-flight transfer to completion. */
+    /*
+     * Empty queue: still track the in-flight transfer. An idle link
+     * retires it: the only stuck-transfer evidence this flag can give is
+     * busy persisting, and faulting on an idle flag would brick output on
+     * hardware whose TX DONE bit does not clear promptly on DMA start. A
+     * DMA that rejects while the flag reads idle is still caught by the
+     * pending-queue deadline above whenever traffic is queued.
+     */
     if (service->inflight_active) {
         if (!glsd301p_hw_uart_busy()) {
-            /*
-             * Completion counts only after hardware was observed busy;
-             * otherwise a stale idle flag could retire a fresh transfer.
-             */
-            if (service->inflight_seen_busy) {
-                service->inflight_active = false;
-            }
-        } else {
-            service->inflight_seen_busy = true;
-        }
-
-        if (service->inflight_active && !service->fault_latched &&
-            glsd301p_timebase_age_ms(service->inflight_since_ms, now_ms) >=
-                GLSD301P_UART_DEADLINE_MS) {
+            service->inflight_active = false;
+        } else if (!service->fault_latched &&
+                   glsd301p_timebase_age_ms(service->inflight_since_ms,
+                                            now_ms) >=
+                       GLSD301P_UART_DEADLINE_MS) {
             service->fault_latched = true;
             service->deadline_faults =
                 glsd301p_sat_inc_u32(service->deadline_faults);

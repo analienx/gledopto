@@ -54,8 +54,11 @@ deadline; an accepted-but-never-completing DMA transfer is invisible.
 Fix (M3): SDK `ev_timer_update` hook advances an app ms timebase (fractional
 ticks stay in SDK `remSysTick`; wrap handled by unsigned clock delta in
 `ev_timer_process`); oldest-queued age preserved across coalescing; in-flight
-age tracked even with empty queue; 32 ms fault latches, cancels transitions,
-prioritizes OFF, retries OFF with bounded O(1) work; ON rejected while gated.
+age tracked even with empty queue (fault only on busy persisting 32 ms; an
+idle link retires the transfer, since faulting on an idle flag would brick
+output on hardware whose TX DONE bit does not clear promptly on DMA start);
+32 ms fault latches, cancels transitions, prioritizes OFF, retries OFF with
+bounded O(1) work; ON rejected while gated.
 OFF transfer attempt/completion is NOT acknowledged physical state.
 Validation: hosted fractional/wrap/uint32-wrap, DMA-rejected/busy-forever,
 empty-queue timeout, coalescing, OFF-priority, boot-failure tests.

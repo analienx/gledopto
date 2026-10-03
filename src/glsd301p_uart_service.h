@@ -27,7 +27,6 @@ extern "C" {
 typedef struct {
     bool fault_latched;
     bool inflight_active;
-    bool inflight_seen_busy;
     uint32_t inflight_since_ms;
     bool boot_pending;
     uint32_t boot_since_ms;
