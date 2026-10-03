@@ -77,6 +77,16 @@ u8 tl_zbTaskPost(tl_zb_callback_t func, void *arg);
 #define RET_OK 0
 
 /*
+ * The staged reporting body logs through the SDK DEBUG(en, ...) macro
+ * (tlPrintf.h, unstaged: it drags the UART drivers). Every staged
+ * call site passes a constant-zero enable, so a no-op is behavior
+ * identical and keeps test output deterministic.
+ */
+#define DEBUG(...)           \
+    do {                     \
+    } while (0)
+
+/*
  * Stack diagnostics block (exact member mirror of sys_diagnostics_t in
  * zigbee/common/includes/zb_common.h at the pinned commit). The read
  * handler stamps last-message LQI/RSSI here; the harness owns the

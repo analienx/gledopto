@@ -46,7 +46,8 @@ jobs:
           cp "$sdk/proj/common/mempool.c" "$sdk/proj/common/mempool.h" build/orig-sdk/proj/common/
           cp "$sdk/proj/common/utlist.h" "$sdk/proj/common/types.h" \
             "$sdk/proj/common/utility.h" "$sdk/proj/common/bit.h" \
-            "$sdk/proj/common/macro_trick.h" build/orig-sdk/proj/common/
+            "$sdk/proj/common/macro_trick.h" "$sdk/proj/common/assert.h" \
+            build/orig-sdk/proj/common/
           cp tests/host/tl_common.h build/orig-sdk/proj/tl_common.h
           cp "$sdk/zigbee/zcl/zcl.c" "$sdk/zigbee/zcl/zcl_reporting.c" \
             "$sdk/zigbee/zcl/zcl.h" "$sdk/zigbee/zcl/zcl_const.h" \
@@ -105,6 +106,7 @@ jobs:
           cp "$sdk/proj/common/utility.h" build/host-sdk/proj/common/
           cp "$sdk/proj/common/bit.h" build/host-sdk/proj/common/
           cp "$sdk/proj/common/macro_trick.h" build/host-sdk/proj/common/
+          cp "$sdk/proj/common/assert.h" build/host-sdk/proj/common/
           cp "$sdk/proj/common/mempool.c" build/host-sdk/proj/common/
           cp "$sdk/proj/common/mempool.h" build/host-sdk/proj/common/
           cp tests/host/tl_common.h build/host-sdk/proj/tl_common.h

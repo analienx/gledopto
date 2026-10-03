@@ -20,6 +20,13 @@
 #include "common/utility.h"
 #include "common/bit.h"
 #include "common/mempool.h"
+/*
+ * Real SDK assert.h: assert() is a no-op unless ASSERT_DEBUG_MODE (off
+ * here, as #if treats the undefined macro as 0). Included ONLY through
+ * this header, which only SDK bodies parse; test/app translation units
+ * keep the C library assertion facility.
+ */
+#include "common/assert.h"
 
 #include "common/utlist.h"
 #include "os/ev.h"

@@ -398,6 +398,13 @@ u8 tl_zbTaskPost(tl_zb_callback_t func, void *arg)
 
 sys_diagnostics_t g_sysDiags;
 
+/*
+ * APS group table size (extern in aps_api.h, owned by the APS archive
+ * on target). Matches the APS_GROUP_TABLE_NUM default of 4 at the
+ * pinned commit; the harness never holds more than two groups.
+ */
+u8 APS_GROUP_TABLE_SIZE = 4u;
+
 /* IRQ/clock seams come from hw_stub.c (shared, already linked). */
 
 /* ------------------------------------------------------------------ */
