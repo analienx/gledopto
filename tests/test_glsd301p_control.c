@@ -360,6 +360,10 @@ static void test_deadline_survives_uint32_wrap(void)
     turn_on(0xFEu);
     pump_ms(2u);
     assert(!glsd301p_uart_transport_has_pending(&g_transport));
+    /* Retire the just-accepted ON on the idle link: the wrap jump below
+     * would otherwise (correctly, per R2) fault the stale in-flight
+     * transfer instead of exercising the queue deadline. */
+    pump_ms(1u);
     host_uart_set_busy(true);
 
     assert(glsd301p_uart_transport_offer(&g_transport, ON_FE, 0xFFFFFFF0u));
@@ -411,6 +415,9 @@ static void boot_armed_direct(void)
     assert(glsd301p_runtime_core_is_ready(&g_runtime));
     glsd301p_control_io_step(&g_ctx, true, false, 8u);
     assert(!glsd301p_uart_transport_has_pending(&g_transport));
+    /* Retire the drained OFF on the idle link so later clock jumps start
+     * with no in-flight ownership (R2 observes it every step). */
+    glsd301p_control_io_step(&g_ctx, true, false, 8u);
 }
 
 /*
