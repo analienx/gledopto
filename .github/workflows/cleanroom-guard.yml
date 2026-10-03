@@ -60,7 +60,8 @@ jobs:
             "$sdk/zigbee/zcl/general/zcl_level.c" \
             "$sdk/zigbee/zcl/general/zcl_onoff.c" \
             build/orig-sdk/zigbee/zcl/general/
-          cp "$sdk/zigbee/zcl/general/zcl_identify.h" \
+          cp "$sdk/zigbee/zcl/general/zcl_basic.h" \
+            "$sdk/zigbee/zcl/general/zcl_identify.h" \
             "$sdk/zigbee/zcl/general/zcl_group.h" \
             "$sdk/zigbee/zcl/general/zcl_level.h" \
             "$sdk/zigbee/zcl/general/zcl_onoff.h" \
@@ -114,6 +115,7 @@ jobs:
           cp "$sdk/zigbee/zcl/general/zcl_group.c" build/host-sdk/zigbee/zcl/general/
           cp "$sdk/zigbee/zcl/general/zcl_level.c" build/host-sdk/zigbee/zcl/general/
           cp "$sdk/zigbee/zcl/general/zcl_onoff.c" build/host-sdk/zigbee/zcl/general/
+          cp "$sdk/zigbee/zcl/general/zcl_basic.h" build/host-sdk/zigbee/zcl/general/
           cp "$sdk/zigbee/zcl/general/zcl_identify.h" build/host-sdk/zigbee/zcl/general/
           cp "$sdk/zigbee/zcl/general/zcl_group.h" build/host-sdk/zigbee/zcl/general/
           cp "$sdk/zigbee/zcl/general/zcl_level.h" build/host-sdk/zigbee/zcl/general/

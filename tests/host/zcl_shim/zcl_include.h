@@ -69,6 +69,14 @@ u8 tl_zbTaskPost(tl_zb_callback_t func, void *arg);
 #define TL_SCHEDULE_TASK tl_zbTaskPost
 
 /*
+ * Head of the generic return-code enum in
+ * zigbee/common/includes/zb_common.h at the pinned commit. Only RET_OK
+ * is named by the staged bodies; the rest of the enum is not mirrored
+ * because nothing in the harness can produce it.
+ */
+#define RET_OK 0
+
+/*
  * Stack diagnostics block (exact member mirror of sys_diagnostics_t in
  * zigbee/common/includes/zb_common.h at the pinned commit). The read
  * handler stamps last-message LQI/RSSI here; the harness owns the
@@ -184,6 +192,7 @@ typedef struct apsdeDataInd_s {
 #include "zcl_config.h"
 #include "zcl_const.h"
 #include "zcl.h"
+#include "general/zcl_basic.h"
 #include "general/zcl_level.h"
 #include "general/zcl_onoff.h"
 #include "general/zcl_identify.h"
