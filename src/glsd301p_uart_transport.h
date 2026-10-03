@@ -47,6 +47,19 @@ bool glsd301p_uart_transport_has_pending(
     const glsd301p_uart_transport_t *transport);
 
 /**
+ * Normal-slot queue stamp in milliseconds. Returns false (and leaves
+ * out_ms untouched) when no normal frame is pending. The service uses this
+ * to expire stale normal traffic independently of OFF recovery.
+ */
+bool glsd301p_uart_transport_normal_ms(
+    const glsd301p_uart_transport_t *transport,
+    uint32_t *out_ms);
+
+/* Discard the pending normal frame, if any. OFF recovery is untouched. */
+void glsd301p_uart_transport_drop_normal(
+    glsd301p_uart_transport_t *transport);
+
+/**
  * Oldest still-pending queue stamp in milliseconds. Returns false (and leaves
  * out_ms untouched) when nothing is pending. Wrap-safe age derivation is the
  * caller's job via glsd301p_timebase_age_ms().

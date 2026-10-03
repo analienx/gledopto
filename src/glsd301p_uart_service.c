@@ -53,6 +53,7 @@ glsd301p_uart_service_event_t glsd301p_uart_service_step(
     glsd301p_uart_service_event_t event = glsd301p_uart_no_event();
     uint8_t frame[GLSD301P_CONTROL_FRAME_SIZE];
     uint32_t oldest_ms;
+    uint32_t normal_ms;
     bool is_off;
 
     if (service == NULL || transport == NULL) {
@@ -79,6 +80,31 @@ glsd301p_uart_service_event_t glsd301p_uart_service_step(
         }
     }
 
+    /*
+     * R2: the owned in-flight transfer is retired/checked FIRST on every
+     * step, independent of pending traffic. Its start stamp is stable
+     * until this ownership retires: a send below only happens on an idle
+     * link, which retires any prior transfer here first. An idle link
+     * retires it: the only stuck-transfer evidence this flag can give is
+     * busy persisting, and faulting on an idle flag would brick output on
+     * hardware whose TX DONE bit does not clear promptly on DMA start. A
+     * DMA that rejects while the flag reads idle is still caught by the
+     * pending-queue deadline below whenever traffic is queued.
+     */
+    if (service->inflight_active) {
+        if (!glsd301p_hw_uart_busy()) {
+            service->inflight_active = false;
+        } else if (!service->fault_latched &&
+                   glsd301p_timebase_age_ms(service->inflight_since_ms,
+                                            now_ms) >=
+                       GLSD301P_UART_DEADLINE_MS) {
+            service->fault_latched = true;
+            service->deadline_faults =
+                glsd301p_sat_inc_u32(service->deadline_faults);
+            event.fault_raised = true;
+        }
+    }
+
     if (glsd301p_uart_transport_has_pending(transport)) {
         /* A stuck queue trips the deadline even while DMA stays busy. */
         if (glsd301p_uart_transport_oldest_ms(transport, &oldest_ms) &&
@@ -89,6 +115,20 @@ glsd301p_uart_service_event_t glsd301p_uart_service_step(
             service->deadline_faults =
                 glsd301p_sat_inc_u32(service->deadline_faults);
             event.fault_raised = true;
+        }
+
+        /*
+         * R1: no normal frame starts on/after a deadline. An expired
+         * normal slot is discarded before any hardware start, and while
+         * a fault is latched no normal slot may start at all (ON is
+         * rejected while gated). OFF is never dropped here: bounded
+         * confirmed-OFF recovery must continue through the same steps.
+         */
+        if (glsd301p_uart_transport_normal_ms(transport, &normal_ms) &&
+            (service->fault_latched ||
+             glsd301p_timebase_age_ms(normal_ms, now_ms) >=
+                 GLSD301P_UART_DEADLINE_MS)) {
+            glsd301p_uart_transport_drop_normal(transport);
         }
 
         /* The static DMA buffer must never be rewritten while owned. */
@@ -110,28 +150,6 @@ glsd301p_uart_service_event_t glsd301p_uart_service_step(
             event.frame_sent = true;
         }
         return event;
-    }
-
-    /*
-     * Empty queue: still track the in-flight transfer. An idle link
-     * retires it: the only stuck-transfer evidence this flag can give is
-     * busy persisting, and faulting on an idle flag would brick output on
-     * hardware whose TX DONE bit does not clear promptly on DMA start. A
-     * DMA that rejects while the flag reads idle is still caught by the
-     * pending-queue deadline above whenever traffic is queued.
-     */
-    if (service->inflight_active) {
-        if (!glsd301p_hw_uart_busy()) {
-            service->inflight_active = false;
-        } else if (!service->fault_latched &&
-                   glsd301p_timebase_age_ms(service->inflight_since_ms,
-                                            now_ms) >=
-                       GLSD301P_UART_DEADLINE_MS) {
-            service->fault_latched = true;
-            service->deadline_faults =
-                glsd301p_sat_inc_u32(service->deadline_faults);
-            event.fault_raised = true;
-        }
     }
 
     return event;

@@ -445,6 +445,9 @@ void glsd301p_control_io_step(glsd301p_control_ctx_t *ctx,
     if (ev.fault_raised) {
         (void)glsd301p_runtime_core_latch_fault(ctx->runtime, frame);
         (void)glsd301p_uart_transport_offer(ctx->transport, frame, now_ms);
+        /* R1: a faulted device must not keep a transition alive that could
+         * re-energize later; the OFF above is the only recovery traffic. */
+        glsd301p_control_level_cancel(ctx);
         glsd301p_control_sync_from_runtime(ctx);
     }
     if (ev.boot_completed) {

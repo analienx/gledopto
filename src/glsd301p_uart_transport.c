@@ -94,6 +94,26 @@ bool glsd301p_uart_transport_has_pending(
            (transport->off_pending || transport->normal_pending);
 }
 
+bool glsd301p_uart_transport_normal_ms(
+    const glsd301p_uart_transport_t *transport,
+    uint32_t *out_ms)
+{
+    if (transport == NULL || out_ms == NULL || !transport->normal_pending) {
+        return false;
+    }
+    *out_ms = transport->normal_queued_ms;
+    return true;
+}
+
+void glsd301p_uart_transport_drop_normal(
+    glsd301p_uart_transport_t *transport)
+{
+    if (transport == NULL) {
+        return;
+    }
+    transport->normal_pending = false;
+}
+
 bool glsd301p_uart_transport_oldest_ms(
     const glsd301p_uart_transport_t *transport,
     uint32_t *out_ms)
