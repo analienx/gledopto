@@ -15,7 +15,20 @@ jobs:
   boundary-and-tests:
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout exact source head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Assert exact source head
+        shell: bash
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          actual="$(git rev-parse HEAD)"
+          echo "SOURCE_HEAD=$actual"
+          echo "EXPECTED_HEAD=$EXPECTED_HEAD"
+          test "$actual" = "$EXPECTED_HEAD"
       - name: Checkout pinned public Telink SDK (host harness)
         uses: actions/checkout@v4
         with:
@@ -428,8 +441,20 @@ jobs:
     name: Pinned TC32 TLSR8258 RX-on-idle End Device target
     runs-on: ubuntu-24.04
     steps:
-      - name: Checkout implementation
+      - name: Checkout exact source head
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Assert exact source head
+        shell: bash
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          actual="$(git rev-parse HEAD)"
+          echo "SOURCE_HEAD=$actual"
+          echo "EXPECTED_HEAD=$EXPECTED_HEAD"
+          test "$actual" = "$EXPECTED_HEAD"
       - name: Checkout pinned public Telink SDK
         uses: actions/checkout@v4
         with:

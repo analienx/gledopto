@@ -236,14 +236,23 @@ and `zcl_group.c` Add/View/Remove/GetMembership/AddIfIdentify paths,
 compiled into the target (`tools/build_glsd301p_ed_tc32.sh:93-94`).
 Identify reads payload[0:2] unguarded; Groups reads group id unguarded and
 `count` + `count*2` bytes unguarded (`{count=1}` alone over-reads), reaching
-group-table ops before validation. Existing harness stages Level/OnOff only.
+group-table ops before validation. (At finding time the harness staged
+Level/OnOff only; G4 stages all six cluster bodies + both foundation
+translation units.)
 (Groups response-builder offset checked: intentional, not a defect.)
-Original repro: pending (G4 hosted sanitizer harness with real Identify/
-Groups bodies + truncated/oversized corpus, expected-failure on original).
-Proposed fix: narrow pinned-SDK minimum/count-length guards (or complete
-pre-dispatch boundary) before reads, callbacks, table or storage mutation;
-both reachable directions; truthful response statuses.
-Fix commit: TBD. Hosted proof: TBD.
+Original repro: hosted red run 37147368621 (ASan SEGV in
+`zcl_identify_clientCmdHandler` via `test_r6_identify_truncated` on
+pre-fix code); persistent 24-case pristine-body repro keeps failing on
+original bodies (identify0/1, triggereffect1, queryrsp0, groupadd1,
+groupview1, groupmember1 all ASan-fatal).
+Fix (G4-B @ d3060dd, green head 20208cc): P3 identify exact-2/exact-0
+guards; P4 group guards — add minimum-2 (trailing name defined content,
+never parsed), remove/view/add-if-identifying exact-2, remove-all
+exact-0, membership count-cap (INSUFFICIENT_SPACE past table size) +
+exact 1+count*2 need — all before reads, callbacks, or table mutation,
+both directions, MALFORMED_COMMAND truthfulness.
+Validation: dispatch R6 suites + 24/24 pristine repro green at 20208cc
+(boundary 37149493049, readiness 37149493059).
 
 ## R7 — Foundation parsers over-read; configure-report length wraps (P1, CONFIRMED)
 
@@ -257,14 +266,31 @@ records unvalidated; allocation prefix uses **u8 len** (1742) for
 `sizeof(command)+numAttr*sizeof(record)` (wraps at large counts while the
 second pass writes numAttr records); discrete scan advances an extra byte
 (1735) the second pass omits (miscount). Root dispatch erases foundation
-error detail (835-837). Only Level/OnOff callbacks are currently harnessed.
-Original repro: pending (G4 hosted sanitizer corpus through actual zcl.c
-dispatch + target ABI probes for exact overflow thresholds).
-Proposed fix: bounded cursors, complete record validation, checked
-allocation arithmetic at target widths, capacity limits, single ownership;
-reject before attribute/report-table changes; preserve specific statuses;
-inventory all enabled foundation/OTA ingress paths.
-Fix commit: TBD. Hosted proof: TBD.
+error detail (835-837). (At finding time only Level/OnOff callbacks were
+harnessed; G4 harnesses every foundation command + all six clusters.)
+Original repro: hosted red run 37147368621 plus persistent pristine-body
+cases (write1/cfgtrunc ASan-fatal, cfgwrap40 SEGV on the u8 wrap,
+report4/readrsp4/discrsp0/dflt0/disc1-4/readodd/writersp2/cfgrsp3
+pristine-accepted); P6 OTA cases otaqueryrsp2/otablockshort ASan-fatal
+on original OTA bodies.
+Fix (G4-B @ d3060dd, green head 20208cc): P5 bounded pre-parse
+validators replicating each build-pass layout (write/report/read-rsp/
+cfg/read-cfg-rsp, 255-record caps), read evenness, write/cfg-rsp exact
+shapes (1 or 3k/4k), default-rsp exact-2, discover exact-3 / non-empty
+responses (closes the dataLen==0 underflow), cfg scan/build desync
+removal, all three u8 allocation lengths to u16, dispatch
+normalization removal (specific statuses reach the default response);
+P2a/P2b exact level/onoff lengths + callback-status propagation; P6
+exact lengths for all 10 OTA request/response parsers (fc-bit options,
+notify ladder, block dataSize). Division-based parsers (read-req
+quotient, write/cfg-rsp quotients) audited: truncation only
+under-reads, no overread; u16->u8 numAttr truncation likewise safe.
+Fix (G4-B) also covers the read/read-rsp/write-rsp/cfg-rsp siblings the
+original finding text did not enumerate (same file, same class).
+Validation: dispatch R7 + follow-up suites (incl. 40-record wrap
+battery with canary, pool-exhaustion fail-closed, OTA bounds/requests)
+green at 20208cc (boundary 37149493049, readiness 37149493059);
+TC32 target rebuild green on the same head.
 
 ## R8 — NULL foundation hook leaks parsed-command buffers (P1, CONFIRMED)
 
@@ -273,9 +299,13 @@ Source: target `glsd301p_telink_target.c:531` (`zcl_init(NULL)`); pinned SDK
 Read/Write allocate parsed commands into `pCmd->attrCmd` (1086-1090,
 1325-1329); with a NULL hook ordinary requests never free them. Repeated
 Basic reads (incl. health polling) can exhaust the shared event-buffer pool.
-Original repro: pending (G4 hosted allocation accounting through root
-dispatch with target NULL-hook config).
-Proposed fix: cleanup independent of optional notification, or a documented
-complete no-op hook; no double frees; allocations return to baseline after
-each settled command.
-Fix commit: TBD. Hosted proof: TBD.
+Original repro: hosted red run 37147368621 (R8 documented pre-fix);
+persistent r8leak pristine case drains the pool to 16 free after 10
+reads (10 parsed-command buffers leaked).
+Fix (G4-B @ d3060dd, green head 20208cc): P5 splits the zcl.c:866
+cleanup from the optional hook — hook still notified when present,
+`attrCmd` freed and nulled whenever set (hookFn never frees, so no
+double-free); the R8 dispatch case now asserts return-to-baseline with
+the target's NULL hook (was leak documentation pre-fix).
+Validation: R8 suites green at 20208cc (boundary 37149493049):
+10 NULL-hook reads hold 26/26 free; pristine r8leak still reproduces.
