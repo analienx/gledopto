@@ -286,7 +286,7 @@ static zclIncoming_t g_in;
  * ASan; a zero length passes NULL so any dereference faults immediately.
  */
 static status_t dispatch_frame(cluster_cmdHdlr_t hdlr,
-                               cluster_forAppCb_t app_cb, u16 cluster, u8 cmd,
+                               cluster_forAppCb_t app_cb, u8 cmd,
                                const u8 *payload, u16 len, u8 ep, u8 dir)
 {
     u8 *heap = NULL;
@@ -307,7 +307,6 @@ static status_t dispatch_frame(cluster_cmdHdlr_t hdlr,
     g_in.dataLen = len;
     g_in.hdr.cmd = cmd;
     g_in.hdr.frmCtrl.bf.dir = dir;
-    g_in.clusterId = cluster;
     g_in.addrInfo.dstEp = ep;
     g_in.addrInfo.srcEp = 1u;
     g_in.clusterAppCb = app_cb;
@@ -318,15 +317,13 @@ static status_t dispatch_frame(cluster_cmdHdlr_t hdlr,
 
 static status_t dispatch_level(u8 cmd, const u8 *payload, u16 len)
 {
-    return dispatch_frame(g_level_hdlr, g_level_app_cb,
-                          ZCL_CLUSTER_GEN_LEVEL_CONTROL, cmd, payload, len,
+    return dispatch_frame(g_level_hdlr, g_level_app_cb, cmd, payload, len,
                           DISPATCH_EP, ZCL_FRAME_CLIENT_SERVER_DIR);
 }
 
 static status_t dispatch_onoff(u8 cmd, const u8 *payload, u16 len)
 {
-    return dispatch_frame(g_onoff_hdlr, g_onoff_app_cb,
-                          ZCL_CLUSTER_GEN_ON_OFF, cmd, payload, len,
+    return dispatch_frame(g_onoff_hdlr, g_onoff_app_cb, cmd, payload, len,
                           DISPATCH_EP, ZCL_FRAME_CLIENT_SERVER_DIR);
 }
 
@@ -445,7 +442,6 @@ static void test_level_unknown_and_misdirected(void)
 
     /* Server-to-client direction dies in the real dispatcher. */
     assert(dispatch_frame(g_level_hdlr, g_level_app_cb,
-                          ZCL_CLUSTER_GEN_LEVEL_CONTROL,
                           ZCL_CMD_LEVEL_MOVE_TO_LEVEL_WITH_ON_OFF, pld,
                           (u16)sizeof(pld), DISPATCH_EP,
                           ZCL_FRAME_SERVER_CLIENT_DIR) ==
@@ -454,7 +450,6 @@ static void test_level_unknown_and_misdirected(void)
 
     /* Wrong endpoint, plain variant: SDK execute gate blocks the callback. */
     assert(dispatch_frame(g_level_hdlr, g_level_app_cb,
-                          ZCL_CLUSTER_GEN_LEVEL_CONTROL,
                           ZCL_CMD_LEVEL_MOVE_TO_LEVEL, pld,
                           (u16)sizeof(pld), 0x02u,
                           ZCL_FRAME_CLIENT_SERVER_DIR) == ZCL_STA_SUCCESS);
@@ -463,7 +458,6 @@ static void test_level_unknown_and_misdirected(void)
     /* Wrong endpoint, WithOnOff variant: SDK executes, policy rejects and
      * the rejection propagates (P2a) instead of reporting success. */
     assert(dispatch_frame(g_level_hdlr, g_level_app_cb,
-                          ZCL_CLUSTER_GEN_LEVEL_CONTROL,
                           ZCL_CMD_LEVEL_MOVE_TO_LEVEL_WITH_ON_OFF, pld,
                           (u16)sizeof(pld), 0x02u,
                           ZCL_FRAME_CLIENT_SERVER_DIR) ==

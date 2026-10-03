@@ -191,7 +191,10 @@ jobs:
           # necessarily include the real vendor ZCL headers (compiler
           # attributes), so they compile as gnu11 without -pedantic; the
           # pinned SDK bodies compile without -Werror as in the M3 block.
-          strict_zcl="-std=gnu11 -Wall -Wextra -Werror -fsanitize=address,undefined -fno-omit-frame-pointer"
+          # -DWIN32 is the SDK's own size_t opt-out (types.h); own code
+          # keys nothing off it, and the staging gate above proves the
+          # staged ZCL set behavior-neutral under it.
+          strict_zcl="-std=gnu11 -DWIN32 -Wall -Wextra -Werror -fsanitize=address,undefined -fno-omit-frame-pointer"
           sdkflags="-std=gnu11 -DWIN32 -fsanitize=address,undefined -fno-omit-frame-pointer"
           inc="-Isrc -Itests/host"
           zclinc="-Ibuild/host-sdk/zigbee -Ibuild/host-sdk/zigbee/zcl -Ibuild/host-sdk/proj"
