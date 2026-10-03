@@ -62,11 +62,15 @@ void glsd301p_control_init(glsd301p_control_ctx_t *ctx,
         level->mode = GLSD301P_LEVEL_IDLE;
         level->target = boot_level;
         level->rate = 0u;
-        level->rate_accum_tenths = 0u;
+        level->rate_accum_milli = 0u;
         level->direction_up = 0u;
         level->with_onoff = 0u;
         level->current_level = boot_level;
         level->remaining_time = 0u;
+        level->trans_origin = boot_level;
+        level->trans_start_ms = 0u;
+        level->trans_dur_ms = 0u;
+        level->move_last_ms = 0u;
     }
     if (onoff_mirror != NULL) {
         *onoff_mirror = GLSD301P_ZCL_ONOFF_OFF;
@@ -180,8 +184,10 @@ void glsd301p_control_level_cancel(glsd301p_control_ctx_t *ctx)
     }
 
     ctx->level->mode = GLSD301P_LEVEL_IDLE;
-    ctx->level->rate_accum_tenths = 0u;
+    ctx->level->rate_accum_milli = 0u;
     ctx->level->remaining_time = 0u;
+    ctx->level->trans_dur_ms = 0u;
+    ctx->level->move_last_ms = 0u;
     glsd301p_timer_level_stop();
 }
 
@@ -244,6 +250,11 @@ bool glsd301p_control_level_start_target(glsd301p_control_ctx_t *ctx,
     glsd301p_control_level_cancel(ctx);
     target = glsd301p_control_clamp_level(ctx, target);
 
+    /*
+     * Duration policy: 0 means immediate; reserved 0xFFFF ("as fast as
+     * possible") is also immediate; an already-reached target applies
+     * once for its with_onoff side effects. Anything else interpolates.
+     */
     if (transition_time == 0u || transition_time == 0xFFFFu ||
         target == ctx->level->current_level) {
         return glsd301p_control_apply_level(
@@ -256,6 +267,9 @@ bool glsd301p_control_level_start_target(glsd301p_control_ctx_t *ctx,
     ctx->level->target = target;
     ctx->level->with_onoff = with_onoff;
     ctx->level->remaining_time = transition_time;
+    ctx->level->trans_origin = ctx->level->current_level;
+    ctx->level->trans_start_ms = glsd301p_timebase_now_ms();
+    ctx->level->trans_dur_ms = (uint32_t)transition_time * 100u;
     if (!glsd301p_timer_level_start(glsd301p_control_level_cb, ctx)) {
         glsd301p_control_level_cancel(ctx);
         return false;
@@ -283,8 +297,9 @@ bool glsd301p_control_level_start_move(glsd301p_control_ctx_t *ctx,
     ctx->level->mode = GLSD301P_LEVEL_MOVE;
     ctx->level->direction_up = direction_up;
     ctx->level->rate = rate;
-    ctx->level->rate_accum_tenths = 0u;
+    ctx->level->rate_accum_milli = 0u;
     ctx->level->with_onoff = with_onoff;
+    ctx->level->move_last_ms = glsd301p_timebase_now_ms();
     ctx->level->remaining_time = 0xFFFFu;
 
     if (with_onoff && direction_up && !ctx->runtime->logical_output_enabled) {
@@ -324,34 +339,38 @@ int glsd301p_control_level_cb(void *data)
             glsd301p_control_level_cancel(ctx);
             return -1;
         }
-        if (ctx->level->remaining_time <= 1u) {
-            next = ctx->level->target;
-            ctx->level->remaining_time = 0u;
-        } else {
+        /*
+         * R4: bounded integer interpolation on elapsed time. Floor keeps
+         * the offset strictly below diff until the duration elapses, so
+         * small deltas cannot finish early and nothing overshoots:
+         * diff * elapsed <= 254 * 6553499 < 2^32, offset <= 254.
+         */
+        {
+            uint32_t elapsed = glsd301p_timebase_age_ms(
+                ctx->level->trans_start_ms, now_ms);
             uint16_t diff;
-            uint32_t num;
-            uint32_t step;
-            diff = ctx->level->current_level > ctx->level->target
-                       ? (uint16_t)(ctx->level->current_level -
+            uint32_t offset;
+            diff = ctx->level->trans_origin > ctx->level->target
+                       ? (uint16_t)(ctx->level->trans_origin -
                                     ctx->level->target)
                        : (uint16_t)(ctx->level->target -
-                                    ctx->level->current_level);
-            /*
-             * Ceiling division in 32 bits: the baseline u16 form wraps
-             * past (diff + remaining - 1) > 0xFFFF for long transitions.
-             * step <= diff always, so the step below never overshoots.
-             */
-            num = (uint32_t)diff + (uint32_t)ctx->level->remaining_time - 1u;
-            step = num / (uint32_t)ctx->level->remaining_time;
-            if (step == 0u) {
-                step = 1u;
-            }
-            if (ctx->level->current_level > ctx->level->target) {
-                next = (uint8_t)((uint32_t)ctx->level->current_level - step);
+                                    ctx->level->trans_origin);
+            if (elapsed >= ctx->level->trans_dur_ms) {
+                next = ctx->level->target;
+                ctx->level->remaining_time = 0u;
             } else {
-                next = (uint8_t)((uint32_t)ctx->level->current_level + step);
+                offset = (uint32_t)diff * elapsed /
+                         ctx->level->trans_dur_ms;
+                if (ctx->level->trans_origin > ctx->level->target) {
+                    next = (uint8_t)((uint32_t)ctx->level->trans_origin -
+                                     offset);
+                } else {
+                    next = (uint8_t)((uint32_t)ctx->level->trans_origin +
+                                     offset);
+                }
+                ctx->level->remaining_time = (uint16_t)(
+                    (ctx->level->trans_dur_ms - elapsed + 99u) / 100u);
             }
-            ctx->level->remaining_time--;
         }
         if (glsd301p_control_apply_level(
                 ctx, next, ctx->level->with_onoff,
@@ -368,18 +387,28 @@ int glsd301p_control_level_cb(void *data)
     }
 
     if (ctx->level->mode == GLSD301P_LEVEL_MOVE) {
-        uint8_t delta;
-        ctx->level->rate_accum_tenths =
-            (uint16_t)(ctx->level->rate_accum_tenths + ctx->level->rate);
-        delta = (uint8_t)(ctx->level->rate_accum_tenths / 10u);
-        ctx->level->rate_accum_tenths =
-            (uint16_t)(ctx->level->rate_accum_tenths % 10u);
+        /*
+         * R4: the ZCL rate (levels/second) integrates over elapsed ms.
+         * Divide-first keeps every product in u32 for any gap:
+         * whole seconds * rate <= 4294967 * 255 < 2^32. Delta saturates
+         * at 0xFF: any larger step hits a bound below.
+         */
+        uint32_t elapsed = glsd301p_timebase_age_ms(
+            ctx->level->move_last_ms, now_ms);
+        uint32_t delta = (elapsed / 1000u) * (uint32_t)ctx->level->rate;
+        uint8_t step;
+        ctx->level->move_last_ms = now_ms;
+        ctx->level->rate_accum_milli +=
+            (uint32_t)ctx->level->rate * (elapsed % 1000u);
+        delta += ctx->level->rate_accum_milli / 1000u;
+        ctx->level->rate_accum_milli %= 1000u;
+        step = delta > 0xFFu ? 0xFFu : (uint8_t)delta;
         if (ctx->level->direction_up) {
             next = glsd301p_control_clamp_level(
-                ctx, (uint16_t)ctx->level->current_level + delta);
+                ctx, (uint16_t)ctx->level->current_level + step);
         } else {
-            next = ctx->level->current_level > delta
-                       ? (uint8_t)(ctx->level->current_level - delta)
+            next = ctx->level->current_level > step
+                       ? (uint8_t)(ctx->level->current_level - step)
                        : ctx->min_level;
         }
         if (glsd301p_control_apply_level(ctx, next, ctx->level->with_onoff,

@@ -32,15 +32,28 @@ typedef enum {
     GLSD301P_LEVEL_MOVE
 } glsd301p_level_mode_t;
 
+/*
+ * Elapsed-time transition state (R4). TARGET transitions interpolate from
+ * (origin, start, duration) on the millisecond timebase: duration is
+ * transition_time tenths converted to ms (transition_time 0 and reserved
+ * 0xFFFF both mean immediate, documented at start_target). MOVE integrates
+ * the ZCL rate (levels/second) over elapsed ms into a milli-level
+ * accumulator. Both survive callback delays and uint32 wrap; arithmetic
+ * is bounded u32 with saturation, never overshooting.
+ */
 typedef struct {
     uint8_t mode;
     uint8_t target;
     uint8_t rate;
-    uint16_t rate_accum_tenths;
+    uint32_t rate_accum_milli;
     uint8_t direction_up;
     uint8_t with_onoff;
     uint8_t current_level;
     uint16_t remaining_time;
+    uint8_t trans_origin;
+    uint32_t trans_start_ms;
+    uint32_t trans_dur_ms;
+    uint32_t move_last_ms;
 } glsd301p_level_state_t;
 
 typedef struct {
