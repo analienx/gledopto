@@ -92,7 +92,10 @@ jobs:
           strict="-std=c11 -Wall -Wextra -Werror -pedantic -fsanitize=address,undefined -fno-omit-frame-pointer"
           # Pinned third-party SDK bodies compile without -Werror; behavior is
           # pinned by hash and covered by the harness assertions instead.
-          sdkflags="-std=gnu11 -fsanitize=address,undefined -fno-omit-frame-pointer"
+          # -DWIN32 is the SDK's own 32-bit size_t opt-out (types.h); none of
+          # the staged SDK files key any other behavior off it (verified at
+          # the pinned commit), and glibc provides size_t on the host.
+          sdkflags="-std=gnu11 -DWIN32 -fsanitize=address,undefined -fno-omit-frame-pointer"
           inc="-Isrc -Itests/host"
           sdksrc='build/host-sdk/proj/os'
           # shellcheck disable=SC2086
