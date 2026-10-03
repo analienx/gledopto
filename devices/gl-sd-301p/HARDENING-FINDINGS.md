@@ -205,12 +205,16 @@ Trigger: `ceil(diff / remaining_time)` with minimum step 1 per 100 ms
 callback. One-level change with transitionTime 1000 (100 s) finishes in
 the first 100 ms; 2->254 with that duration finishes in 25.2 s.
 RemainingTime is callback-count based, so gaps distort duration too.
-Original repro: pending (G3 hosted one-level/100 s + full-range tests).
-Proposed fix: bounded integer elapsed-time interpolation (origin/target/
-start/duration state); documented zero/reserved/default handling; preserve
-policy, bounds, OFF/PUSH cancellation, replacement, no overshoot; check
-Move rate timing for the same distortion.
-Fix commit: TBD. Hosted proof: TBD.
+Original repro: hosted red run 37142931607 (`rc == 0` assert in
+`test_r4_one_level_honors_duration` on pre-fix code).
+Fix (G3 @ dd85a37): TARGET interpolates from origin/target/start/duration
+on the ms timebase (floor, ceiling-tenths RemainingTime); MOVE integrates
+levels/second over elapsed ms (milli-level accumulator, divide-first
+u32-safe saturated steps — the confirmed Move rate distortion fixed too);
+documented 0/0xFFFF-immediate policy; bounds, OFF/PUSH cancel,
+replacement, no-overshoot preserved.
+Validation: green at dd85a37 (boundary 37143088126, readiness
+37143088132).
 
 ## R5 — Host regressions check the merge commit, not the head (P2, CONFIRMED)
 
