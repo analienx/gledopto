@@ -335,19 +335,21 @@ static void test_stale_inputs_keep_transition_intact(void)
     boot_via_pump();
     turn_on(0xFEu);
     assert(glsd301p_control_level_start_target(&g_ctx, 0x64u, 100u, 1u));
+    pump_ms(2u);
+    assert(!glsd301p_uart_transport_has_pending(&g_transport));
 
     /*
      * A 200 ms service gap delivers exactly two PC2 samples. Two lows
      * cannot complete a PUSH waveform, so no takeover fires and the
-     * transition survives. The 993 ms jump out of the 7 ms pump boot era
-     * is recorded honestly as the maximum gap.
+     * transition survives. The 991 ms jump out of the 9 ms pump era is
+     * recorded honestly as the maximum gap.
      */
     glsd301p_control_io_step(&g_ctx, false, false, 1000u);
     glsd301p_control_io_step(&g_ctx, false, false, 1200u);
     assert(g_level.mode == GLSD301P_LEVEL_TARGET);
     assert(glsd301p_timer_level_registered());
     assert(g_ctx.io_last_ms == 1200u);
-    assert(g_ctx.io_max_gap_ms == 993u);
+    assert(g_ctx.io_max_gap_ms == 991u);
     assert(g_onoff == 1u);
 }
 
@@ -356,6 +358,8 @@ static void test_deadline_survives_uint32_wrap(void)
     fixture_init();
     boot_via_pump();
     turn_on(0xFEu);
+    pump_ms(2u);
+    assert(!glsd301p_uart_transport_has_pending(&g_transport));
     host_uart_set_busy(true);
 
     assert(glsd301p_uart_transport_offer(&g_transport, ON_FE, 0xFFFFFFF0u));
