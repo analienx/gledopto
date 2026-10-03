@@ -10,8 +10,8 @@
  * shared command policy (src/glsd301p_zcl_commands.c) keep their own
  * #include "zcl_include.h" spelling. The real SDK headers (zcl_config.h,
  * zcl_const.h, zcl.h, aps/aps_api.h, af/zb_af.h, general/zcl_level.h,
- * general/zcl_onoff.h, common/types.h, common/utility.h) are used
- * unmodified.
+ * general/zcl_onoff.h, common/types.h, common/utility.h, common/bit.h)
+ * are used unmodified.
  *
  * The ZCL_*_SUPPORT selection below mirrors firmware/glsd301p-ed/app_cfg.h
  * exactly (CI asserts value-for-value equality), so the real zcl_config.h
@@ -39,6 +39,7 @@
 
 #include "common/types.h"
 #include "common/utility.h"
+#include "common/bit.h"
 
 /* SDK compiler.h spellings (verified at the pinned commit). */
 #define _attribute_packed_ __attribute__((packed))
@@ -81,12 +82,6 @@
 #define ZCL_WWAH_SUPPORT                        0
 
 #include "aps/aps_api.h"
-#include "af/zb_af.h"
-#include "zcl_config.h"
-#include "zcl_const.h"
-#include "zcl.h"
-#include "general/zcl_level.h"
-#include "general/zcl_onoff.h"
 
 /*
  * Narrow seam model for the AF data-indication wrapper (real zb_api.h at
@@ -95,10 +90,18 @@
  * first member and is the REAL staged aps_data_ind_t, so every offset
  * the staged SDK bodies touch (msg->indInfo.dst_ep) is exact. The
  * flexible asdu tail is never read through msg: payloads arrive via
- * pData in exact-size ASan buffers owned by the test.
+ * pData in exact-size ASan buffers owned by the test. This precedes
+ * zcl.h, which names the wrapper in zclIncoming_t.
  */
 typedef struct apsdeDataInd_s {
     aps_data_ind_t indInfo;
     u16 asduLen;
     u8 asdu[];
 } apsdeDataInd_t;
+
+#include "af/zb_af.h"
+#include "zcl_config.h"
+#include "zcl_const.h"
+#include "zcl.h"
+#include "general/zcl_level.h"
+#include "general/zcl_onoff.h"

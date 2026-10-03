@@ -50,6 +50,8 @@ jobs:
           cp "$sdk/proj/common/utlist.h" build/host-sdk/proj/common/
           cp "$sdk/proj/common/types.h" build/host-sdk/proj/common/
           cp "$sdk/proj/common/utility.h" build/host-sdk/proj/common/
+          cp "$sdk/proj/common/bit.h" build/host-sdk/proj/common/
+          cp "$sdk/proj/common/macro_trick.h" build/host-sdk/proj/common/
           cp tests/host/tl_common.h build/host-sdk/proj/tl_common.h
           cp "$sdk/zigbee/zcl/general/zcl_level.c" build/host-sdk/zigbee/zcl/general/
           cp "$sdk/zigbee/zcl/general/zcl_onoff.c" build/host-sdk/zigbee/zcl/general/
@@ -64,7 +66,9 @@ jobs:
           # size_t opt-out used for the host compile (types.h itself, which
           # owns the opt-out, is excluded: M3-justified, unchanged).
           if grep -rq 'WIN32' build/host-sdk/zigbee/ \
-              build/host-sdk/proj/common/utility.h; then
+              build/host-sdk/proj/common/utility.h \
+              build/host-sdk/proj/common/bit.h \
+              build/host-sdk/proj/common/macro_trick.h; then
             echo 'ERROR: WIN32-keyed behavior in staged ZCL files' >&2
             exit 1
           fi
