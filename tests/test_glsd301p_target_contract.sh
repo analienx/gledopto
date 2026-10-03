@@ -73,6 +73,18 @@ require_source() {
   }
 }
 
+CONTROL_SRC="$ROOT/src/glsd301p_control.c"
+SERVICE_SRC="$ROOT/src/glsd301p_uart_service.c"
+TIMERS_SRC="$ROOT/src/glsd301p_timer_events.c"
+
+require_control_source() {
+  local pattern="$1" label="$2"
+  grep -Eq "$pattern" "$CONTROL_SRC" || {
+    echo "ERROR: shared control pin missing/drifted: $label" >&2
+    exit 1
+  }
+}
+
 # The actual target configuration is part of the contract, not just the numeric
 # host fixture. This blocks a future SDK-board-example regression back to PC5.
 grep -Eq '^#define[[:space:]]+VOLTAGE_DETECT_ADC_PIN[[:space:]]+GPIO_PB3[[:space:]]*$' "$CFG" || {
@@ -113,24 +125,53 @@ require_source 'drv_gpio_up_down_resistor\(GPIO_PB4,[[:space:]]*PM_PIN_PULLDOWN_
 
 # Safety-sweep regressions: physical PUSH owns the local control plane, reserved
 # Level 0xFF is rejected before normalization, and runtime UART is nonblocking.
-require_source 'glsd301p_runtime_core_poll_push_ex\(' 'PUSH takeover-aware runtime API'
-require_source 'if[[:space:]]*\(push_took_control\)[[:space:]]*\{' 'PUSH takeover branch'
-require_source 'glsd_cancel_level_transition\(\);' 'PUSH cancels remote level transition'
+# IO/Level/UART policy lives in the shared control plane (identical code in
+# firmware and hosted harnesses); the target keeps ZCL wiring and the HW seam.
+require_control_source 'glsd301p_runtime_core_poll_push_ex\(' 'PUSH takeover-aware runtime API'
+require_control_source 'if[[:space:]]*\(took_control\)' 'PUSH takeover branch'
+require_control_source 'glsd301p_control_level_cancel\(' 'PUSH cancels remote level transition'
+require_control_source 'glsd301p_timer_level_stop\(' 'transition cancel stops owned Level event'
 require_source 'cmd->level[[:space:]]*==[[:space:]]*GLSD301P_ZCL_LEVEL_UNKNOWN' 'reserved Level 0xFF rejection'
 require_source 'uart_tx_is_busy\(\)' 'nonblocking UART busy probe'
 require_source 'uart_dma_send\(g_uart_tx_dma\)' 'nonblocking UART DMA start'
+require_control_source 'glsd301p_timebase_age_ms' 'elapsed-time deadline basis'
+require_source 'glsd301p_timer_io_start' 'owned static IO event registration'
 
-[[ "$(grep -c 'drv_uart_tx_start' "$TARGET_SRC")" -eq 1 ]] || {
-  echo 'ERROR: blocking UART wrapper must remain boot-OFF-only' >&2
+if grep -q 'drv_uart_tx_start' "$TARGET_SRC" "$CONTROL_SRC" "$SERVICE_SRC"; then
+  echo 'ERROR: blocking UART wrapper must be gone (boot uses static DMA)' >&2
+  exit 1
+fi
+if grep -Eq 'while[[:space:]]*\([^)]*(uart|UART)' "$TARGET_SRC" "$CONTROL_SRC" "$SERVICE_SRC"; then
+  echo 'ERROR: runtime UART polling loop reintroduced' >&2
+  exit 1
+fi
+if grep -q 'TL_ZB_TIMER_SCHEDULE\|TL_ZB_TIMER_CANCEL\|ev_timer_taskPost\|ev_timer_taskCancel' \
+    "$TARGET_SRC" "$CONTROL_SRC" "$TIMERS_SRC"; then
+  echo 'ERROR: pooled timer API reintroduced in application code' >&2
+  exit 1
+fi
+grep -q '#include "ev_timer.h"' "$TIMERS_SRC" || {
+  echo 'ERROR: owned timer events must bind the native SDK event type' >&2
   exit 1
 }
-if grep -Eq 'while[[:space:]]*\([^)]*(uart|UART)' "$TARGET_SRC"; then
-  echo 'ERROR: runtime UART polling loop reintroduced' >&2
+# Shared policy modules must stay SDK-independent (timer ownership binds only
+# the native event header, which carries no hardware dependency).
+if grep -Eq '#include "(tl_common|zb_api|zcl_|bdb|ota|drv_gpio|drv_uart)\.h"' \
+    "$ROOT/src/glsd301p_control.c" "$ROOT/src/glsd301p_uart_service.c" \
+    "$ROOT/src/glsd301p_timebase.c" "$ROOT/src/glsd301p_uart_transport.c" \
+    "$ROOT/src/glsd301p_runtime_core.c"; then
+  echo 'ERROR: SDK/hardware include leaked into shared policy modules' >&2
+  exit 1
+fi
+if grep -q 'GPIO_' "$CONTROL_SRC" "$SERVICE_SRC"; then
+  echo 'ERROR: GPIO roles must live in the target HW seam, not shared policy' >&2
   exit 1
 fi
 echo 'TARGET_PUSH_TAKEOVER_CANCELS_REMOTE_LEVEL=PASS'
 echo 'TARGET_RESERVED_LEVEL_FF_REJECTED=PASS'
 echo 'TARGET_UART_RUNTIME_NONBLOCKING=PASS'
+echo 'TARGET_OWNED_STATIC_EVENTS=PASS'
+echo 'TARGET_SHARED_POLICY_SDK_INDEPENDENT=PASS'
 
 if grep -q 'GPIO_PB3' "$TARGET_SRC"; then
   echo 'ERROR: PB3 is reserved for ADC flash-safety handling and must not be reused by application GPIO code' >&2

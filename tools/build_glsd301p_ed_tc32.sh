@@ -112,6 +112,10 @@ app_sources=(
   "$CORE/glsd301p_push_input.c"
   "$CORE/glsd301p_pb4_compat.c"
   "$CORE/glsd301p_runtime_core.c"
+  "$CORE/glsd301p_timebase.c"
+  "$CORE/glsd301p_uart_service.c"
+  "$CORE/glsd301p_timer_events.c"
+  "$CORE/glsd301p_control.c"
   "$TARGET/glsd301p_telink_inert_glue.c"
   "$TARGET/glsd301p_telink_link_sentinels.c"
   "$TARGET/glsd301p_telink_target.c"
@@ -140,15 +144,28 @@ grep -q '#define ZCL_ZLL_COMMISSIONING_SUPPORT[[:space:]]*0' "$TARGET/app_cfg.h"
 grep -q 'POWER_MODE_RECEIVER_SYNCHRONIZED_WHEN_ON_IDLE' "$TARGET/glsd301p_telink_target.c"
 grep -q 'POWER_SRC_MAINS_POWER' "$TARGET/glsd301p_telink_target.c"
 grep -q 'UART_TX_PB1, UART_RX_PA0' "$TARGET/glsd301p_telink_target.c"
-[[ "$(grep -c 'drv_uart_tx_start' "$TARGET/glsd301p_telink_target.c")" -eq 1 ]] || {
-  echo 'ERROR: target must retain exactly one blocking UART call for boot OFF only' >&2; exit 1;
+if grep -q 'drv_uart_tx_start' "$TARGET/glsd301p_telink_target.c" "$CORE/glsd301p_control.c" "$CORE/glsd301p_uart_service.c"; then
+  echo 'ERROR: blocking/allocating drv_uart_tx_start must not remain in target runtime (boot uses static DMA)' >&2; exit 1;
+fi
+[[ "$(grep -co 'uart_dma_send(g_uart_tx_dma)' "$TARGET/glsd301p_telink_target.c")" -eq 1 ]] || {
+  echo 'ERROR: target must contain exactly one nonblocking DMA start (HW wrapper)' >&2; exit 1;
 }
-[[ "$(grep -Ec '^[[:space:]]*if[[:space:]]*\(uart_dma_send\(g_uart_tx_dma\)\)' "$TARGET/glsd301p_telink_target.c")" -eq 1 ]] || {
-  echo 'ERROR: runtime UART must contain exactly one nonblocking DMA start' >&2; exit 1;
-}
-if grep -Eq 'while[[:space:]]*\([^)]*(uart|UART)' "$TARGET/glsd301p_telink_target.c"; then
+if grep -Eq 'while[[:space:]]*\([^)]*(uart|UART)' "$TARGET/glsd301p_telink_target.c" "$CORE/glsd301p_control.c" "$CORE/glsd301p_uart_service.c"; then
   echo 'ERROR: target UART runtime contains a polling loop' >&2; exit 1
 fi
+if grep -q 'TL_ZB_TIMER_SCHEDULE\|TL_ZB_TIMER_CANCEL\|ev_timer_taskPost\|ev_timer_taskCancel' \
+    "$TARGET/glsd301p_telink_target.c" "$CORE/glsd301p_control.c" "$CORE/glsd301p_timer_events.c"; then
+  echo 'ERROR: application must use owned static events, not pooled scheduling' >&2; exit 1;
+fi
+grep -q 'ev_on_timer' "$CORE/glsd301p_timer_events.c" || {
+  echo 'ERROR: owned timer events must use direct ev_on_timer' >&2; exit 1;
+}
+grep -q 'ev_unon_timer' "$CORE/glsd301p_timer_events.c" || {
+  echo 'ERROR: owned timer events must use direct ev_unon_timer' >&2; exit 1;
+}
+grep -q 'glsd301p_timebase_advance' "$CORE/glsd301p_timebase.c" || {
+  echo 'ERROR: SDK timebase hook implementation missing' >&2; exit 1;
+}
 if grep -E 'GLSD301P_CONTROL_FAMILY_OPERATION' \
     "$TARGET/glsd301p_telink_target.c" "$CORE/glsd301p_runtime_core.c" \
     "$CORE/glsd301p_output_guard.c" "$CORE/glsd301p_power_stage_policy.c"; then
@@ -191,6 +208,11 @@ rm -rf "$DIR"
 mkdir -p "$DIR/obj/sdk" "$DIR/obj/app" "$DIR/obj/abi"
 objects=()
 
+# Narrow deterministic SDK patches (hash-pinned, anchor-checked, provenance
+# recorded). Idempotent: re-runs verify the patched hashes.
+python3 "$ROOT/tools/apply_glsd301p_sdk_patches.py" --sdk-root "$SDK" \
+  --provenance-out "$DIR/sdk-patches.json"
+
 # Compile the real pinned SDK type through both translation-unit flag contexts.
 # zcl_register() consumes this application-owned array, so a successful link is
 # insufficient unless the layouts are byte-for-byte identical.
@@ -198,11 +220,23 @@ abi_probe_body='
 #include "tl_common.h"
 #include "zb_api.h"
 #include "zcl_include.h"
+#include "ev_timer.h"
 #define ABI_ASSERT(name, expr) typedef char name[(expr) ? 1 : -1]
 ABI_ASSERT(glsd_zcl_spec_size, sizeof(zcl_specClusterInfo_t) == 18u);
 ABI_ASSERT(glsd_zcl_spec_attr, __builtin_offsetof(zcl_specClusterInfo_t, attrTbl) == 6u);
 ABI_ASSERT(glsd_zcl_spec_reg, __builtin_offsetof(zcl_specClusterInfo_t, clusterRegisterFunc) == 10u);
 ABI_ASSERT(glsd_zcl_spec_cb, __builtin_offsetof(zcl_specClusterInfo_t, clusterAppCb) == 14u);
+ABI_ASSERT(glsd_ev_timer_size, sizeof(ev_timer_event_t) == 28u);
+ABI_ASSERT(glsd_ev_timer_next, __builtin_offsetof(ev_timer_event_t, next) == 0u);
+ABI_ASSERT(glsd_ev_timer_cb, __builtin_offsetof(ev_timer_event_t, cb) == 4u);
+ABI_ASSERT(glsd_ev_timer_data, __builtin_offsetof(ev_timer_event_t, data) == 8u);
+ABI_ASSERT(glsd_ev_timer_timeout, __builtin_offsetof(ev_timer_event_t, timeout) == 12u);
+ABI_ASSERT(glsd_ev_timer_period, __builtin_offsetof(ev_timer_event_t, period) == 16u);
+ABI_ASSERT(glsd_ev_timer_cursystick, __builtin_offsetof(ev_timer_event_t, curSysTick) == 20u);
+ABI_ASSERT(glsd_ev_timer_resv, __builtin_offsetof(ev_timer_event_t, resv) == 24u);
+ABI_ASSERT(glsd_ev_timer_isbusy, __builtin_offsetof(ev_timer_event_t, isBusy) == 25u);
+ABI_ASSERT(glsd_ev_timer_isrunning, __builtin_offsetof(ev_timer_event_t, isRunning) == 26u);
+ABI_ASSERT(glsd_ev_timer_used, __builtin_offsetof(ev_timer_event_t, used) == 27u);
 int glsd301p_abi_probe(void) { return (int)sizeof(zcl_specClusterInfo_t); }
 '
 printf '%s' "$abi_probe_body" > "$DIR/sdk_abi_probe.c"
@@ -210,6 +244,7 @@ printf '%s' "$abi_probe_body" > "$DIR/glsd301p_telink_abi_probe.c"
 compile_one "$DIR/sdk_abi_probe.c" "$DIR/obj/abi/sdk-context.o" 1
 compile_one "$DIR/glsd301p_telink_abi_probe.c" "$DIR/obj/abi/app-context.o" 0
 echo 'ZCL_SPEC_CLUSTER_INFO_ABI=size18,attrTbl@6,register@10,appCb@14'
+echo 'EV_TIMER_EVENT_ABI=size28,next@0,cb@4,data@8,timeout@12,period@16,curSysTick@20,resv@24,isBusy@25,isRunning@26,used@27'
 
 for rel in "${sdk_sources[@]}"; do
   src="$SDK/$rel"
@@ -228,12 +263,36 @@ for src in "${app_sources[@]}"; do
 done
 
 app_obj="$DIR/obj/app/glsd301p_telink_target.o"
+control_obj="$DIR/obj/app/glsd301p_control.o"
+service_obj="$DIR/obj/app/glsd301p_uart_service.o"
+timers_obj="$DIR/obj/app/glsd301p_timer_events.o"
 "$TC32_NM" "$app_obj" | grep -Eq ' T user_init$' || { echo 'ERROR: target user_init missing' >&2; exit 1; }
-"$TC32_NM" -u "$app_obj" | grep -Eq ' U drv_uart_tx_start$' || { echo 'ERROR: boot-OFF UART dependency missing' >&2; exit 1; }
+"$TC32_NM" "$app_obj" | grep -Eq ' T glsd301p_hw_uart_send_frame$' || { echo 'ERROR: static-DMA UART wrapper missing' >&2; exit 1; }
 "$TC32_NM" -u "$app_obj" | grep -Eq ' U uart_dma_send$' || { echo 'ERROR: nonblocking runtime UART dependency missing' >&2; exit 1; }
-"$TC32_NM" -u "$app_obj" | grep -Eq ' U glsd301p_runtime_core_(apply_state|poll_push_ex|poll_pb4)' || {
-  echo 'ERROR: target is not wired through guarded runtime core' >&2; exit 1;
+if "$TC32_NM" -u "$app_obj" | grep -Eq ' U drv_uart_tx_start$'; then
+  echo 'ERROR: blocking boot UART dependency must be gone' >&2; exit 1;
+fi
+"$TC32_NM" -u "$app_obj" | grep -Eq ' U glsd301p_control_emit$' || {
+  echo 'ERROR: target is not wired through shared control emit' >&2; exit 1;
 }
+"$TC32_NM" -u "$app_obj" | grep -Eq ' U glsd301p_timer_io_start$' || {
+  echo 'ERROR: target is not wired through owned timer events' >&2; exit 1;
+}
+"$TC32_NM" -u "$control_obj" | grep -Eq ' U glsd301p_runtime_core_(apply_state|poll_push_ex|poll_pb4)' || {
+  echo 'ERROR: control plane is not wired through guarded runtime core' >&2; exit 1;
+}
+"$TC32_NM" -u "$service_obj" | grep -Eq ' U glsd301p_hw_uart_send_frame$' || {
+  echo 'ERROR: UART service is not wired through nonblocking HW wrapper' >&2; exit 1;
+}
+"$TC32_NM" -u "$timers_obj" | grep -Eq ' U ev_on_timer$' || {
+  echo 'ERROR: owned events are not wired through direct ev_on_timer' >&2; exit 1;
+}
+for obj in "$DIR"/obj/app/*.o; do
+  if "$TC32_NM" -u "$obj" 2>/dev/null | grep -Eq ' U ev_timer_task(Post|Cancel)$'; then
+    echo "ERROR: pooled timer API referenced by application object: $obj" >&2; exit 1;
+  fi
+done
+echo 'APP_TIMER_API=OWNED_STATIC_DIRECT_ONLY'
 
 elf="$DIR/glsd301p-ed.elf"
 raw="$DIR/glsd301p-ed.bin"
@@ -306,6 +365,11 @@ for sym in \
   glsd301p_runtime_core_apply_state \
   glsd301p_runtime_core_poll_push_ex \
   glsd301p_runtime_core_poll_pb4 \
+  glsd301p_timebase_advance \
+  glsd301p_control_io_step \
+  glsd301p_control_emit \
+  glsd301p_timer_io_start \
+  glsd301p_hw_uart_send_frame \
   glsd301p_uart_transport_offer; do
   "$TC32_NM" "$elf" | grep -Eq " [Tt] ${sym}$" || {
     echo "ERROR: required reachable runtime symbol missing: $sym" >&2
@@ -343,7 +407,17 @@ grep -q 'libzb_ed' "$map" || { echo 'ERROR: End Device stack archive absent from
   echo ADC_FLASH_SAFETY_PIN=GPIO_PB3_VENDOR_FIRMWARE_CONFIRMED
   echo UART=9600_8N1_PB1_TX_PA0_RX
   echo ZCL_SPEC_CLUSTER_INFO_ABI=size18_attrTbl6_register10_appCb14
-  echo UART_RUNTIME_TRANSPORT=NONBLOCKING_OFF_PRIORITY_LATEST_NORMAL
+  echo EV_TIMER_EVENT_ABI=size28_native_static_owned
+  echo APP_TIMER_API=OWNED_STATIC_DIRECT_ONLY
+  echo UART_RUNTIME_TRANSPORT=NONBLOCKING_OFF_PRIORITY_ELAPSED_DEADLINE
+  echo UART_BOOT=STATIC_DMA_SINGLE_ATTEMPT_DEFERRED_ARM
+  python3 - "$DIR/sdk-patches.json" <<'PY'
+import json, sys
+report = json.load(open(sys.argv[1]))
+for p in report["patches"]:
+    print("SDK_PATCH_%s_ORIG=%s" % (p["id"], p["original_sha256"]))
+    print("SDK_PATCH_%s_PATCHED=%s" % (p["id"], p["patched_sha256"]))
+PY
   echo "RAW_BINARY_SIZE=$raw_bytes"
   echo "FINAL_BINARY_SIZE=$final_bytes"
   printf 'TEXT_VMA=0x%08x\n' "$text_vma"

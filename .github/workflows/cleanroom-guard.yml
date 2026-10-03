@@ -16,12 +16,55 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
+      - name: Checkout pinned public Telink SDK (host harness)
+        uses: actions/checkout@v4
+        with:
+          repository: telink-semi/telink_zigbee_sdk
+          ref: V3.7.2.0
+          path: telink-sdk
+      - name: Verify exact SDK commit (host harness)
+        shell: bash
+        run: |
+          set -euo pipefail
+          actual="$(git -C telink-sdk rev-parse HEAD)"
+          expected='d5bc2f7b0c1f8536fe21c8127ca680ea8214bc8e'
+          test "$actual" = "$expected"
+          echo "TELINK_SDK_COMMIT=$actual"
+      - name: Apply pinned SDK patches + stage harness shadow tree
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p build
+          python3 tools/apply_glsd301p_sdk_patches.py \
+            --sdk-root telink-sdk/tl_zigbee_sdk \
+            --provenance-out build/sdk-patches-harness.json
+          mkdir -p build/host-sdk/proj/os build/host-sdk/proj/common
+          sdk='telink-sdk/tl_zigbee_sdk'
+          cp "$sdk/proj/os/ev_timer.c" build/host-sdk/proj/os/
+          cp "$sdk/proj/os/ev_timer.h" build/host-sdk/proj/os/
+          cp "$sdk/proj/os/ev_rtc.c" build/host-sdk/proj/os/
+          cp "$sdk/proj/os/ev_rtc.h" build/host-sdk/proj/os/
+          cp "$sdk/proj/os/ev.h" build/host-sdk/proj/os/
+          cp "$sdk/proj/common/utlist.h" build/host-sdk/proj/common/
+          cp tests/host/tl_common.h build/host-sdk/proj/tl_common.h
+          python3 - build/sdk-patches-harness.json <<'PY'
+          import hashlib, json, sys
+          report = json.load(open(sys.argv[1]))
+          staged = hashlib.sha256(
+              open('build/host-sdk/proj/os/ev_timer.c', 'rb').read()
+          ).hexdigest()
+          pinned = [p for p in report['patches']
+                    if p['id'] == 'P1-timebase-hook'][0]['patched_sha256']
+          assert staged == pinned, (staged, pinned)
+          print('HARNESS_SDK_SHADOW=PASS exact-patched-ev_timer')
+          PY
       - name: Validate third-party/reference/implementation boundary
         run: python3 tools/check_cleanroom.py
       - name: Check target build harness syntax
         run: |
           bash -n tools/build_glsd301p_ed_tc32.sh
           bash -n tools/probe_telink_role_symbol_ownership.sh
+          python3 -m py_compile tools/apply_glsd301p_sdk_patches.py
           python3 -m py_compile devices/gl-sd-301p/vendor-firmware/reference-analysis/analyze_adc_flash_guard.py
           python3 -m py_compile devices/gl-sd-301p/vendor-firmware/reference-analysis/analyze_adc_flash_guard_callsite.py
           python3 -m py_compile devices/gl-sd-301p/vendor-firmware/reference-analysis/analyze_adc_flash_guard_semantics.py
@@ -40,6 +83,46 @@ jobs:
           cc -std=c11 -Wall -Wextra -Werror -pedantic -Isrc src/glsd301p_uart_frame.c src/glsd301p_power_stage_policy.c src/glsd301p_output_guard.c tests/test_glsd301p_output_guard.c -o build/host-tests/test_glsd301p_output_guard
           cc -std=c11 -Wall -Wextra -Werror -pedantic -Isrc src/glsd301p_uart_frame.c src/glsd301p_power_stage_policy.c src/glsd301p_output_guard.c src/glsd301p_push_input.c src/glsd301p_pb4_compat.c src/glsd301p_runtime_core.c tests/test_glsd301p_runtime_core.c -o build/host-tests/test_glsd301p_runtime_core
           cc -std=c11 -Wall -Wextra -Werror -pedantic -Isrc src/glsd301p_uart_frame.c src/glsd301p_uart_transport.c src/glsd301p_power_stage_policy.c src/glsd301p_output_guard.c src/glsd301p_push_input.c src/glsd301p_pb4_compat.c src/glsd301p_runtime_core.c tests/test_glsd301p_runtime_transport.c -o build/host-tests/test_glsd301p_runtime_transport
+      - name: Build M3 hardening harnesses (real SDK timer bodies + ASan/UBSan)
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p build/host-tests/obj
+          strict="-std=c11 -Wall -Wextra -Werror -pedantic -fsanitize=address,undefined -fno-omit-frame-pointer"
+          # Pinned third-party SDK bodies compile without -Werror; behavior is
+          # pinned by hash and covered by the harness assertions instead.
+          sdkflags="-std=gnu11 -fsanitize=address,undefined -fno-omit-frame-pointer"
+          inc="-Isrc -Itests/host"
+          sdksrc='build/host-sdk/proj/os'
+          # shellcheck disable=SC2086
+          cc $sdkflags -Ibuild/host-sdk/proj -Ibuild/host-sdk/proj/os -Itests/host -Isrc \
+            -c "$sdksrc/ev_timer.c" -o build/host-tests/obj/ev_timer.o
+          # shellcheck disable=SC2086
+          cc $sdkflags -Ibuild/host-sdk/proj -Ibuild/host-sdk/proj/os -Itests/host \
+            -c "$sdksrc/ev_rtc.c" -o build/host-tests/obj/ev_rtc.o
+          # shellcheck disable=SC2086
+          cc $sdkflags -Ibuild/host-sdk/proj -Ibuild/host-sdk/proj/os -Itests/host -Isrc \
+            -c src/glsd301p_timer_events.c -o build/host-tests/obj/timer_events.o
+          sdkobj='build/host-tests/obj/ev_timer.o build/host-tests/obj/ev_rtc.o'
+          # shellcheck disable=SC2086
+          cc $strict $inc src/glsd301p_timebase.c tests/test_glsd301p_timebase.c \
+            -o build/host-tests/test_glsd301p_timebase
+          # shellcheck disable=SC2086
+          cc $strict $inc src/glsd301p_uart_frame.c src/glsd301p_uart_transport.c \
+            src/glsd301p_timebase.c src/glsd301p_uart_service.c tests/host/hw_stub.c \
+            tests/test_glsd301p_uart_service.c -o build/host-tests/test_glsd301p_uart_service
+          # shellcheck disable=SC2086
+          cc $strict -Ibuild/host-sdk/proj/os $inc $sdkobj \
+            build/host-tests/obj/timer_events.o src/glsd301p_timebase.c tests/host/hw_stub.c \
+            tests/test_glsd301p_timer_events.c -o build/host-tests/test_glsd301p_timer_events
+          # shellcheck disable=SC2086
+          cc $strict -Ibuild/host-sdk/proj/os $inc $sdkobj \
+            build/host-tests/obj/timer_events.o src/glsd301p_uart_frame.c \
+            src/glsd301p_power_stage_policy.c src/glsd301p_output_guard.c \
+            src/glsd301p_push_input.c src/glsd301p_pb4_compat.c src/glsd301p_runtime_core.c \
+            src/glsd301p_uart_transport.c src/glsd301p_timebase.c src/glsd301p_uart_service.c \
+            src/glsd301p_control.c tests/host/hw_stub.c tests/test_glsd301p_control.c \
+            -o build/host-tests/test_glsd301p_control
       - name: Run host-side interoperability tests
         shell: bash
         run: |
@@ -51,6 +134,10 @@ jobs:
           build/host-tests/test_glsd301p_output_guard
           build/host-tests/test_glsd301p_runtime_core
           build/host-tests/test_glsd301p_runtime_transport
+          build/host-tests/test_glsd301p_timebase
+          build/host-tests/test_glsd301p_uart_service
+          build/host-tests/test_glsd301p_timer_events
+          build/host-tests/test_glsd301p_control
       - name: Adversarially verify End Device architecture firewall
         shell: bash
         run: bash tests/test_glsd301p_target_contract.sh

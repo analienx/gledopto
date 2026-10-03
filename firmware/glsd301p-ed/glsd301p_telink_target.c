@@ -6,26 +6,35 @@
 #include "drv_uart.h"
 #include "drv_gpio.h"
 
+#include "glsd301p_control.h"
+#include "glsd301p_hw_io.h"
 #include "glsd301p_runtime_core.h"
+#include "glsd301p_timebase.h"
+#include "glsd301p_timer_events.h"
+#include "glsd301p_uart_service.h"
 #include "glsd301p_uart_transport.h"
 
 #define GLSD301P_MANUFACTURER_CODE            0x124Fu
 #define GLSD301P_IMAGE_TYPE                   0x1416u
 #define GLSD301P_MIN_LEVEL                    0x02u
 #define GLSD301P_MAX_LEVEL                    0xFEu
-#define GLSD301P_IO_POLL_MS                   1u
-#define GLSD301P_LEVEL_TICK_MS                100u
 #define GLSD301P_UART_RX_BUFFER_SIZE          16u
 #define GLSD301P_UART_TX_DMA_SIZE              (4u + GLSD301P_CONTROL_FRAME_SIZE)
-#define GLSD301P_UART_PENDING_TIMEOUT_MS       32u
+
+/*
+ * Thin target glue. All IO/Level/UART policy lives in the shared control
+ * plane (identical code in firmware and hosted harnesses); this unit owns
+ * the ZCL data model, the SDK/hardware seam implementations, boot wiring
+ * and the Zigbee stack callbacks.
+ */
 
 static glsd301p_runtime_core_t g_runtime;
-static ev_timer_event_t *g_level_timer;
+static glsd301p_uart_transport_t g_uart_transport;
+static glsd301p_uart_service_t g_uart_service;
+static glsd301p_level_state_t g_level_state;
+static glsd301p_control_ctx_t g_control;
 static u8 g_uart_rx_buf[GLSD301P_UART_RX_BUFFER_SIZE] __attribute__((aligned(4)));
 static u8 g_uart_tx_dma[GLSD301P_UART_TX_DMA_SIZE] __attribute__((aligned(4)));
-static glsd301p_uart_transport_t g_uart_transport;
-static u16 g_uart_pending_ms;
-static u8 g_uart_transport_fault_latched;
 static u8 g_uart_online;
 static u8 g_zcl_online;
 
@@ -50,29 +59,10 @@ static u16 g_on_time;
 static u16 g_off_wait_time;
 static u8 g_startup_onoff = ZCL_START_UP_ONOFF_SET_ONOFF_TO_OFF;
 
-static u8 g_current_level = GLSD301P_MAX_LEVEL;
-static u16 g_remaining_time;
 static u8 g_min_level = GLSD301P_MIN_LEVEL;
 static u8 g_max_level = GLSD301P_MAX_LEVEL;
 static u8 g_level_options;
 static u8 g_startup_current_level = ZCL_START_UP_CURRENT_LEVEL_TO_PREVIOUS;
-
-typedef enum {
-    GLSD_LEVEL_IDLE = 0,
-    GLSD_LEVEL_TARGET,
-    GLSD_LEVEL_MOVE,
-} glsd_level_mode_t;
-
-typedef struct {
-    glsd_level_mode_t mode;
-    u8 target;
-    u8 rate;
-    u16 rate_accum_tenths;
-    u8 direction_up;
-    u8 with_onoff;
-} glsd_level_transition_t;
-
-static glsd_level_transition_t g_level_transition;
 
 static const zclAttrInfo_t g_basic_attr_table[] = {
     {ZCL_ATTRID_BASIC_ZCL_VER, ZCL_DATA_TYPE_UINT8, ACCESS_CONTROL_READ, (u8 *)&g_basic_zcl_version},
@@ -108,8 +98,8 @@ static const zclAttrInfo_t g_onoff_attr_table[] = {
 };
 
 static const zclAttrInfo_t g_level_attr_table[] = {
-    {ZCL_ATTRID_LEVEL_CURRENT_LEVEL, ZCL_DATA_TYPE_UINT8, ACCESS_CONTROL_READ | ACCESS_CONTROL_REPORTABLE, (u8 *)&g_current_level},
-    {ZCL_ATTRID_LEVEL_REMAINING_TIME, ZCL_DATA_TYPE_UINT16, ACCESS_CONTROL_READ, (u8 *)&g_remaining_time},
+    {ZCL_ATTRID_LEVEL_CURRENT_LEVEL, ZCL_DATA_TYPE_UINT8, ACCESS_CONTROL_READ | ACCESS_CONTROL_REPORTABLE, (u8 *)&g_level_state.current_level},
+    {ZCL_ATTRID_LEVEL_REMAINING_TIME, ZCL_DATA_TYPE_UINT16, ACCESS_CONTROL_READ, (u8 *)&g_level_state.remaining_time},
     {ZCL_ATTRID_LEVEL_MIN_LEVEL, ZCL_DATA_TYPE_UINT8, ACCESS_CONTROL_READ, (u8 *)&g_min_level},
     {ZCL_ATTRID_LEVEL_MAX_LEVEL, ZCL_DATA_TYPE_UINT8, ACCESS_CONTROL_READ, (u8 *)&g_max_level},
     {ZCL_ATTRID_LEVEL_OPTIONS, ZCL_DATA_TYPE_BITMAP8, ACCESS_CONTROL_READ | ACCESS_CONTROL_WRITE, (u8 *)&g_level_options},
@@ -169,64 +159,15 @@ static ota_preamble_t g_ota_info = {
     .manufacturerCode = GLSD301P_MANUFACTURER_CODE,
 };
 
-static void glsd_sync_zcl_from_runtime(void)
+bool glsd301p_hw_uart_busy(void)
 {
-    g_onoff = g_runtime.logical_output_enabled ? ZCL_ONOFF_STATUS_ON : ZCL_ONOFF_STATUS_OFF;
-    g_current_level = g_runtime.current_level;
+    return uart_tx_is_busy() != 0;
 }
 
-static u8 glsd_uart_send_boot_off_blocking(
-    const u8 frame[GLSD301P_CONTROL_FRAME_SIZE])
+bool glsd301p_hw_uart_send_frame(const uint8_t frame[GLSD301P_CONTROL_FRAME_SIZE])
 {
-    if (!g_uart_online) {
-        return 0u;
-    }
-    return drv_uart_tx_start((u8 *)frame, GLSD301P_CONTROL_FRAME_SIZE);
-}
-
-static u8 glsd_uart_queue(const u8 frame[GLSD301P_CONTROL_FRAME_SIZE])
-{
-    if (!g_uart_online) {
-        return 0u;
-    }
-    return glsd301p_uart_transport_offer(&g_uart_transport, frame) ? 1u : 0u;
-}
-
-static void glsd_uart_service_pending(void)
-{
-    u8 frame[GLSD301P_CONTROL_FRAME_SIZE];
-    bool is_off;
-
-    if (!g_uart_online) {
-        return;
-    }
-    if (!glsd301p_uart_transport_has_pending(&g_uart_transport)) {
-        g_uart_pending_ms = 0u;
-        return;
-    }
-
-    if (g_uart_pending_ms < 0xFFFFu) {
-        g_uart_pending_ms++;
-    }
-
-    /* A wedged/busy transport must not steal the 1 ms input cadence. Latch the
-     * runtime fail-OFF state once, retain priority OFF, and keep retrying only
-     * through O(1) nonblocking service attempts. */
-    if (g_uart_pending_ms >= GLSD301P_UART_PENDING_TIMEOUT_MS &&
-        !g_uart_transport_fault_latched) {
-        u8 off[GLSD301P_CONTROL_FRAME_SIZE];
-        (void)glsd301p_runtime_core_latch_fault(&g_runtime, off);
-        (void)glsd301p_uart_transport_offer(&g_uart_transport, off);
-        g_uart_transport_fault_latched = 1u;
-        glsd_sync_zcl_from_runtime();
-    }
-
-    /* The static DMA buffer must never be rewritten while hardware owns it. */
-    if (uart_tx_is_busy()) {
-        return;
-    }
-    if (!glsd301p_uart_transport_peek(&g_uart_transport, frame, &is_off)) {
-        return;
+    if (frame == NULL) {
+        return false;
     }
 
     g_uart_tx_dma[0] = GLSD301P_CONTROL_FRAME_SIZE;
@@ -237,216 +178,17 @@ static void glsd_uart_service_pending(void)
 
     /* Pinned TLSR8258 uart_dma_send() is explicitly nonblocking: 0 means DMA
      * busy, 1 means the transfer was accepted. No polling loop is permitted. */
-    if (uart_dma_send(g_uart_tx_dma)) {
-        glsd301p_uart_transport_commit_sent(&g_uart_transport, is_off);
-        g_uart_pending_ms = 0u;
-    }
+    return uart_dma_send(g_uart_tx_dma) != 0;
 }
 
-static u8 glsd_emit_runtime_result(glsd301p_runtime_result_t result,
-                                   u8 frame[GLSD301P_CONTROL_FRAME_SIZE])
+bool glsd301p_hw_gpio_pc2_high(void)
 {
-    if (result == GLSD301P_RUNTIME_NO_FRAME) {
-        return 1u;
-    }
-    if (result == GLSD301P_RUNTIME_INVALID_ARGUMENT) {
-        return 0u;
-    }
-
-    if (!glsd_uart_queue(frame)) {
-        u8 off[GLSD301P_CONTROL_FRAME_SIZE];
-        (void)glsd301p_runtime_core_latch_fault(&g_runtime, off);
-        glsd_sync_zcl_from_runtime();
-        return 0u;
-    }
-
-    if (result == GLSD301P_RUNTIME_FORCED_OFF) {
-        u8 off[GLSD301P_CONTROL_FRAME_SIZE];
-        (void)glsd301p_runtime_core_latch_fault(&g_runtime, off);
-        (void)glsd301p_uart_transport_offer(&g_uart_transport, off);
-        glsd_sync_zcl_from_runtime();
-        return 0u;
-    }
-
-    glsd_sync_zcl_from_runtime();
-    return 1u;
+    return drv_gpio_read(GPIO_PC2) != 0;
 }
 
-static void glsd_cancel_level_transition(void)
+bool glsd301p_hw_gpio_pb4_high(void)
 {
-    g_level_transition.mode = GLSD_LEVEL_IDLE;
-    g_remaining_time = 0u;
-    if (g_level_timer) {
-        TL_ZB_TIMER_CANCEL(&g_level_timer);
-    }
-}
-
-static u8 glsd_clamp_level(u16 level)
-{
-    if (level < g_min_level) {
-        return g_min_level;
-    }
-    if (level > g_max_level) {
-        return g_max_level;
-    }
-    return (u8)level;
-}
-
-static u8 glsd_apply_level_state(u8 level, u8 with_onoff, u8 direction_up)
-{
-    u8 frame[GLSD301P_CONTROL_FRAME_SIZE];
-    bool output = g_runtime.logical_output_enabled;
-
-    /* 0xFF is Zigbee's reserved/unknown Level value. Never normalize it into
-     * an energizing value; an impossible internal state fails closed. */
-    if (level == GLSD301P_ZCL_LEVEL_UNKNOWN) {
-        (void)glsd301p_runtime_core_latch_fault(&g_runtime, frame);
-        (void)glsd_uart_queue(frame);
-        glsd_sync_zcl_from_runtime();
-        return 0u;
-    }
-
-    level = glsd_clamp_level(level);
-    if (with_onoff) {
-        if (direction_up || level > g_min_level) {
-            output = true;
-        } else if (level <= g_min_level) {
-            output = false;
-        }
-    }
-
-    return glsd_emit_runtime_result(
-        glsd301p_runtime_core_apply_state(&g_runtime, output, level,
-                                          g_min_level, false, frame), frame);
-}
-
-static s32 glsd_level_timer_cb(void *arg)
-{
-    u8 next = g_current_level;
-    (void)arg;
-
-    if (g_level_transition.mode == GLSD_LEVEL_IDLE ||
-        !glsd301p_runtime_core_is_ready(&g_runtime)) {
-        g_level_timer = NULL;
-        g_remaining_time = 0u;
-        return -1;
-    }
-
-    if (g_level_transition.mode == GLSD_LEVEL_TARGET) {
-        if (g_current_level == g_level_transition.target) {
-            g_level_timer = NULL;
-            g_remaining_time = 0u;
-            g_level_transition.mode = GLSD_LEVEL_IDLE;
-            return -1;
-        }
-
-        if (g_remaining_time <= 1u) {
-            next = g_level_transition.target;
-            g_remaining_time = 0u;
-        } else {
-            u16 diff = (g_current_level < g_level_transition.target)
-                           ? (u16)(g_level_transition.target - g_current_level)
-                           : (u16)(g_current_level - g_level_transition.target);
-            u16 step = (u16)((diff + g_remaining_time - 1u) / g_remaining_time);
-            if (step == 0u) {
-                step = 1u;
-            }
-            next = (g_current_level < g_level_transition.target)
-                       ? glsd_clamp_level((u16)g_current_level + step)
-                       : glsd_clamp_level((u16)g_current_level - step);
-            g_remaining_time--;
-        }
-
-        if (!glsd_apply_level_state(next, g_level_transition.with_onoff,
-                                    next >= g_current_level)) {
-            g_level_timer = NULL;
-            g_level_transition.mode = GLSD_LEVEL_IDLE;
-            return -1;
-        }
-
-        if (next == g_level_transition.target) {
-            g_level_timer = NULL;
-            g_remaining_time = 0u;
-            g_level_transition.mode = GLSD_LEVEL_IDLE;
-            return -1;
-        }
-        return 0;
-    }
-
-    g_level_transition.rate_accum_tenths += g_level_transition.rate;
-    {
-        u8 delta = (u8)(g_level_transition.rate_accum_tenths / 10u);
-        g_level_transition.rate_accum_tenths %= 10u;
-        if (delta == 0u) {
-            return 0;
-        }
-
-        if (g_level_transition.direction_up) {
-            next = glsd_clamp_level((u16)g_current_level + delta);
-        } else {
-            next = (g_current_level > delta)
-                       ? glsd_clamp_level((u16)g_current_level - delta)
-                       : g_min_level;
-        }
-    }
-
-    if (!glsd_apply_level_state(next, g_level_transition.with_onoff,
-                                g_level_transition.direction_up)) {
-        g_level_timer = NULL;
-        g_level_transition.mode = GLSD_LEVEL_IDLE;
-        return -1;
-    }
-
-    if ((g_level_transition.direction_up && next >= g_max_level) ||
-        (!g_level_transition.direction_up && next <= g_min_level)) {
-        g_level_timer = NULL;
-        g_level_transition.mode = GLSD_LEVEL_IDLE;
-        g_remaining_time = 0u;
-        return -1;
-    }
-
-    return 0;
-}
-
-static void glsd_start_target_transition(u8 target, u16 transition_time, u8 with_onoff)
-{
-    glsd_cancel_level_transition();
-    target = glsd_clamp_level(target);
-
-    if (transition_time == 0u || transition_time == 0xFFFFu ||
-        target == g_current_level) {
-        (void)glsd_apply_level_state(target, with_onoff, target >= g_current_level);
-        return;
-    }
-
-    g_level_transition.mode = GLSD_LEVEL_TARGET;
-    g_level_transition.target = target;
-    g_level_transition.with_onoff = with_onoff;
-    g_remaining_time = transition_time;
-    g_level_timer = TL_ZB_TIMER_SCHEDULE(glsd_level_timer_cb, NULL,
-                                          GLSD301P_LEVEL_TICK_MS);
-}
-
-static void glsd_start_move(u8 direction_up, u8 rate, u8 with_onoff)
-{
-    glsd_cancel_level_transition();
-    if (rate == 0u) {
-        return;
-    }
-
-    g_level_transition.mode = GLSD_LEVEL_MOVE;
-    g_level_transition.direction_up = direction_up;
-    g_level_transition.rate = rate;
-    g_level_transition.rate_accum_tenths = 0u;
-    g_level_transition.with_onoff = with_onoff;
-    g_remaining_time = 0xFFFFu;
-
-    if (with_onoff && direction_up && !g_runtime.logical_output_enabled) {
-        (void)glsd_apply_level_state(g_current_level, 1u, 1u);
-    }
-
-    g_level_timer = TL_ZB_TIMER_SCHEDULE(glsd_level_timer_cb, NULL,
-                                          GLSD301P_LEVEL_TICK_MS);
+    return drv_gpio_read(GPIO_PB4) != 0;
 }
 
 static status_t glsd_onoff_cb(zclIncomingAddrInfo_t *addr, u8 cmd_id, void *payload)
@@ -458,8 +200,6 @@ static status_t glsd_onoff_cb(zclIncomingAddrInfo_t *addr, u8 cmd_id, void *payl
     if (addr == NULL || addr->dstEp != GLSD301P_ENDPOINT) {
         return ZCL_STA_INVALID_FIELD;
     }
-
-    glsd_cancel_level_transition();
 
     switch (cmd_id) {
     case ZCL_CMD_ONOFF_OFF:
@@ -477,10 +217,22 @@ static status_t glsd_onoff_cb(zclIncomingAddrInfo_t *addr, u8 cmd_id, void *payl
         return ZCL_STA_UNSUP_CLUSTER_COMMAND;
     }
 
-    if (!glsd_emit_runtime_result(
+    /*
+     * Refusal leaves any running transition untouched. OFF already holds by
+     * construction while not ready, so it still reports success.
+     */
+    if (!glsd301p_runtime_core_is_ready(&g_runtime)) {
+        return requested ? ZCL_STA_FAILURE : ZCL_STA_SUCCESS;
+    }
+
+    glsd301p_control_level_cancel(&g_control);
+
+    if (!glsd301p_control_emit(
+            &g_control,
             glsd301p_runtime_core_apply_state(&g_runtime, requested,
-                                              g_current_level, g_min_level,
-                                              false, frame), frame)) {
+                                              g_level_state.current_level,
+                                              g_min_level, false, frame),
+            frame, glsd301p_timebase_now_ms())) {
         return ZCL_STA_FAILURE;
     }
 
@@ -504,14 +256,17 @@ static status_t glsd_level_cb(zclIncomingAddrInfo_t *addr, u8 cmd_id, void *payl
         if (cmd == NULL || cmd->level == GLSD301P_ZCL_LEVEL_UNKNOWN) {
             return ZCL_STA_INVALID_FIELD;
         }
-        glsd_start_target_transition(cmd->level, cmd->transitionTime,
-                                     cmd_id == ZCL_CMD_LEVEL_MOVE_TO_LEVEL_WITH_ON_OFF);
+        if (!glsd301p_control_level_start_target(
+                &g_control, cmd->level, cmd->transitionTime,
+                (uint8_t)(cmd_id == ZCL_CMD_LEVEL_MOVE_TO_LEVEL_WITH_ON_OFF ? 1u : 0u))) {
+            return ZCL_STA_FAILURE;
+        }
         return ZCL_STA_SUCCESS;
     }
     case ZCL_CMD_LEVEL_STEP:
     case ZCL_CMD_LEVEL_STEP_WITH_ON_OFF: {
         step_t *cmd = (step_t *)payload;
-        u16 target = g_current_level;
+        u16 target = g_level_state.current_level;
         if (cmd == NULL) {
             return ZCL_STA_INVALID_FIELD;
         }
@@ -520,8 +275,13 @@ static status_t glsd_level_cb(zclIncomingAddrInfo_t *addr, u8 cmd_id, void *payl
         } else {
             target = (target > cmd->stepSize) ? (u16)(target - cmd->stepSize) : g_min_level;
         }
-        glsd_start_target_transition(glsd_clamp_level(target), cmd->transitionTime,
-                                     cmd_id == ZCL_CMD_LEVEL_STEP_WITH_ON_OFF);
+        if (!glsd301p_control_level_start_target(
+                &g_control,
+                glsd301p_control_clamp_level(&g_control, target),
+                cmd->transitionTime,
+                (uint8_t)(cmd_id == ZCL_CMD_LEVEL_STEP_WITH_ON_OFF ? 1u : 0u))) {
+            return ZCL_STA_FAILURE;
+        }
         return ZCL_STA_SUCCESS;
     }
     case ZCL_CMD_LEVEL_MOVE:
@@ -530,13 +290,17 @@ static status_t glsd_level_cb(zclIncomingAddrInfo_t *addr, u8 cmd_id, void *payl
         if (cmd == NULL) {
             return ZCL_STA_INVALID_FIELD;
         }
-        glsd_start_move(cmd->moveMode == LEVEL_MOVE_UP, cmd->rate,
-                        cmd_id == ZCL_CMD_LEVEL_MOVE_WITH_ON_OFF);
+        if (!glsd301p_control_level_start_move(
+                &g_control,
+                (uint8_t)(cmd->moveMode == LEVEL_MOVE_UP ? 1u : 0u), cmd->rate,
+                (uint8_t)(cmd_id == ZCL_CMD_LEVEL_MOVE_WITH_ON_OFF ? 1u : 0u))) {
+            return ZCL_STA_FAILURE;
+        }
         return ZCL_STA_SUCCESS;
     }
     case ZCL_CMD_LEVEL_STOP:
     case ZCL_CMD_LEVEL_STOP_WITH_ON_OFF:
-        glsd_cancel_level_transition();
+        glsd301p_control_level_cancel(&g_control);
         return ZCL_STA_SUCCESS;
     default:
         return ZCL_STA_UNSUP_CLUSTER_COMMAND;
@@ -549,35 +313,6 @@ static status_t glsd_identify_cb(zclIncomingAddrInfo_t *addr, u8 cmd_id, void *p
     (void)cmd_id;
     (void)payload;
     return ZCL_STA_SUCCESS;
-}
-
-static s32 glsd_io_timer_cb(void *arg)
-{
-    u8 frame[GLSD301P_CONTROL_FRAME_SIZE];
-    glsd301p_runtime_result_t result;
-    bool push_took_control = false;
-    (void)arg;
-
-    /* Sample both physical inputs before touching the UART transport. */
-    result = glsd301p_runtime_core_poll_push_ex(&g_runtime,
-                                                drv_gpio_read(GPIO_PC2),
-                                                &push_took_control, frame);
-    if (push_took_control) {
-        /* Physical PUSH supersedes every remote target or continuous move. */
-        glsd_cancel_level_transition();
-    }
-    if (result != GLSD301P_RUNTIME_NO_FRAME) {
-        (void)glsd_emit_runtime_result(result, frame);
-    }
-
-    result = glsd301p_runtime_core_poll_pb4(&g_runtime,
-                                            drv_gpio_read(GPIO_PB4), frame);
-    if (result != GLSD301P_RUNTIME_NO_FRAME) {
-        (void)glsd_emit_runtime_result(result, frame);
-    }
-
-    glsd_uart_service_pending();
-    return 0;
 }
 
 static void glsd_ota_event(u8 evt, u8 status)
@@ -652,12 +387,15 @@ static void glsd_configure_power_descriptor(void)
 
 static u8 glsd_init_power_stage_io(void)
 {
-    u8 frame[GLSD301P_CONTROL_FRAME_SIZE];
-
     glsd301p_runtime_core_init(&g_runtime);
     glsd301p_uart_transport_init(&g_uart_transport);
-    g_uart_pending_ms = 0u;
-    g_uart_transport_fault_latched = 0u;
+    glsd301p_uart_service_init(&g_uart_service);
+    glsd301p_timer_events_init();
+    glsd301p_timebase_init();
+    glsd301p_control_init(&g_control, &g_runtime, &g_uart_transport,
+                          &g_uart_service, &g_level_state, &g_onoff,
+                          GLSD301P_MIN_LEVEL, GLSD301P_MAX_LEVEL,
+                          GLSD301P_MAX_LEVEL, GLSD301P_MIN_LEVEL);
 
     drv_uart_pin_set(UART_TX_PB1, UART_RX_PA0);
     g_uart_online = (drv_uart_init(GLSD301P_TARGET_UART_BAUD,
@@ -674,32 +412,21 @@ static u8 glsd_init_power_stage_io(void)
     drv_gpio_up_down_resistor(GPIO_PB4, PM_PIN_PULLDOWN_100K);
 
     if (!g_uart_online) {
-        (void)glsd301p_runtime_core_latch_fault(&g_runtime, frame);
+        glsd301p_control_boot_failed(&g_control, glsd301p_timebase_now_ms());
         return 0u;
     }
 
-    /* user_init runs before global IRQ enable. Emit exactly ONE UART frame here:
-     * the confirmed electrical OFF vector. Do not perform a second TX until
-     * user_init has returned and IRQs can retire the DMA transfer. */
-    if (glsd301p_runtime_core_boot_off(&g_runtime, frame) !=
-            GLSD301P_RUNTIME_FRAME_READY ||
-        !glsd_uart_send_boot_off_blocking(frame)) {
-        (void)glsd301p_runtime_core_latch_fault(&g_runtime, frame);
+    /*
+     * user_init runs before global IRQ enable. Emit exactly ONE UART frame
+     * here through a single bounded DMA attempt on the aligned static
+     * buffer: the confirmed electrical OFF vector. Output arms only after
+     * the IO service observes this transfer complete.
+     */
+    if (!glsd301p_control_boot_off(&g_control, glsd301p_timebase_now_ms())) {
+        glsd301p_control_boot_failed(&g_control, glsd301p_timebase_now_ms());
         return 0u;
     }
 
-    /* Arm known logical OFF without another pre-IRQ UART transmission. The
-     * already-sent boot OFF frame is the physical state represented here. */
-    if (glsd301p_runtime_core_restore_state(&g_runtime, false,
-                                            GLSD301P_MAX_LEVEL,
-                                            GLSD301P_MIN_LEVEL,
-                                            false, frame) !=
-        GLSD301P_RUNTIME_FRAME_READY) {
-        (void)glsd301p_runtime_core_latch_fault(&g_runtime, frame);
-        return 0u;
-    }
-
-    glsd_sync_zcl_from_runtime();
     return 1u;
 }
 
@@ -727,7 +454,14 @@ void user_init(bool isRetention)
     ota_init(OTA_TYPE_CLIENT, (af_simple_descriptor_t *)&g_simple_desc,
              &g_ota_info, &g_ota_cb);
 
-    (void)TL_ZB_TIMER_SCHEDULE(glsd_io_timer_cb, NULL, GLSD301P_IO_POLL_MS);
+    /*
+     * Essential lifeline: ON readiness (boot arming inside the IO service)
+     * is unreachable unless this registration succeeds. Failure locks the
+     * output OFF while Zigbee/OTA init still proceeds.
+     */
+    if (!glsd301p_timer_io_start(glsd301p_control_io_cb, &g_control)) {
+        glsd301p_control_boot_failed(&g_control, glsd301p_timebase_now_ms());
+    }
     (void)bdb_init((af_simple_descriptor_t *)&g_simple_desc,
                    &g_bdb_settings, &g_bdb_callbacks, 1);
 }

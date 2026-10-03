@@ -12,7 +12,7 @@ static void offer_result(glsd301p_uart_transport_t *transport,
 {
     if (result == GLSD301P_RUNTIME_FRAME_READY ||
         result == GLSD301P_RUNTIME_FORCED_OFF) {
-        assert(glsd301p_uart_transport_offer(transport, frame));
+        assert(glsd301p_uart_transport_offer(transport, frame, 6u));
     }
 }
 
