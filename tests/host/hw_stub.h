@@ -34,6 +34,16 @@ uint32_t host_uart_send_attempts(void);
 bool host_uart_last_frame(uint8_t out[6]);
 void host_gpio_set(bool pc2_high, bool pb4_high);
 
+/*
+ * Accepted-frame log: every DMA start the stub ACCEPTS is appended (up to
+ * HOST_UART_ACCEPT_LOG_MAX entries; the total count never saturates).
+ * Rejected attempts are counted by host_uart_send_attempts() but not logged.
+ */
+#define HOST_UART_ACCEPT_LOG_MAX 64u
+uint32_t host_uart_accepted_count(void);
+uint32_t host_uart_accepted_logged(void);
+bool host_uart_accepted_frame(uint32_t idx, uint8_t out[6]);
+
 /* Reset stub scripting/state (clock keeps its value; set it explicitly). */
 void host_stub_reset(void);
 

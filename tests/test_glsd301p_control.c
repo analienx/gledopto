@@ -398,6 +398,141 @@ static void test_static_io_works_with_full_pool(void)
     }
 }
 
+/* Direct-step armed boot with a drained queue and an idle link. */
+static void boot_armed_direct(void)
+{
+    fixture_init();
+    assert(glsd301p_timer_io_start(glsd301p_control_io_cb, &g_ctx));
+    assert(glsd301p_control_boot_off(&g_ctx, 0u));
+    host_uart_set_busy(true);
+    glsd301p_control_io_step(&g_ctx, true, false, 0u);
+    host_uart_set_busy(false);
+    glsd301p_control_io_step(&g_ctx, true, false, 7u);
+    assert(glsd301p_runtime_core_is_ready(&g_runtime));
+    glsd301p_control_io_step(&g_ctx, true, false, 8u);
+    assert(!glsd301p_uart_transport_has_pending(&g_transport));
+}
+
+/*
+ * R1 through the full control/service/transport chain: DMA rejects until
+ * age 31, accepts exactly at the deadline. No ON may start; the running
+ * transition dies at the fault step; later ON is refused; OFF recovers.
+ */
+static void test_r1_chain_reject_accept_with_transition(void)
+{
+    uint8_t frame[GLSD301P_CONTROL_FRAME_SIZE];
+    uint8_t last[6];
+    glsd301p_runtime_result_t result;
+    uint32_t base;
+
+    boot_armed_direct();
+    turn_on(0xFEu);
+    glsd301p_control_io_step(&g_ctx, true, false, 9u);
+    assert(!glsd301p_uart_transport_has_pending(&g_transport));
+    assert(glsd301p_control_level_start_target(&g_ctx, 0x64u, 100u, 0u));
+    assert(g_level.mode == GLSD301P_LEVEL_TARGET);
+    assert(glsd301p_timer_level_registered());
+    base = host_uart_accepted_count();
+
+    assert(glsd301p_uart_transport_offer(&g_transport, ON_FE, 100u));
+    host_uart_set_send_accepts(false);
+    glsd301p_control_io_step(&g_ctx, true, false, 100u);
+    assert(glsd301p_uart_service_deadline_faults(&g_uart) == 0u);
+    glsd301p_control_io_step(&g_ctx, true, false, 131u);
+    assert(glsd301p_uart_service_deadline_faults(&g_uart) == 0u);
+    assert(host_uart_accepted_count() == base);
+
+    host_uart_set_send_accepts(true);
+    glsd301p_control_io_step(&g_ctx, true, false, 132u);
+    assert(glsd301p_uart_service_deadline_faults(&g_uart) == 1u);
+    assert(!glsd301p_runtime_core_is_ready(&g_runtime));
+    assert(g_onoff == 0u);
+    /* The fault step itself accepts nothing: no ON after the deadline. */
+    assert(host_uart_accepted_count() == base);
+    /* The transition is canceled at the fault, not at the next tick. */
+    assert(g_level.mode == GLSD301P_LEVEL_IDLE);
+    assert(!glsd301p_timer_level_registered());
+    assert(g_level.remaining_time == 0u);
+
+    /* A later ON is refused without latching anything new. */
+    result = glsd301p_runtime_core_apply_state(&g_runtime, true, 0xFEu,
+                                               0x02u, false, frame);
+    assert(!glsd301p_control_emit(&g_ctx, result, frame, 132u));
+    assert(glsd301p_uart_service_deadline_faults(&g_uart) == 1u);
+
+    /* Bounded confirmed-OFF recovery flows on the following steps. */
+    glsd301p_control_io_step(&g_ctx, true, false, 133u);
+    assert(host_uart_accepted_count() == base + 1u);
+    assert(host_uart_last_frame(last));
+    assert(memcmp(last, OFF, sizeof(last)) == 0);
+}
+
+/* R1 busy-to-idle variant across a uint32 wrap, asserting the wire log. */
+static void test_r1_chain_busy_idle_wrap(void)
+{
+    uint8_t last[6];
+    uint32_t base;
+
+    boot_armed_direct();
+    base = host_uart_accepted_count();
+
+    assert(glsd301p_uart_transport_offer(&g_transport, ON_FE, 0xFFFFFFF0u));
+    host_uart_set_busy(true);
+    glsd301p_control_io_step(&g_ctx, true, false, 0xFFFFFFF0u);
+    assert(glsd301p_uart_service_deadline_faults(&g_uart) == 0u);
+    glsd301p_control_io_step(&g_ctx, true, false, 0xFFFFFFFFu);
+    assert(glsd301p_uart_service_deadline_faults(&g_uart) == 0u);
+
+    host_uart_set_busy(false);
+    glsd301p_control_io_step(&g_ctx, true, false, 0x00000010u);
+    assert(glsd301p_uart_service_deadline_faults(&g_uart) == 1u);
+    assert(!glsd301p_runtime_core_is_ready(&g_runtime));
+    assert(host_uart_accepted_count() == base);
+
+    glsd301p_control_io_step(&g_ctx, true, false, 0x00000011u);
+    assert(host_uart_accepted_count() == base + 1u);
+    assert(host_uart_last_frame(last));
+    assert(memcmp(last, OFF, sizeof(last)) == 0);
+}
+
+/*
+ * R2 through the full chain: the t=100 accepted transfer stays busy while
+ * fresh traffic arrives at t=131. The original deadline still trips at
+ * t=132; recovery sends only OFF afterwards.
+ */
+static void test_r2_chain_inflight_with_fresh_traffic(void)
+{
+    uint8_t logged[6];
+    uint32_t base;
+
+    boot_armed_direct();
+    turn_on(0xFEu);
+    glsd301p_control_io_step(&g_ctx, true, false, 9u);
+    assert(!glsd301p_uart_transport_has_pending(&g_transport));
+    base = host_uart_accepted_count();
+
+    assert(glsd301p_uart_transport_offer(&g_transport, ON_FE, 100u));
+    glsd301p_control_io_step(&g_ctx, true, false, 100u);
+    assert(host_uart_accepted_count() == base + 1u);
+
+    host_uart_set_busy(true);
+    glsd301p_control_io_step(&g_ctx, true, false, 101u);
+    assert(glsd301p_uart_service_deadline_faults(&g_uart) == 0u);
+    assert(glsd301p_uart_transport_offer(&g_transport, ON_FE, 131u));
+    glsd301p_control_io_step(&g_ctx, true, false, 132u);
+    assert(glsd301p_uart_service_deadline_faults(&g_uart) == 1u);
+    assert(!glsd301p_runtime_core_is_ready(&g_runtime));
+    assert(g_onoff == 0u);
+
+    host_uart_set_busy(false);
+    glsd301p_control_io_step(&g_ctx, true, false, 133u);
+    assert(host_uart_accepted_count() == base + 2u);
+    assert(host_uart_accepted_frame(base, logged));
+    assert(memcmp(logged, ON_FE, sizeof(logged)) == 0);
+    assert(host_uart_accepted_frame(base + 1u, logged));
+    assert(memcmp(logged, OFF, sizeof(logged)) == 0);
+}
+
 int main(void)
 {
     test_boot_arms_after_off_completion();
@@ -413,5 +548,8 @@ int main(void)
     test_stale_inputs_keep_transition_intact();
     test_deadline_survives_uint32_wrap();
     test_static_io_works_with_full_pool();
+    test_r1_chain_reject_accept_with_transition();
+    test_r1_chain_busy_idle_wrap();
+    test_r2_chain_inflight_with_fresh_traffic();
     return 0;
 }

@@ -221,6 +221,171 @@ static void test_off_frame_uses_same_service_path(void)
     assert(memcmp(last, OFF, sizeof(last)) == 0);
 }
 
+/* R1: an expired queued ON must never start, not even in the step that
+ * raises its own deadline fault. */
+static void test_r1_reject_to_accept_boundary_drops_stale_on(void)
+{
+    glsd301p_uart_service_t svc;
+    glsd301p_uart_transport_t transport;
+    glsd301p_uart_service_event_t ev;
+
+    setup(&svc, &transport);
+    assert(glsd301p_uart_transport_offer(&transport, NORMAL_ON, 0u));
+    host_uart_set_send_accepts(false);
+
+    for (uint32_t t = 0u; t < 32u; t++) {
+        ev = glsd301p_uart_service_step(&svc, &transport, t);
+        assert(!ev.fault_raised);
+    }
+    assert(host_uart_send_attempts() == 32u);
+
+    /* The link starts accepting exactly at the deadline: fault, no ON. */
+    host_uart_set_send_accepts(true);
+    ev = glsd301p_uart_service_step(&svc, &transport, 32u);
+    assert(ev.fault_raised);
+    assert(!ev.frame_sent);
+    assert(!glsd301p_uart_transport_has_pending(&transport));
+    assert(glsd301p_uart_service_deadline_faults(&svc) == 1u);
+    assert(host_uart_accepted_count() == 0u);
+}
+
+static void test_r1_busy_to_idle_boundary_drops_stale_on(void)
+{
+    glsd301p_uart_service_t svc;
+    glsd301p_uart_transport_t transport;
+    glsd301p_uart_service_event_t ev;
+
+    setup(&svc, &transport);
+    assert(glsd301p_uart_transport_offer(&transport, NORMAL_ON, 0u));
+    host_uart_set_busy(true);
+
+    ev = glsd301p_uart_service_step(&svc, &transport, 0u);
+    assert(!ev.fault_raised);
+    ev = glsd301p_uart_service_step(&svc, &transport, 31u);
+    assert(!ev.fault_raised);
+    assert(host_uart_send_attempts() == 0u);
+
+    /* Idle exactly at the deadline: fault, no ON. */
+    host_uart_set_busy(false);
+    ev = glsd301p_uart_service_step(&svc, &transport, 32u);
+    assert(ev.fault_raised);
+    assert(!ev.frame_sent);
+    assert(!glsd301p_uart_transport_has_pending(&transport));
+    assert(host_uart_accepted_count() == 0u);
+}
+
+static void test_r1_stale_drop_survives_uint32_wrap(void)
+{
+    glsd301p_uart_service_t svc;
+    glsd301p_uart_transport_t transport;
+    glsd301p_uart_service_event_t ev;
+
+    setup(&svc, &transport);
+    assert(glsd301p_uart_transport_offer(&transport, NORMAL_ON, 0xFFFFFFF0u));
+    host_uart_set_busy(true);
+
+    ev = glsd301p_uart_service_step(&svc, &transport, 0xFFFFFFFFu);
+    assert(!ev.fault_raised);
+    host_uart_set_busy(false);
+    ev = glsd301p_uart_service_step(&svc, &transport, 0x00000010u);
+    assert(ev.fault_raised);
+    assert(!ev.frame_sent);
+    assert(!glsd301p_uart_transport_has_pending(&transport));
+    assert(host_uart_accepted_count() == 0u);
+}
+
+/* No normal frame may start after a latched fault, even if freshly queued. */
+static void test_r1_latched_fault_blocks_normal_starts(void)
+{
+    glsd301p_uart_service_t svc;
+    glsd301p_uart_transport_t transport;
+    glsd301p_uart_service_event_t ev;
+
+    setup(&svc, &transport);
+    assert(glsd301p_uart_transport_offer(&transport, NORMAL_ON, 0u));
+    host_uart_set_busy(true);
+    ev = glsd301p_uart_service_step(&svc, &transport, 0u);
+    assert(!ev.fault_raised);
+    ev = glsd301p_uart_service_step(&svc, &transport, 32u);
+    assert(ev.fault_raised);
+    host_uart_set_busy(false);
+
+    /* A fresh normal offer after the fault must never reach the wire. */
+    assert(glsd301p_uart_transport_offer(&transport, NORMAL_ON, 100u));
+    ev = glsd301p_uart_service_step(&svc, &transport, 100u);
+    assert(!ev.frame_sent);
+    assert(!ev.fault_raised);
+    assert(host_uart_accepted_count() == 0u);
+    assert(glsd301p_uart_service_deadline_faults(&svc) == 1u);
+
+    /* OFF recovery still flows through the same steps. */
+    assert(glsd301p_uart_transport_offer(&transport, OFF, 101u));
+    ev = glsd301p_uart_service_step(&svc, &transport, 101u);
+    assert(ev.frame_sent);
+    assert(host_uart_accepted_count() == 1u);
+}
+
+/* R2: an accepted transfer faults at its own deadline even while newer
+ * traffic is pending. */
+static void test_r2_inflight_deadline_with_pending_traffic(void)
+{
+    glsd301p_uart_service_t svc;
+    glsd301p_uart_transport_t transport;
+    glsd301p_uart_service_event_t ev;
+
+    setup(&svc, &transport);
+    assert(glsd301p_uart_transport_offer(&transport, NORMAL_ON, 0u));
+    ev = glsd301p_uart_service_step(&svc, &transport, 0u);
+    assert(ev.frame_sent);
+    assert(host_uart_accepted_count() == 1u);
+
+    /* The accepted transfer never completes; fresh traffic arrives late. */
+    host_uart_set_busy(true);
+    ev = glsd301p_uart_service_step(&svc, &transport, 1u);
+    assert(!ev.fault_raised);
+    assert(glsd301p_uart_transport_offer(&transport, NORMAL_ON, 31u));
+    ev = glsd301p_uart_service_step(&svc, &transport, 32u);
+    assert(ev.fault_raised);
+    assert(glsd301p_uart_service_deadline_faults(&svc) == 1u);
+}
+
+static void test_r2_inflight_deadline_with_pending_off(void)
+{
+    glsd301p_uart_service_t svc;
+    glsd301p_uart_transport_t transport;
+    glsd301p_uart_service_event_t ev;
+
+    setup(&svc, &transport);
+    assert(glsd301p_uart_transport_offer(&transport, NORMAL_ON, 0u));
+    ev = glsd301p_uart_service_step(&svc, &transport, 0u);
+    assert(ev.frame_sent);
+
+    host_uart_set_busy(true);
+    assert(glsd301p_uart_transport_offer(&transport, OFF, 31u));
+    ev = glsd301p_uart_service_step(&svc, &transport, 32u);
+    assert(ev.fault_raised);
+    /* The pending OFF survives for recovery; only the fault trips here. */
+    assert(glsd301p_uart_transport_has_pending(&transport));
+}
+
+static void test_r2_inflight_deadline_survives_uint32_wrap(void)
+{
+    glsd301p_uart_service_t svc;
+    glsd301p_uart_transport_t transport;
+    glsd301p_uart_service_event_t ev;
+
+    setup(&svc, &transport);
+    assert(glsd301p_uart_transport_offer(&transport, NORMAL_ON, 0xFFFFFFF0u));
+    ev = glsd301p_uart_service_step(&svc, &transport, 0xFFFFFFF0u);
+    assert(ev.frame_sent);
+
+    host_uart_set_busy(true);
+    assert(glsd301p_uart_transport_offer(&transport, NORMAL_ON, 0x0000000Fu));
+    ev = glsd301p_uart_service_step(&svc, &transport, 0x00000010u);
+    assert(ev.fault_raised);
+    assert(glsd301p_uart_service_deadline_faults(&svc) == 1u);
+}
+
 int main(void)
 {
     test_idle_step_is_quiet();
@@ -232,5 +397,12 @@ int main(void)
     test_empty_queue_inflight_timeout();
     test_boot_observe_complete_and_timeout();
     test_off_frame_uses_same_service_path();
+    test_r1_reject_to_accept_boundary_drops_stale_on();
+    test_r1_busy_to_idle_boundary_drops_stale_on();
+    test_r1_stale_drop_survives_uint32_wrap();
+    test_r1_latched_fault_blocks_normal_starts();
+    test_r2_inflight_deadline_with_pending_traffic();
+    test_r2_inflight_deadline_with_pending_off();
+    test_r2_inflight_deadline_survives_uint32_wrap();
     return 0;
 }

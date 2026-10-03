@@ -19,6 +19,9 @@ static bool g_uart_accepts = true;
 static uint32_t g_uart_attempts;
 static uint8_t g_uart_last[GLSD301P_CONTROL_FRAME_SIZE];
 static bool g_uart_last_valid;
+static uint32_t g_uart_accepted;
+static uint8_t g_uart_log[HOST_UART_ACCEPT_LOG_MAX]
+                           [GLSD301P_CONTROL_FRAME_SIZE];
 
 static bool g_pc2_high;
 static bool g_pb4_high;
@@ -90,6 +93,26 @@ void host_gpio_set(bool pc2_high, bool pb4_high)
     g_pb4_high = pb4_high;
 }
 
+uint32_t host_uart_accepted_count(void)
+{
+    return g_uart_accepted;
+}
+
+uint32_t host_uart_accepted_logged(void)
+{
+    return g_uart_accepted < HOST_UART_ACCEPT_LOG_MAX ? g_uart_accepted
+                                                     : HOST_UART_ACCEPT_LOG_MAX;
+}
+
+bool host_uart_accepted_frame(uint32_t idx, uint8_t out[6])
+{
+    if (out == NULL || idx >= host_uart_accepted_logged()) {
+        return false;
+    }
+    memcpy(out, g_uart_log[idx], sizeof(g_uart_log[idx]));
+    return true;
+}
+
 void host_stub_reset(void)
 {
     host_exception_reset();
@@ -98,6 +121,8 @@ void host_stub_reset(void)
     g_uart_attempts = 0u;
     g_uart_last_valid = false;
     memset(g_uart_last, 0, sizeof(g_uart_last));
+    g_uart_accepted = 0u;
+    memset(g_uart_log, 0, sizeof(g_uart_log));
     g_pc2_high = false;
     g_pb4_high = false;
 }
@@ -147,6 +172,13 @@ bool glsd301p_hw_uart_send_frame(
     }
     memcpy(g_uart_last, frame, sizeof(g_uart_last));
     g_uart_last_valid = true;
+    if (g_uart_accepts) {
+        if (g_uart_accepted < HOST_UART_ACCEPT_LOG_MAX) {
+            memcpy(g_uart_log[g_uart_accepted], frame,
+                   sizeof(g_uart_log[g_uart_accepted]));
+        }
+        g_uart_accepted++;
+    }
     return g_uart_accepts;
 }
 
