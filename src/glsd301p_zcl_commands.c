@@ -11,7 +11,6 @@ uint8_t glsd301p_zcl_onoff_command(glsd301p_zcl_ctx_t *ctx,
 {
     bool requested;
     uint8_t frame[GLSD301P_CONTROL_FRAME_SIZE];
-    (void)payload;
 
     if (ctx == NULL || ctx->runtime == NULL || ctx->control == NULL ||
         ctx->level == NULL || ctx->on_time == NULL ||
@@ -20,6 +19,20 @@ uint8_t glsd301p_zcl_onoff_command(glsd301p_zcl_ctx_t *ctx,
     }
     if (dst_ep != ctx->endpoint) {
         return ZCL_STA_INVALID_FIELD;
+    }
+
+    /*
+     * F9: only the two defined effect ids map to OFF; reserved ids are
+     * rejected before any state change (no cancel, no emit).
+     */
+    if (cmd_id == ZCL_CMD_OFF_WITH_EFFECT) {
+        zcl_onoff_offWithEffectCmd_t *cmd =
+            (zcl_onoff_offWithEffectCmd_t *)payload;
+        if (cmd == NULL ||
+            (cmd->effectId != ZCL_OFF_EFFECT_DELAYED_ALL_OFF &&
+             cmd->effectId != ZCL_OFF_EFFECT_DYING_LIGHT)) {
+            return ZCL_STA_INVALID_FIELD;
+        }
     }
 
     switch (cmd_id) {
@@ -97,6 +110,11 @@ uint8_t glsd301p_zcl_level_command(glsd301p_zcl_ctx_t *ctx,
         if (cmd == NULL) {
             return ZCL_STA_INVALID_FIELD;
         }
+        /* F8: reserved step modes rejected before any state change. */
+        if (cmd->stepMode != LEVEL_STEP_UP &&
+            cmd->stepMode != LEVEL_STEP_DOWN) {
+            return ZCL_STA_INVALID_FIELD;
+        }
         if (cmd->stepMode == LEVEL_STEP_UP) {
             target = (uint16_t)(target + cmd->stepSize);
         } else {
@@ -115,6 +133,17 @@ uint8_t glsd301p_zcl_level_command(glsd301p_zcl_ctx_t *ctx,
     case ZCL_CMD_LEVEL_MOVE_WITH_ON_OFF: {
         move_t *cmd = (move_t *)payload;
         if (cmd == NULL) {
+            return ZCL_STA_INVALID_FIELD;
+        }
+        /*
+         * F8: reserved move modes and rate 0 are rejected before the
+         * control layer can cancel the running transition.
+         */
+        if (cmd->moveMode != LEVEL_MOVE_UP &&
+            cmd->moveMode != LEVEL_MOVE_DOWN) {
+            return ZCL_STA_INVALID_FIELD;
+        }
+        if (cmd->rate == 0u) {
             return ZCL_STA_INVALID_FIELD;
         }
         if (!glsd301p_control_level_start_move(

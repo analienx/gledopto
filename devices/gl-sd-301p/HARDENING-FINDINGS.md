@@ -5,7 +5,7 @@ SDK: Telink V3.7.2.0 @ `d5bc2f7b`; TC32 sha256 `33b854be…b430`.
 Status values: CONFIRMED (source evidence or hosted repro) / FIXED (hosted
 validation at stated SHA) / ACCEPTED (no change, rationale).
 
-## F1 — Pooled IO/Level scheduling ignores NULL (High, CONFIRMED)
+## F1 — Pooled IO/Level scheduling ignores NULL (High, FIXED @ 0f342c9)
 
 Trigger: all 24 SDK pool events occupied when IO (1 ms) or Level (100 ms)
 schedules.
@@ -20,7 +20,7 @@ is unsuitable for static events.
 Validation: hosted harness with all 24 pool slots occupied; static IO/Level
 keep working. No physical-OFF claim.
 
-## F2 — Level early-exit leaves stale transition mode (High, CONFIRMED)
+## F2 — Level early-exit leaves stale transition mode (High, FIXED @ 0f342c9)
 
 Trigger: Level tick fires while mode==IDLE or runtime not ready.
 Expected: no active transition remains.
@@ -30,7 +30,7 @@ Fix (M3): reset mode to IDLE on every exit path; start functions return
 failure without arming when refused.
 Validation: hosted cancel/restart + PUSH-cancellation + not-ready refusal tests.
 
-## F3 — Rejoin start unchecked and unpaced (High, CONFIRMED)
+## F3 — Rejoin start unchecked and unpaced (High, FIXED @ 7633e78)
 
 Trigger: `BDB_COMMISSION_STA_PARENT_LOST` / `REJOIN_FAILURE`, or failed
 `bdb_init` on a non-factory-new device.
@@ -44,7 +44,7 @@ backoff; joined reconciliation via `zb_isDeviceJoinedNwk()`; success counted
 once. Polling untouched.
 Validation: hosted rejected/accepted/duplicate/startup/reconciliation tests.
 
-## F4 — UART deadline counts callbacks, not time (Medium, CONFIRMED)
+## F4 — UART deadline counts callbacks, not time (Medium, FIXED @ 0f342c9)
 
 Trigger: delayed/starved 1 ms IO service; in-flight frame with empty queue.
 Expected: 32 ms deadline on actual elapsed time; in-flight tracked while busy.
@@ -63,7 +63,7 @@ OFF transfer attempt/completion is NOT acknowledged physical state.
 Validation: hosted fractional/wrap/uint32-wrap, DMA-rejected/busy-forever,
 empty-queue timeout, coalescing, OFF-priority, boot-failure tests.
 
-## F5 — Boot UART path allocates and spins (Medium, CONFIRMED)
+## F5 — Boot UART path allocates and spins (Medium, FIXED @ 0f342c9)
 
 Trigger: every boot (`glsd_uart_send_boot_off_blocking`).
 Expected: bounded allocation-free boot OFF.
@@ -76,7 +76,7 @@ completion (or 32 ms boot-timeout fault, locked OFF). Zigbee/OTA init proceeds
 with output locked OFF on boot failure.
 Validation: hosted boot accept/reject/completion/timeout tests.
 
-## F6 — SDK ZCL parse reads past short frames (High, CONFIRMED by SDK source)
+## F6 — SDK ZCL parse reads past short frames (High, FIXED @ 7633e78)
 
 Trigger: truncated Level MoveToLevel/Move/Step, OnOff OffWithEffect/
 OnWithTimedOff payloads.
@@ -90,7 +90,7 @@ malformed-command status. Anchored, hash-pinned, provenance-recorded.
 Validation: hosted repro of the original OOB (ASan/UBSan where compatible)
 plus patched-body regressions through real SDK dispatch.
 
-## F7 — SDK ignores application callback status (Medium, CONFIRMED by SDK source)
+## F7 — SDK ignores application callback status (Medium, FIXED @ 7633e78)
 
 Trigger: any cluster command where the app returns non-success.
 Expected: response status reflects the app verdict.
@@ -101,7 +101,7 @@ E.g. app UNSUP for OnWithTimedOff is reported as SUCCESS.
 Fix (M4): same SDK patch propagates the app status.
 Validation: hosted response-propagation tests.
 
-## F8 — App cancels valid transitions before validating input (Medium, CONFIRMED)
+## F8 — App cancels valid transitions before validating input (Medium, FIXED at PR head; see PR #8 milestone log)
 
 Trigger: unknown OnOff command; Move with rate 0; reserved move/step modes.
 Expected: malformed input never cancels a valid transition.
@@ -115,7 +115,7 @@ OnWithTimedOff stays explicitly unsupported (now truthfully reported via F7).
 Validation: hosted truncated/optional/enum/0xFF/endpoint/boundary/transition-
 preservation tests through real dispatch.
 
-## F9 — Reserved OffWithEffect ids accepted (Low, CONFIRMED)
+## F9 — Reserved OffWithEffect ids accepted (Low, FIXED at PR head; see PR #8 milestone log)
 
 Trigger: OffWithEffect with reserved effect id.
 Expected: reserved enum rejected.
@@ -124,12 +124,16 @@ Fix (M4): reject reserved effect ids with INVALID_FIELD; keep plain-OFF
 treatment for the two defined ids. No new power commands.
 Validation: hosted enum tests.
 
-## F10 — Not-ready commands latch permanent fault (High, CONFIRMED; reachable via M3)
+## F10 — Not-ready commands latch permanent fault (High, FIXED @ 0f342c9)
 
 Trigger: any energizing ZCL/local command while the runtime is not ready.
 Expected: refused without latching; OFF already holds by construction.
 Actual: `glsd_emit_runtime_result` maps every FORCED_OFF (including
 NOT_READY) to `latch_fault`. Unreachable at baseline (synchronous boot
 restore) but reachable once M3 defers arming past boot-OFF completion.
-Fix (M3): not-ready/faul
-...[truncated 2306 chars]
+Fix (M3): not-ready/fault refusals return without latching, arming, or
+touching transitions; OFF already holds by construction, so OFF reports
+success while ON fails. Only genuine output-guard violations latch, and
+fault clearing never restores ON.
+Validation: hosted not-ready refusal tests for OnOff/Level/policy plus the
+control-suite readiness/fault gates.

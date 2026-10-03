@@ -332,6 +332,7 @@ static status_t dispatch_onoff(u8 cmd, const u8 *payload, u16 len)
 static void test_level_move_with_onoff_ready(void)
 {
     const u8 pld[] = {0x40u, 0x0Au, 0x00u};
+    const u8 pld_opts[] = {0x50u, 0x05u, 0x00u, 0x01u, 0x01u};
 
     fixture_init();
     boot_ready();
@@ -343,6 +344,12 @@ static void test_level_move_with_onoff_ready(void)
     assert(g_level.target == 0x40u);
     assert(g_level.with_onoff == 1u);
     assert(g_send_cmd_calls == 0u);
+
+    /* Options-present form parses the trailing bytes and executes. */
+    assert(dispatch_level(ZCL_CMD_LEVEL_MOVE_TO_LEVEL_WITH_ON_OFF, pld_opts,
+                          (u16)sizeof(pld_opts)) == ZCL_STA_SUCCESS);
+    assert(g_level.mode == GLSD301P_LEVEL_TARGET);
+    assert(g_level.target == 0x50u);
 }
 
 static void test_level_plain_move_gated_while_off(void)
@@ -473,6 +480,91 @@ static void test_level_unknown_and_misdirected(void)
     assert(g_level.mode == GLSD301P_LEVEL_IDLE);
 }
 
+static void test_level_malformed_preserves_transition(void)
+{
+    const u8 start[] = {0x40u, 0x0Au, 0x00u};
+    const u8 rate_zero[] = {0x00u, 0x00u};
+    const u8 bad_step_mode[] = {0x02u, 0x05u, 0x0Au, 0x00u};
+    const u8 bad_move_mode[] = {0xFFu, 0x10u};
+    const u8 short_step[] = {0x00u, 0x05u, 0x0Au};
+    const u8 short_move2[] = {0x40u, 0x0Au};
+    const u8 unknown_level[] = {0xFFu, 0x0Au, 0x00u};
+    const u8 move[] = {0x00u, 0x10u};
+    const u8 short_move[] = {0x00u};
+
+    fixture_init();
+    boot_ready();
+    register_clusters();
+    attr_set_u8(ZCL_CLUSTER_GEN_ON_OFF, ZCL_ATTRID_ONOFF, 1u);
+
+    /* F8: every malformed input below leaves the running TARGET intact. */
+    assert(dispatch_level(ZCL_CMD_LEVEL_MOVE_TO_LEVEL_WITH_ON_OFF, start,
+                          (u16)sizeof(start)) == ZCL_STA_SUCCESS);
+    assert(g_level.mode == GLSD301P_LEVEL_TARGET);
+    assert(g_level.target == 0x40u);
+
+    assert(dispatch_level(ZCL_CMD_LEVEL_MOVE_WITH_ON_OFF, rate_zero,
+                          (u16)sizeof(rate_zero)) == ZCL_STA_INVALID_FIELD);
+    assert(g_level.mode == GLSD301P_LEVEL_TARGET);
+    assert(g_level.target == 0x40u);
+
+    assert(dispatch_level(ZCL_CMD_LEVEL_STEP_WITH_ON_OFF, bad_step_mode,
+                          (u16)sizeof(bad_step_mode)) ==
+           ZCL_STA_INVALID_FIELD);
+    assert(g_level.mode == GLSD301P_LEVEL_TARGET);
+    assert(g_level.target == 0x40u);
+
+    assert(dispatch_level(ZCL_CMD_LEVEL_MOVE_WITH_ON_OFF, bad_move_mode,
+                          (u16)sizeof(bad_move_mode)) ==
+           ZCL_STA_INVALID_FIELD);
+    assert(g_level.mode == GLSD301P_LEVEL_TARGET);
+    assert(g_level.target == 0x40u);
+
+    assert(dispatch_level(ZCL_CMD_LEVEL_STEP_WITH_ON_OFF, short_step,
+                          (u16)sizeof(short_step)) ==
+           ZCL_STA_MALFORMED_COMMAND);
+    assert(g_level.mode == GLSD301P_LEVEL_TARGET);
+    assert(g_level.target == 0x40u);
+
+    assert(dispatch_level(ZCL_CMD_LEVEL_MOVE_TO_LEVEL_WITH_ON_OFF,
+                          short_move2,
+                          (u16)sizeof(short_move2)) ==
+           ZCL_STA_MALFORMED_COMMAND);
+    assert(g_level.mode == GLSD301P_LEVEL_TARGET);
+    assert(g_level.target == 0x40u);
+
+    assert(dispatch_level(ZCL_CMD_LEVEL_MOVE_TO_LEVEL_WITH_ON_OFF,
+                          unknown_level,
+                          (u16)sizeof(unknown_level)) ==
+           ZCL_STA_INVALID_FIELD);
+    assert(g_level.mode == GLSD301P_LEVEL_TARGET);
+    assert(g_level.target == 0x40u);
+
+    assert(dispatch_frame(g_level_hdlr, g_level_app_cb,
+                          ZCL_CMD_LEVEL_MOVE_TO_LEVEL_WITH_ON_OFF, start,
+                          (u16)sizeof(start), 0x02u,
+                          ZCL_FRAME_CLIENT_SERVER_DIR) ==
+           ZCL_STA_INVALID_FIELD);
+    assert(g_level.mode == GLSD301P_LEVEL_TARGET);
+    assert(g_level.target == 0x40u);
+
+    /* Unknown OnOff commands likewise never touch the transition. */
+    assert(dispatch_onoff(0xFFu, NULL, 0u) == ZCL_STA_UNSUP_CLUSTER_COMMAND);
+    assert(g_level.mode == GLSD301P_LEVEL_TARGET);
+    assert(g_level.target == 0x40u);
+
+    /* Same guarantee for a running MOVE. */
+    assert(dispatch_level(ZCL_CMD_LEVEL_MOVE_WITH_ON_OFF, move,
+                          (u16)sizeof(move)) == ZCL_STA_SUCCESS);
+    assert(g_level.mode == GLSD301P_LEVEL_MOVE);
+    assert(dispatch_level(ZCL_CMD_LEVEL_MOVE_WITH_ON_OFF, short_move,
+                          (u16)sizeof(short_move)) ==
+           ZCL_STA_MALFORMED_COMMAND);
+    assert(g_level.mode == GLSD301P_LEVEL_MOVE);
+    assert(g_level.rate == 0x10u);
+    assert(g_level.direction_up == 1u);
+}
+
 static void test_level_refusal_propagates(void)
 {
     const u8 pld[] = {0x40u, 0x0Au, 0x00u};
@@ -581,6 +673,38 @@ static void test_onoff_effect_and_timed(void)
     assert(g_send_cmd_calls == 0u);
 }
 
+static void test_onoff_effect_id_validation(void)
+{
+    const u8 delayed[] = {0x00u, 0x00u};
+    const u8 dying[] = {0x01u, 0x02u};
+    const u8 reserved[] = {0x02u, 0x00u};
+    const u8 reserved_ff[] = {0xFFu, 0x00u};
+
+    fixture_init();
+    boot_ready();
+    register_clusters();
+
+    /* F9: the two defined effect ids map to OFF. */
+    assert(dispatch_onoff(ZCL_CMD_ONOFF_ON, NULL, 0u) == ZCL_STA_SUCCESS);
+    assert(dispatch_onoff(ZCL_CMD_OFF_WITH_EFFECT, delayed,
+                          (u16)sizeof(delayed)) == ZCL_STA_SUCCESS);
+    assert(g_onoff == 0u);
+    assert(dispatch_onoff(ZCL_CMD_ONOFF_ON, NULL, 0u) == ZCL_STA_SUCCESS);
+    assert(dispatch_onoff(ZCL_CMD_OFF_WITH_EFFECT, dying,
+                          (u16)sizeof(dying)) == ZCL_STA_SUCCESS);
+    assert(g_onoff == 0u);
+
+    /* Reserved ids are rejected with output state untouched. */
+    assert(dispatch_onoff(ZCL_CMD_ONOFF_ON, NULL, 0u) == ZCL_STA_SUCCESS);
+    assert(dispatch_onoff(ZCL_CMD_OFF_WITH_EFFECT, reserved,
+                          (u16)sizeof(reserved)) == ZCL_STA_INVALID_FIELD);
+    assert(g_onoff == 1u);
+    assert(dispatch_onoff(ZCL_CMD_OFF_WITH_EFFECT, reserved_ff,
+                          (u16)sizeof(reserved_ff)) ==
+           ZCL_STA_INVALID_FIELD);
+    assert(g_onoff == 1u);
+}
+
 /* ---- defensive seams the SDK never triggers ---- */
 
 static void test_policy_defensive_seams(void)
@@ -619,10 +743,12 @@ int main(void)
     test_level_short_frames_rejected();
     test_level_step_move_stop();
     test_level_unknown_and_misdirected();
+    test_level_malformed_preserves_transition();
     test_level_refusal_propagates();
     test_onoff_on_off_toggle();
     test_onoff_not_ready_refusal();
     test_onoff_effect_and_timed();
+    test_onoff_effect_id_validation();
     test_policy_defensive_seams();
     printf("GLSD301P_ZCL_DISPATCH=PASS\n");
     return 0;
