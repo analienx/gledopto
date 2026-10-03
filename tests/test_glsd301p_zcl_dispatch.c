@@ -239,7 +239,7 @@ static bool af_parse(unsigned int idx, u16 *cluster, u8 *cmd,
     if (af_caps[idx].len < 3u) {
         return false;
     }
-    off = (u8)((b[0] & 0x04u) ? 5u : 3u);
+    off = (u8)((b[0] & 0x04u) ? 4u : 2u);
     if (af_caps[idx].len < (u16)(off + 1u)) {
         return false;
     }
@@ -614,7 +614,7 @@ static bool root_frame(u16 cluster, u8 cmd, u8 specific, u8 dir,
         frm |= 0x01u;
     }
     if (dir) {
-        frm |= 0x04u;
+        frm |= 0x08u;
     }
     hdr[0] = frm;
     hdr[1] = seq;
