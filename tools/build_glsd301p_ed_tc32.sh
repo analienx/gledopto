@@ -511,6 +511,7 @@ PY
   printf 'PHYSICAL_BANK_B_END_EXCLUSIVE=0x%05x\n' "$physical_b_end"
   "$TC32_SIZE" "$elf"
   sha256sum "$elf" "$raw" "$final" "$map"
+  sha512sum "$elf" "$raw" "$final" "$map"
 } | tee "$DIR/manifest.txt"
 
 echo GLSD301P_TC32_END_DEVICE_LINK=PASS
