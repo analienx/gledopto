@@ -17,9 +17,24 @@
 #include <string.h>
 
 #include "common/types.h"
+#include "common/utility.h"
+#include "common/bit.h"
+#include "common/mempool.h"
 
 #include "common/utlist.h"
 #include "os/ev.h"
+
+/*
+ * SDK compiler.h spellings (same values as the ZCL shim; verified at
+ * the pinned commit). ev_buffer.c needs the aligned attribute through
+ * MEMPOOL_DECLARE, and sees only this header.
+ */
+#ifndef _attribute_packed_
+#define _attribute_packed_ __attribute__((packed))
+#endif
+#ifndef _attribute_aligned_
+#define _attribute_aligned_(s) __attribute__((aligned(s)))
+#endif
 
 /* TLSR8258 system-timer rate: narrow hardware constant, not behavior. */
 #define S_TIMER_CLOCK_1US 16u
