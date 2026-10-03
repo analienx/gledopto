@@ -67,9 +67,16 @@ jobs:
           # owns the opt-out, is excluded: M3-justified, unchanged).
           if grep -rq 'WIN32' build/host-sdk/zigbee/ \
               build/host-sdk/proj/common/utility.h \
-              build/host-sdk/proj/common/bit.h \
               build/host-sdk/proj/common/macro_trick.h; then
             echo 'ERROR: WIN32-keyed behavior in staged ZCL files' >&2
+            exit 1
+          fi
+          # bit.h is staged only for BIT(). Its sole WIN32 divergence at the
+          # pinned commit is MSVC __pragma wrappers around the SET_FLD_Vn
+          # family, so prove that family textually absent from the staged
+          # ZCL set: then -DWIN32 provably changes no compiled behavior.
+          if grep -rq 'SET_FLD_V' build/host-sdk/zigbee/; then
+            echo 'ERROR: WIN32-divergent bit.h macro used by staged ZCL' >&2
             exit 1
           fi
           python3 - build/sdk-patches-harness.json <<'PY'
