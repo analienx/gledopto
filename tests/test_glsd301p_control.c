@@ -540,6 +540,186 @@ static void test_r2_chain_inflight_with_fresh_traffic(void)
     assert(memcmp(logged, OFF, sizeof(logged)) == 0);
 }
 
+/* Drive the Level callback directly on a crafted timebase (no pump). */
+static void level_tick_ms(uint32_t advance_ms, int *rc)
+{
+    glsd301p_timebase_advance(advance_ms);
+    *rc = glsd301p_control_level_cb(&g_ctx);
+}
+
+/* R4: a one-level change over 100 s must not finish on the first tick. */
+static void test_r4_one_level_honors_duration(void)
+{
+    int rc;
+
+    boot_armed_direct();
+    turn_on(0xFEu);
+    assert(glsd301p_control_level_start_target(&g_ctx, 0xFDu, 1000u, 0u));
+    assert(g_level.mode == GLSD301P_LEVEL_TARGET);
+    assert(g_level.remaining_time == 1000u);
+
+    level_tick_ms(100u, &rc);
+    assert(rc == 0);
+    assert(g_level.mode == GLSD301P_LEVEL_TARGET);
+    assert(g_level.current_level == 0xFEu);
+    assert(g_level.remaining_time == 999u);
+
+    level_tick_ms(99800u, &rc);
+    assert(rc == 0);
+    assert(g_level.mode == GLSD301P_LEVEL_TARGET);
+    assert(g_level.current_level == 0xFEu);
+
+    level_tick_ms(100u, &rc);
+    assert(rc == -1);
+    assert(g_level.mode == GLSD301P_LEVEL_IDLE);
+    assert(g_level.current_level == 0xFDu);
+    assert(g_level.remaining_time == 0u);
+}
+
+/* R4: full-range up move interpolates over the whole duration. */
+static void test_r4_full_range_up(void)
+{
+    int rc;
+    uint32_t i;
+
+    boot_armed_direct();
+    turn_on(0x02u);
+    assert(glsd301p_control_level_start_target(&g_ctx, 0xFEu, 1000u, 0u));
+
+    level_tick_ms(30000u, &rc);
+    assert(rc == 0);
+    assert(g_level.mode == GLSD301P_LEVEL_TARGET);
+    assert(g_level.current_level == 0x4Du); /* 2 + floor(252*0.3) */
+    assert(g_level.remaining_time == 700u);
+
+    /* Sample the rest of the ramp: monotone, never overshooting. */
+    for (i = 0u; i < 6u; i++) {
+        uint8_t prev = g_level.current_level;
+        level_tick_ms(10000u, &rc);
+        assert(rc == 0);
+        assert(g_level.current_level >= prev);
+        assert(g_level.current_level <= 0xFEu);
+    }
+    level_tick_ms(10000u, &rc);
+    assert(rc == -1);
+    assert(g_level.mode == GLSD301P_LEVEL_IDLE);
+    assert(g_level.current_level == 0xFEu);
+    assert(g_level.remaining_time == 0u);
+}
+
+/* R4: full-range down move, exact midpoint included. */
+static void test_r4_full_range_down(void)
+{
+    int rc;
+
+    boot_armed_direct();
+    turn_on(0xFEu);
+    assert(glsd301p_control_level_start_target(&g_ctx, 0x02u, 1000u, 0u));
+
+    level_tick_ms(50000u, &rc);
+    assert(rc == 0);
+    assert(g_level.current_level == 0x80u); /* 254 - floor(252*0.5) */
+    assert(g_level.remaining_time == 500u);
+
+    level_tick_ms(50000u, &rc);
+    assert(rc == -1);
+    assert(g_level.current_level == 0x02u);
+    assert(g_level.remaining_time == 0u);
+}
+
+/* R4: interpolation survives a uint32 timebase wrap mid-transition. */
+static void test_r4_interpolation_wrap(void)
+{
+    int rc;
+
+    boot_armed_direct();
+    glsd301p_timebase_advance(0xFFFFFF00u);
+    turn_on(0x64u);
+    assert(glsd301p_control_level_start_target(&g_ctx, 0x6Eu, 100u, 0u));
+
+    level_tick_ms(5000u, &rc);
+    assert(rc == 0);
+    assert(g_level.current_level == 0x69u); /* 100 + floor(10*0.5) */
+    assert(g_level.remaining_time == 50u);
+
+    level_tick_ms(5000u, &rc);
+    assert(rc == -1);
+    assert(g_level.current_level == 0x6Eu);
+    assert(g_level.remaining_time == 0u);
+}
+
+/*
+ * R4/Move: rate progress follows elapsed time, not callback counts.
+ * Rate unit is levels/second; delayed ticks advance proportionally.
+ */
+static void test_r4_move_rate_elapsed(void)
+{
+    int rc;
+
+    boot_armed_direct();
+    turn_on(0x02u);
+    assert(glsd301p_control_level_start_move(&g_ctx, 1u, 10u, 0u));
+
+    level_tick_ms(100u, &rc);
+    assert(rc == 0);
+    assert(g_level.current_level == 0x03u);
+
+    /* One tick after a 500 ms gap advances 5 levels, not 1. */
+    level_tick_ms(500u, &rc);
+    assert(rc == 0);
+    assert(g_level.current_level == 0x08u);
+
+    /* A huge gap saturates at the bound and stops, without wrapping. */
+    level_tick_ms(100000u, &rc);
+    assert(rc == -1);
+    assert(g_level.mode == GLSD301P_LEVEL_IDLE);
+    assert(g_level.current_level == 0xFEu);
+
+    boot_armed_direct();
+    turn_on(0xFEu);
+    assert(glsd301p_control_level_start_move(&g_ctx, 0u, 255u, 0u));
+    level_tick_ms(100000u, &rc);
+    assert(rc == -1);
+    assert(g_level.current_level == 0x02u);
+}
+
+/* R4/Move: elapsed accumulation survives a timebase wrap. */
+static void test_r4_move_wrap(void)
+{
+    int rc;
+
+    boot_armed_direct();
+    glsd301p_timebase_advance(0xFFFFFF00u);
+    turn_on(0x10u);
+    assert(glsd301p_control_level_start_move(&g_ctx, 1u, 10u, 0u));
+
+    level_tick_ms(200u, &rc);
+    assert(rc == 0);
+    assert(g_level.current_level == 0x12u);
+}
+
+/* Short durations still complete; a new start replaces the running one. */
+static void test_r4_short_and_replace(void)
+{
+    int rc;
+
+    boot_armed_direct();
+    turn_on(0x02u);
+    assert(glsd301p_control_level_start_target(&g_ctx, 0x10u, 1u, 0u));
+    level_tick_ms(100u, &rc);
+    assert(rc == -1);
+    assert(g_level.current_level == 0x10u);
+
+    assert(glsd301p_control_level_start_target(&g_ctx, 0xFEu, 1000u, 0u));
+    level_tick_ms(10000u, &rc);
+    assert(rc == 0);
+    assert(glsd301p_control_level_start_target(&g_ctx, 0x02u, 100u, 0u));
+    level_tick_ms(10000u, &rc);
+    assert(rc == -1);
+    assert(g_level.current_level == 0x02u);
+    assert(g_level.remaining_time == 0u);
+}
+
 int main(void)
 {
     test_boot_arms_after_off_completion();
@@ -558,5 +738,12 @@ int main(void)
     test_r1_chain_reject_accept_with_transition();
     test_r1_chain_busy_idle_wrap();
     test_r2_chain_inflight_with_fresh_traffic();
+    test_r4_one_level_honors_duration();
+    test_r4_full_range_up();
+    test_r4_full_range_down();
+    test_r4_interpolation_wrap();
+    test_r4_move_rate_elapsed();
+    test_r4_move_wrap();
+    test_r4_short_and_replace();
     return 0;
 }

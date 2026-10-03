@@ -187,12 +187,16 @@ sees the cached flag still true, returns false, leaves SDK_ACTIVE. A later
 loss cannot start recovery. Rejected starts similarly strand RETRY_PENDING
 (owned retry not stopped) on external success. The unit test feeds a
 `false` the target never produces, so it misses this.
-Original repro: pending (G2 hosted test through a target-wired callback
-adapter: two join/loss/recovery cycles, accepted + rejected starts).
-Proposed fix: invalidate joined-edge bookkeeping on observed loss; always
-reconcile authoritative joined evidence to IDLE and stop any app retry;
-keep success dedup separate; preserve SDK backoff.
-Fix commit: TBD. Hosted proof: TBD.
+Original repro: hosted red run 37142619613 (`stop_retry == true`
+assert in `test_adapter_two_accepted_cycles` on pre-fix code).
+Fix (G2 @ 8bde993): shared hostable BDB adapter used by target and
+harness; loss/failure observations invalidate the cached joined edge;
+authoritative joined evidence always reconciles to IDLE + stops the app
+retry; success counting stays edge-deduplicated; SDK backoff preserved;
+single start site + ZDO_SUCCESS mapping + one-shot pacer unchanged; nm
+gate now proves the target->adapter->rejoin chain.
+Validation: green at 8bde993 (boundary 37142816643, readiness
+37142816742).
 
 ## R4 — Small level changes finish long transitions early (P2, CONFIRMED)
 
