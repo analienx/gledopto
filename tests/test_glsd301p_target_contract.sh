@@ -76,6 +76,7 @@ require_source() {
 CONTROL_SRC="$ROOT/src/glsd301p_control.c"
 SERVICE_SRC="$ROOT/src/glsd301p_uart_service.c"
 TIMERS_SRC="$ROOT/src/glsd301p_timer_events.c"
+COMMANDS_SRC="$ROOT/src/glsd301p_zcl_commands.c"
 
 require_control_source() {
   local pattern="$1" label="$2"
@@ -131,7 +132,16 @@ require_control_source 'glsd301p_runtime_core_poll_push_ex\(' 'PUSH takeover-awa
 require_control_source 'if[[:space:]]*\(took_control\)' 'PUSH takeover branch'
 require_control_source 'glsd301p_control_level_cancel\(' 'PUSH cancels remote level transition'
 require_control_source 'glsd301p_timer_level_stop\(' 'transition cancel stops owned Level event'
-require_source 'cmd->level[[:space:]]*==[[:space:]]*GLSD301P_ZCL_LEVEL_UNKNOWN' 'reserved Level 0xFF rejection'
+# The reserved-Level guard moved with the rest of the cluster-command policy
+# into the shared harness-covered module; the target keeps thin adapters.
+grep -Eq 'cmd->level[[:space:]]*==[[:space:]]*GLSD301P_ZCL_LEVEL_UNKNOWN' "$COMMANDS_SRC" || {
+  echo 'ERROR: shared ZCL pin missing/drifted: reserved Level 0xFF rejection' >&2
+  exit 1
+}
+grep -Eq 'glsd301p_zcl_(onoff|level)_command' "$TARGET_SRC" || {
+  echo 'ERROR: target no longer delegates to the shared ZCL command policy' >&2
+  exit 1
+}
 require_source 'uart_tx_is_busy\(\)' 'nonblocking UART busy probe'
 require_source 'uart_dma_send\(g_uart_tx_dma\)' 'nonblocking UART DMA start'
 require_control_source 'glsd301p_timebase_age_ms' 'elapsed-time deadline basis'

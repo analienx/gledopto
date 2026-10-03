@@ -46,6 +46,21 @@ static int dummy_cb(void *data)
     return -1;
 }
 
+static unsigned g_oneshot_fires;
+static unsigned g_oneshot_rearms;
+
+static int oneshot_rearm_cb(void *data)
+{
+    (void)data;
+    g_oneshot_fires++;
+    if (g_oneshot_rearms > 0u) {
+        g_oneshot_rearms--;
+        /* Re-arm via the return value: no re-register, no fault. */
+        return (int)GLSD301P_TIMER_RETRY_MS;
+    }
+    return -1;
+}
+
 static void test_setup(uint32_t start_tick)
 {
     host_stub_reset();
@@ -58,6 +73,8 @@ static void test_setup(uint32_t start_tick)
     g_level_fires = 0u;
     g_retry_fires = 0u;
     g_dummy_fires = 0u;
+    g_oneshot_fires = 0u;
+    g_oneshot_rearms = 0u;
 }
 
 /* Pump the real SDK scheduler forward by whole milliseconds. */
@@ -239,12 +256,82 @@ static void test_fractional_ticks_accumulate(void)
     glsd301p_timer_io_stop();
 }
 
+static void test_retry_oneshot_wrapper(void)
+{
+    test_setup(400000u);
+
+    /* One fire, then the SDK unregisters and the flag clears itself. */
+    assert(glsd301p_timer_retry_start_oneshot(oneshot_rearm_cb, NULL));
+    assert(glsd301p_timer_retry_registered());
+    pump_ms(4999u);
+    assert(g_oneshot_fires == 0u);
+    pump_ms(1u);
+    assert(g_oneshot_fires == 1u);
+    assert(!glsd301p_timer_retry_registered());
+    pump_ms(5000u);
+    assert(g_oneshot_fires == 1u);
+    assert(glsd301p_timer_reg_faults() == 0u);
+
+    /* A fresh one-shot can arm immediately after the self-unregister. */
+    assert(glsd301p_timer_retry_start_oneshot(oneshot_rearm_cb, NULL));
+    assert(glsd301p_timer_retry_registered());
+    pump_ms(5000u);
+    assert(g_oneshot_fires == 2u);
+    assert(!glsd301p_timer_retry_registered());
+    assert(glsd301p_timer_reg_faults() == 0u);
+}
+
+static void test_retry_oneshot_return_rearm(void)
+{
+    test_setup(500000u);
+    g_oneshot_rearms = 2u;
+
+    /* Two return-value re-arms, then a final unregister: three fires. */
+    assert(glsd301p_timer_retry_start_oneshot(oneshot_rearm_cb, NULL));
+    pump_ms(5000u);
+    assert(g_oneshot_fires == 1u);
+    assert(glsd301p_timer_retry_registered());
+    pump_ms(5000u);
+    assert(g_oneshot_fires == 2u);
+    assert(glsd301p_timer_retry_registered());
+    pump_ms(5000u);
+    assert(g_oneshot_fires == 3u);
+    assert(!glsd301p_timer_retry_registered());
+    pump_ms(5000u);
+    assert(g_oneshot_fires == 3u);
+    assert(glsd301p_timer_reg_faults() == 0u);
+}
+
+static void test_retry_oneshot_stop_cancels(void)
+{
+    test_setup(600000u);
+
+    /* Stop from outside cancels the pending one-shot. */
+    assert(glsd301p_timer_retry_start_oneshot(oneshot_rearm_cb, NULL));
+    glsd301p_timer_retry_stop();
+    assert(!glsd301p_timer_retry_registered());
+    pump_ms(6000u);
+    assert(g_oneshot_fires == 0u);
+
+    /* A duplicate start while pending faults and keeps the first arming. */
+    assert(glsd301p_timer_retry_start_oneshot(oneshot_rearm_cb, NULL));
+    assert(!glsd301p_timer_retry_start_oneshot(oneshot_rearm_cb, NULL));
+    assert(glsd301p_timer_reg_faults() == 1u);
+    assert(glsd301p_timer_retry_registered());
+    pump_ms(5000u);
+    assert(g_oneshot_fires == 1u);
+    glsd301p_timer_retry_stop();
+}
+
 int main(void)
 {
     test_pool_exhaustion_returns_null();
     test_stop_is_idempotent_and_restart_clean();
     test_pooled_cancel_wrapper_refuses_static_events();
     test_oneshot_retry_fires_once();
+    test_retry_oneshot_wrapper();
+    test_retry_oneshot_return_rearm();
+    test_retry_oneshot_stop_cancels();
     test_wrap_and_delayed_process();
     test_fractional_ticks_accumulate();
     return 0;

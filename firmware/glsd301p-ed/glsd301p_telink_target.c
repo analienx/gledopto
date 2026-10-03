@@ -1,6 +1,7 @@
 #include "tl_common.h"
 #include "zb_api.h"
 #include "zcl_include.h"
+#include "zdo_api.h"
 #include "bdb.h"
 #include "ota.h"
 #include "drv_uart.h"
@@ -8,11 +9,13 @@
 
 #include "glsd301p_control.h"
 #include "glsd301p_hw_io.h"
+#include "glsd301p_rejoin.h"
 #include "glsd301p_runtime_core.h"
 #include "glsd301p_timebase.h"
 #include "glsd301p_timer_events.h"
 #include "glsd301p_uart_service.h"
 #include "glsd301p_uart_transport.h"
+#include "glsd301p_zcl_commands.h"
 
 #define GLSD301P_MANUFACTURER_CODE            0x124Fu
 #define GLSD301P_IMAGE_TYPE                   0x1416u
@@ -191,120 +194,35 @@ bool glsd301p_hw_gpio_pb4_high(void)
     return drv_gpio_read(GPIO_PB4) != 0;
 }
 
+/*
+ * Thin ZCL adapters: NULL guard plus endpoint forward into the shared
+ * command policy (glsd301p_zcl_commands.c), which is also driven by the
+ * hosted harness through the real pinned SDK parsers.
+ */
+static glsd301p_zcl_ctx_t g_zcl_ctx = {
+    GLSD301P_ENDPOINT,
+    GLSD301P_MIN_LEVEL,
+    &g_runtime,
+    &g_control,
+    &g_level_state,
+    &g_on_time,
+    &g_off_wait_time,
+};
+
 static status_t glsd_onoff_cb(zclIncomingAddrInfo_t *addr, u8 cmd_id, void *payload)
 {
-    bool requested;
-    u8 frame[GLSD301P_CONTROL_FRAME_SIZE];
-    (void)payload;
-
-    if (addr == NULL || addr->dstEp != GLSD301P_ENDPOINT) {
+    if (addr == NULL) {
         return ZCL_STA_INVALID_FIELD;
     }
-
-    switch (cmd_id) {
-    case ZCL_CMD_ONOFF_OFF:
-    case ZCL_CMD_OFF_WITH_EFFECT:
-        requested = false;
-        break;
-    case ZCL_CMD_ONOFF_ON:
-    case ZCL_CMD_ON_WITH_RECALL_GLOBAL_SCENE:
-        requested = true;
-        break;
-    case ZCL_CMD_ONOFF_TOGGLE:
-        requested = !g_runtime.logical_output_enabled;
-        break;
-    default:
-        return ZCL_STA_UNSUP_CLUSTER_COMMAND;
-    }
-
-    /*
-     * Refusal leaves any running transition untouched. OFF already holds by
-     * construction while not ready, so it still reports success.
-     */
-    if (!glsd301p_runtime_core_is_ready(&g_runtime)) {
-        return requested ? ZCL_STA_FAILURE : ZCL_STA_SUCCESS;
-    }
-
-    glsd301p_control_level_cancel(&g_control);
-
-    if (!glsd301p_control_emit(
-            &g_control,
-            glsd301p_runtime_core_apply_state(&g_runtime, requested,
-                                              g_level_state.current_level,
-                                              g_min_level, false, frame),
-            frame, glsd301p_timebase_now_ms())) {
-        return ZCL_STA_FAILURE;
-    }
-
-    g_on_time = 0u;
-    if (!requested) {
-        g_off_wait_time = 0u;
-    }
-    return ZCL_STA_SUCCESS;
+    return glsd301p_zcl_onoff_command(&g_zcl_ctx, addr->dstEp, cmd_id, payload);
 }
 
 static status_t glsd_level_cb(zclIncomingAddrInfo_t *addr, u8 cmd_id, void *payload)
 {
-    if (addr == NULL || addr->dstEp != GLSD301P_ENDPOINT) {
+    if (addr == NULL) {
         return ZCL_STA_INVALID_FIELD;
     }
-
-    switch (cmd_id) {
-    case ZCL_CMD_LEVEL_MOVE_TO_LEVEL:
-    case ZCL_CMD_LEVEL_MOVE_TO_LEVEL_WITH_ON_OFF: {
-        moveToLvl_t *cmd = (moveToLvl_t *)payload;
-        if (cmd == NULL || cmd->level == GLSD301P_ZCL_LEVEL_UNKNOWN) {
-            return ZCL_STA_INVALID_FIELD;
-        }
-        if (!glsd301p_control_level_start_target(
-                &g_control, cmd->level, cmd->transitionTime,
-                (uint8_t)(cmd_id == ZCL_CMD_LEVEL_MOVE_TO_LEVEL_WITH_ON_OFF ? 1u : 0u))) {
-            return ZCL_STA_FAILURE;
-        }
-        return ZCL_STA_SUCCESS;
-    }
-    case ZCL_CMD_LEVEL_STEP:
-    case ZCL_CMD_LEVEL_STEP_WITH_ON_OFF: {
-        step_t *cmd = (step_t *)payload;
-        u16 target = g_level_state.current_level;
-        if (cmd == NULL) {
-            return ZCL_STA_INVALID_FIELD;
-        }
-        if (cmd->stepMode == LEVEL_STEP_UP) {
-            target = (u16)(target + cmd->stepSize);
-        } else {
-            target = (target > cmd->stepSize) ? (u16)(target - cmd->stepSize) : g_min_level;
-        }
-        if (!glsd301p_control_level_start_target(
-                &g_control,
-                glsd301p_control_clamp_level(&g_control, target),
-                cmd->transitionTime,
-                (uint8_t)(cmd_id == ZCL_CMD_LEVEL_STEP_WITH_ON_OFF ? 1u : 0u))) {
-            return ZCL_STA_FAILURE;
-        }
-        return ZCL_STA_SUCCESS;
-    }
-    case ZCL_CMD_LEVEL_MOVE:
-    case ZCL_CMD_LEVEL_MOVE_WITH_ON_OFF: {
-        move_t *cmd = (move_t *)payload;
-        if (cmd == NULL) {
-            return ZCL_STA_INVALID_FIELD;
-        }
-        if (!glsd301p_control_level_start_move(
-                &g_control,
-                (uint8_t)(cmd->moveMode == LEVEL_MOVE_UP ? 1u : 0u), cmd->rate,
-                (uint8_t)(cmd_id == ZCL_CMD_LEVEL_MOVE_WITH_ON_OFF ? 1u : 0u))) {
-            return ZCL_STA_FAILURE;
-        }
-        return ZCL_STA_SUCCESS;
-    }
-    case ZCL_CMD_LEVEL_STOP:
-    case ZCL_CMD_LEVEL_STOP_WITH_ON_OFF:
-        glsd301p_control_level_cancel(&g_control);
-        return ZCL_STA_SUCCESS;
-    default:
-        return ZCL_STA_UNSUP_CLUSTER_COMMAND;
-    }
+    return glsd301p_zcl_level_command(&g_zcl_ctx, addr->dstEp, cmd_id, payload);
 }
 
 static status_t glsd_identify_cb(zclIncomingAddrInfo_t *addr, u8 cmd_id, void *payload)
@@ -324,21 +242,92 @@ static void glsd_ota_event(u8 evt, u8 status)
 
 static ota_callBack_t g_ota_cb = {glsd_ota_event};
 
+/*
+ * Application-owned rejoin attempt ownership. The stack owns backoff for an
+ * accepted attempt; this layer owns single-outstanding-attempt gating, the
+ * 5 s paced retry after a rejected start, and joined-state reconciliation.
+ * Factory-new devices keep stock commissioning startup (triggers count but
+ * never attempt). Polling policy is never touched here.
+ */
+static glsd301p_rejoin_t g_rejoin;
+
+static int glsd_retry_cb(void *data);
+
+static void glsd_rejoin_start_attempt(bool from_retry_fire)
+{
+    u8 rc;
+    bool accepted;
+
+    /*
+     * Documented contract (zb_api.h): RET_ILLEGAL_REQUEST or zdo_status_t.
+     * Anything but ZDO_SUCCESS is a rejected start and takes the owned 5 s
+     * paced retry; accepted starts run under stack-owned backoff.
+     */
+    rc = zb_rejoinReqWithBackOff(zb_apsChannelMaskGet(), g_bdbAttrs.scanDuration);
+    accepted = (rc == ZDO_SUCCESS);
+    glsd301p_rejoin_note_start_result(&g_rejoin, accepted);
+    if (from_retry_fire) {
+        /*
+         * Inside the one-shot fire: the return value drives re-arm vs
+         * unregister, so no timer call is made here at all.
+         */
+        return;
+    }
+    if (accepted) {
+        glsd301p_timer_retry_stop();
+    } else {
+        (void)glsd301p_timer_retry_start_oneshot(glsd_retry_cb, NULL);
+    }
+}
+
+static int glsd_retry_cb(void *data)
+{
+    (void)data;
+    if (glsd301p_rejoin_note_retry_fire(&g_rejoin)) {
+        glsd_rejoin_start_attempt(true);
+    }
+    /* A stale fire (not pending) self-heals by unregistering. */
+    return (glsd301p_rejoin_state(&g_rejoin) == GLSD301P_REJOIN_RETRY_PENDING)
+        ? (int)GLSD301P_TIMER_RETRY_MS
+        : -1;
+}
+
 static void glsd_bdb_init_cb(u8 status, u8 joined_network)
 {
-    (void)joined_network;
-    if (status != BDB_INIT_STATUS_SUCCESS && !zb_isDeviceFactoryNew()) {
-        zb_rejoinReqWithBackOff(zb_apsChannelMaskGet(), g_bdbAttrs.scanDuration);
+    bool factory_new = zb_isDeviceFactoryNew() ? true : false;
+
+    if (status == BDB_INIT_STATUS_SUCCESS) {
+        if (glsd301p_rejoin_note_joined(&g_rejoin, joined_network != 0u)) {
+            glsd301p_timer_retry_stop();
+        }
+        return;
+    }
+    if (glsd301p_rejoin_note_init_failure(&g_rejoin, factory_new)) {
+        glsd_rejoin_start_attempt(false);
     }
 }
 
 static void glsd_bdb_commission_cb(u8 status, void *arg)
 {
+    bool factory_new = zb_isDeviceFactoryNew() ? true : false;
+
     (void)arg;
-    if ((status == BDB_COMMISSION_STA_PARENT_LOST ||
-         status == BDB_COMMISSION_STA_REJOIN_FAILURE) &&
-        !zb_isDeviceFactoryNew()) {
-        zb_rejoinReqWithBackOff(zb_apsChannelMaskGet(), g_bdbAttrs.scanDuration);
+    if (status == BDB_COMMISSION_STA_SUCCESS) {
+        if (glsd301p_rejoin_note_joined(&g_rejoin, zb_isDeviceJoinedNwk())) {
+            glsd301p_timer_retry_stop();
+        }
+        return;
+    }
+    if (status == BDB_COMMISSION_STA_PARENT_LOST) {
+        if (glsd301p_rejoin_note_parent_lost(&g_rejoin, factory_new)) {
+            glsd_rejoin_start_attempt(false);
+        }
+        return;
+    }
+    if (status == BDB_COMMISSION_STA_REJOIN_FAILURE) {
+        if (glsd301p_rejoin_note_rejoin_failure(&g_rejoin, factory_new)) {
+            glsd_rejoin_start_attempt(false);
+        }
     }
 }
 
@@ -462,6 +451,7 @@ void user_init(bool isRetention)
     if (!glsd301p_timer_io_start(glsd301p_control_io_cb, &g_control)) {
         glsd301p_control_boot_failed(&g_control, glsd301p_timebase_now_ms());
     }
+    glsd301p_rejoin_init(&g_rejoin);
     (void)bdb_init((af_simple_descriptor_t *)&g_simple_desc,
                    &g_bdb_settings, &g_bdb_callbacks, 1);
 }

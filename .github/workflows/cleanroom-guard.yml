@@ -39,6 +39,7 @@ jobs:
             --sdk-root telink-sdk/tl_zigbee_sdk \
             --provenance-out build/sdk-patches-harness.json
           mkdir -p build/host-sdk/proj/os build/host-sdk/proj/common
+          mkdir -p build/host-sdk/zigbee/zcl/general build/host-sdk/zigbee/af
           sdk='telink-sdk/tl_zigbee_sdk'
           cp "$sdk/proj/os/ev_timer.c" build/host-sdk/proj/os/
           cp "$sdk/proj/os/ev_timer.h" build/host-sdk/proj/os/
@@ -47,17 +48,55 @@ jobs:
           cp "$sdk/proj/os/ev.h" build/host-sdk/proj/os/
           cp "$sdk/proj/common/utlist.h" build/host-sdk/proj/common/
           cp "$sdk/proj/common/types.h" build/host-sdk/proj/common/
+          cp "$sdk/proj/common/utility.h" build/host-sdk/proj/common/
           cp tests/host/tl_common.h build/host-sdk/proj/tl_common.h
+          cp "$sdk/zigbee/zcl/general/zcl_level.c" build/host-sdk/zigbee/zcl/general/
+          cp "$sdk/zigbee/zcl/general/zcl_onoff.c" build/host-sdk/zigbee/zcl/general/
+          cp "$sdk/zigbee/zcl/general/zcl_level.h" build/host-sdk/zigbee/zcl/general/
+          cp "$sdk/zigbee/zcl/general/zcl_onoff.h" build/host-sdk/zigbee/zcl/general/
+          cp "$sdk/zigbee/zcl/zcl.h" "$sdk/zigbee/zcl/zcl_const.h" \
+            "$sdk/zigbee/zcl/zcl_config.h" build/host-sdk/zigbee/zcl/
+          cp "$sdk/zigbee/af/zb_af.h" build/host-sdk/zigbee/af/
+          cp tests/host/zcl_shim/zcl_include.h build/host-sdk/zigbee/zcl/zcl_include.h
+          # The staged ZCL files must not key any behavior off the -DWIN32
+          # size_t opt-out used for the host compile (types.h itself, which
+          # owns the opt-out, is excluded: M3-justified, unchanged).
+          if grep -rq 'WIN32' build/host-sdk/zigbee/ \
+              build/host-sdk/proj/common/utility.h; then
+            echo 'ERROR: WIN32-keyed behavior in staged ZCL files' >&2
+            exit 1
+          fi
           python3 - build/sdk-patches-harness.json <<'PY'
-          import hashlib, json, sys
+          import hashlib, json, re, sys
           report = json.load(open(sys.argv[1]))
-          staged = hashlib.sha256(
-              open('build/host-sdk/proj/os/ev_timer.c', 'rb').read()
-          ).hexdigest()
-          pinned = [p for p in report['patches']
-                    if p['id'] == 'P1-timebase-hook'][0]['patched_sha256']
-          assert staged == pinned, (staged, pinned)
-          print('HARNESS_SDK_SHADOW=PASS exact-patched-ev_timer')
+          pinned = {p['id']: p['patched_sha256'] for p in report['patches']}
+          staged = {
+              'P1-timebase-hook': 'build/host-sdk/proj/os/ev_timer.c',
+              'P2a-level-parse': 'build/host-sdk/zigbee/zcl/general/zcl_level.c',
+              'P2b-onoff-parse': 'build/host-sdk/zigbee/zcl/general/zcl_onoff.c',
+          }
+          for pid, path in staged.items():
+              actual = hashlib.sha256(open(path, 'rb').read()).hexdigest()
+              assert actual == pinned[pid], (pid, actual, pinned[pid])
+          print('HARNESS_SDK_SHADOW=PASS exact-patched-ev_timer-zcl_level-zcl_onoff')
+          # The ZCL shim cluster selection must mirror app_cfg.h value for
+          # value, so the real zcl_config.h derives the target-identical
+          # bare-cluster macro set in the harness.
+          def support_map(path):
+              out = {}
+              for m in re.finditer(r'#define\s+(ZCL_\w+_SUPPORT)\s+([01])',
+                                   open(path).read()):
+                  out[m.group(1)] = m.group(2)
+              return out
+          app = support_map('firmware/glsd301p-ed/app_cfg.h')
+          shim = support_map('tests/host/zcl_shim/zcl_include.h')
+          assert app, 'no SUPPORT macros parsed from app_cfg.h'
+          assert app == shim, (
+              sorted(set(app) ^ set(shim)),
+              {k: (app.get(k), shim.get(k)) for k in set(app) | set(shim)
+               if app.get(k) != shim.get(k)},
+          )
+          print('HARNESS_ZCL_CONFIG_MIRROR=PASS %d SUPPORT macros' % len(app))
           PY
       - name: Validate third-party/reference/implementation boundary
         run: python3 tools/check_cleanroom.py
@@ -127,6 +166,37 @@ jobs:
             src/glsd301p_uart_transport.c src/glsd301p_timebase.c src/glsd301p_uart_service.c \
             src/glsd301p_control.c tests/host/hw_stub.c tests/test_glsd301p_control.c \
             -o build/host-tests/test_glsd301p_control
+          # shellcheck disable=SC2086
+          cc $strict $inc src/glsd301p_timebase.c src/glsd301p_rejoin.c \
+            tests/test_glsd301p_rejoin.c -o build/host-tests/test_glsd301p_rejoin
+      - name: Build M4 dispatch harness (real patched SDK ZCL + ASan/UBSan)
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p build/host-tests/obj
+          # Own code stays -Werror, but the dispatch translation units
+          # necessarily include the real vendor ZCL headers (compiler
+          # attributes), so they compile as gnu11 without -pedantic; the
+          # pinned SDK bodies compile without -Werror as in the M3 block.
+          strict_zcl="-std=gnu11 -Wall -Wextra -Werror -fsanitize=address,undefined -fno-omit-frame-pointer"
+          sdkflags="-std=gnu11 -DWIN32 -fsanitize=address,undefined -fno-omit-frame-pointer"
+          inc="-Isrc -Itests/host"
+          zclinc="-Ibuild/host-sdk/zigbee -Ibuild/host-sdk/zigbee/zcl -Ibuild/host-sdk/proj"
+          zclsrc='build/host-sdk/zigbee/zcl/general'
+          # shellcheck disable=SC2086
+          cc $sdkflags $zclinc -c "$zclsrc/zcl_level.c" -o build/host-tests/obj/zcl_level.o
+          # shellcheck disable=SC2086
+          cc $sdkflags $zclinc -c "$zclsrc/zcl_onoff.c" -o build/host-tests/obj/zcl_onoff.o
+          sdkobj='build/host-tests/obj/ev_timer.o build/host-tests/obj/ev_rtc.o'
+          # shellcheck disable=SC2086
+          cc $strict_zcl -Ibuild/host-sdk/proj/os $zclinc $inc $sdkobj \
+            build/host-tests/obj/timer_events.o build/host-tests/obj/zcl_level.o \
+            build/host-tests/obj/zcl_onoff.o src/glsd301p_uart_frame.c \
+            src/glsd301p_power_stage_policy.c src/glsd301p_output_guard.c \
+            src/glsd301p_push_input.c src/glsd301p_pb4_compat.c src/glsd301p_runtime_core.c \
+            src/glsd301p_uart_transport.c src/glsd301p_timebase.c src/glsd301p_uart_service.c \
+            src/glsd301p_control.c src/glsd301p_zcl_commands.c tests/host/hw_stub.c \
+            tests/test_glsd301p_zcl_dispatch.c -o build/host-tests/test_glsd301p_zcl_dispatch
       - name: Run host-side interoperability tests
         shell: bash
         run: |
@@ -142,6 +212,8 @@ jobs:
           build/host-tests/test_glsd301p_uart_service
           build/host-tests/test_glsd301p_timer_events
           build/host-tests/test_glsd301p_control
+          build/host-tests/test_glsd301p_rejoin
+          build/host-tests/test_glsd301p_zcl_dispatch
       - name: Adversarially verify End Device architecture firewall
         shell: bash
         run: bash tests/test_glsd301p_target_contract.sh

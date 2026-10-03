@@ -46,6 +46,130 @@ PATCHES = [
             },
         ],
     },
+    {
+        "id": "P2a-level-parse",
+        "relpath": "zigbee/zcl/general/zcl_level.c",
+        "original_sha256": (
+            "dcb208c6fb5d368cd6ba4b4a57b0732a15b59d122f403a77351bd36a82b02dde"
+        ),
+        "patched_sha256": (
+            "4a04cd73519273683e382a850dea9dcc91df0174fe637863201dbc9865c82b46"
+        ),
+        "marker": "ZCL_STA_MALFORMED_COMMAND",
+        "edits": [
+            {
+                "anchor": (
+                    "    case ZCL_CMD_LEVEL_MOVE_TO_LEVEL:\n"
+                    "    case ZCL_CMD_LEVEL_MOVE_TO_LEVEL_WITH_ON_OFF:\n"
+                    "        cmdPayload.moveToLevel.level = *pData++;\n"
+                ),
+                "replacement": (
+                    "    case ZCL_CMD_LEVEL_MOVE_TO_LEVEL:\n"
+                    "    case ZCL_CMD_LEVEL_MOVE_TO_LEVEL_WITH_ON_OFF:\n"
+                    "        if (pInMsg->dataLen < 3) {\n"
+                    "            status = ZCL_STA_MALFORMED_COMMAND;\n"
+                    "            break;\n"
+                    "        }\n"
+                    "        cmdPayload.moveToLevel.level = *pData++;\n"
+                ),
+            },
+            {
+                "anchor": (
+                    "    case ZCL_CMD_LEVEL_MOVE:\n"
+                    "    case ZCL_CMD_LEVEL_MOVE_WITH_ON_OFF:\n"
+                    "        cmdPayload.move.moveMode = *pData++;\n"
+                ),
+                "replacement": (
+                    "    case ZCL_CMD_LEVEL_MOVE:\n"
+                    "    case ZCL_CMD_LEVEL_MOVE_WITH_ON_OFF:\n"
+                    "        if (pInMsg->dataLen < 2) {\n"
+                    "            status = ZCL_STA_MALFORMED_COMMAND;\n"
+                    "            break;\n"
+                    "        }\n"
+                    "        cmdPayload.move.moveMode = *pData++;\n"
+                ),
+            },
+            {
+                "anchor": (
+                    "    case ZCL_CMD_LEVEL_STEP:\n"
+                    "    case ZCL_CMD_LEVEL_STEP_WITH_ON_OFF:\n"
+                    "        cmdPayload.step.stepMode = *pData++;\n"
+                ),
+                "replacement": (
+                    "    case ZCL_CMD_LEVEL_STEP:\n"
+                    "    case ZCL_CMD_LEVEL_STEP_WITH_ON_OFF:\n"
+                    "        if (pInMsg->dataLen < 4) {\n"
+                    "            status = ZCL_STA_MALFORMED_COMMAND;\n"
+                    "            break;\n"
+                    "        }\n"
+                    "        cmdPayload.step.stepMode = *pData++;\n"
+                ),
+            },
+            {
+                "anchor": (
+                    "            pInMsg->clusterAppCb(&(pInMsg->addrInfo),"
+                    " pInMsg->hdr.cmd, &cmdPayload);\n"
+                ),
+                "replacement": (
+                    "            status = pInMsg->clusterAppCb("
+                    "&(pInMsg->addrInfo), pInMsg->hdr.cmd, &cmdPayload);\n"
+                ),
+            },
+        ],
+    },
+    {
+        "id": "P2b-onoff-parse",
+        "relpath": "zigbee/zcl/general/zcl_onoff.c",
+        "original_sha256": (
+            "53f14e401c00323313572095cb7f95254557d094ca2878ddb74ddadf2c688ae6"
+        ),
+        "patched_sha256": (
+            "2084533b1413a67e73aefcad0c905f0522e62fe00b4befc9c5e459f286053102"
+        ),
+        "marker": "ZCL_STA_MALFORMED_COMMAND",
+        "edits": [
+            {
+                "anchor": (
+                    "    case ZCL_CMD_OFF_WITH_EFFECT:\n"
+                    "        cmdPayload.offWithEffect.effectId = pData[0];\n"
+                ),
+                "replacement": (
+                    "    case ZCL_CMD_OFF_WITH_EFFECT:\n"
+                    "        if (pInMsg->dataLen < 2) {\n"
+                    "            status = ZCL_STA_MALFORMED_COMMAND;\n"
+                    "            break;\n"
+                    "        }\n"
+                    "        cmdPayload.offWithEffect.effectId = pData[0];\n"
+                ),
+            },
+            {
+                "anchor": (
+                    "    case ZCL_CMD_ON_WITH_TIMED_OFF:\n"
+                    "        cmdPayload.onWithTimeOff.onOffCtrl.onOffCtrl"
+                    " = *pData++;\n"
+                ),
+                "replacement": (
+                    "    case ZCL_CMD_ON_WITH_TIMED_OFF:\n"
+                    "        if (pInMsg->dataLen < 5) {\n"
+                    "            status = ZCL_STA_MALFORMED_COMMAND;\n"
+                    "            break;\n"
+                    "        }\n"
+                    "        cmdPayload.onWithTimeOff.onOffCtrl.onOffCtrl"
+                    " = *pData++;\n"
+                ),
+            },
+            {
+                "anchor": (
+                    "            pInMsg->clusterAppCb(&(pInMsg->addrInfo),"
+                    " pInMsg->hdr.cmd, &cmdPayload);\n"
+                ),
+                "replacement": (
+                    "            status = pInMsg->clusterAppCb("
+                    "&(pInMsg->addrInfo), pInMsg->hdr.cmd, &cmdPayload);\n"
+                ),
+            },
+        ],
+    },
 ]
 
 

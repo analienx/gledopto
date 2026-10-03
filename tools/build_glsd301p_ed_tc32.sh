@@ -116,6 +116,8 @@ app_sources=(
   "$CORE/glsd301p_uart_service.c"
   "$CORE/glsd301p_timer_events.c"
   "$CORE/glsd301p_control.c"
+  "$CORE/glsd301p_zcl_commands.c"
+  "$CORE/glsd301p_rejoin.c"
   "$TARGET/glsd301p_telink_inert_glue.c"
   "$TARGET/glsd301p_telink_link_sentinels.c"
   "$TARGET/glsd301p_telink_target.c"
@@ -129,9 +131,10 @@ compile_one() {
   case "$source" in
     *.S) "$TC32_CC" "${asflags[@]}" "${defs[@]}" "${includes[@]}" -c "$source" -o "$obj" ;;
     # Application TUs that bind SDK headers need the same size_t predefined
-    # guard as the glsd301p_telink_* units; timer ownership is the only src/
-    # unit in that set (it alone sees ev_timer.h).
-    *glsd301p_telink_*.c|*src/glsd301p_timer_events.c)
+    # guard as the glsd301p_telink_* units; in src/ that set is the timer
+    # ownership unit (ev_timer.h) and the shared ZCL command policy
+    # (zcl_include.h for the pinned cluster command layouts/statuses).
+    *glsd301p_telink_*.c|*src/glsd301p_timer_events.c|*src/glsd301p_zcl_commands.c)
       "$TC32_CC" "${f[@]}" "${defs[@]}" "${telink_first[@]}" "${includes[@]}" -c "$source" -o "$obj" ;;
     *) "$TC32_CC" "${f[@]}" "${defs[@]}" "${includes[@]}" -c "$source" -o "$obj" ;;
   esac
@@ -179,6 +182,28 @@ if grep -q 'glsd301p_control_frame_encode' "$TARGET/glsd301p_telink_target.c"; t
   echo 'ERROR: Telink application bypasses guarded output APIs' >&2
   exit 1
 fi
+
+# M4: ZCL callbacks delegate to the shared harness-covered command policy;
+# rejoin attempts flow through exactly one SDK start site with the documented
+# ZDO_SUCCESS acceptance mapping and the owned one-shot 5 s pacer.
+grep -q 'glsd301p_zcl_onoff_command' "$TARGET/glsd301p_telink_target.c" || {
+  echo 'ERROR: OnOff callback is not delegated to shared command policy' >&2; exit 1;
+}
+grep -q 'glsd301p_zcl_level_command' "$TARGET/glsd301p_telink_target.c" || {
+  echo 'ERROR: Level callback is not delegated to shared command policy' >&2; exit 1;
+}
+[[ "$(grep -co 'zb_rejoinReqWithBackOff' "$TARGET/glsd301p_telink_target.c")" -eq 1 ]] || {
+  echo 'ERROR: target must contain exactly one rejoin start site' >&2; exit 1;
+}
+grep -q 'ZDO_SUCCESS' "$TARGET/glsd301p_telink_target.c" || {
+  echo 'ERROR: rejoin acceptance mapping must use documented ZDO_SUCCESS' >&2; exit 1;
+}
+grep -q 'glsd301p_timer_retry_start_oneshot' "$TARGET/glsd301p_telink_target.c" || {
+  echo 'ERROR: rejected rejoin starts must arm the owned one-shot pacer' >&2; exit 1;
+}
+grep -q 'glsd301p_rejoin_init' "$TARGET/glsd301p_telink_target.c" || {
+  echo 'ERROR: rejoin ownership state is never initialized' >&2; exit 1;
+}
 
 # Disabled Touchlink closure is allowed only in the dedicated inert glue.
 grep -q '^u8 deviceInfoRsp = 0u;$' "$TARGET/glsd301p_telink_inert_glue.c"
@@ -290,6 +315,20 @@ fi
 "$TC32_NM" -u "$timers_obj" | grep -Eq ' U ev_on_timer$' || {
   echo 'ERROR: owned events are not wired through direct ev_on_timer' >&2; exit 1;
 }
+zclcmd_obj="$DIR/obj/app/glsd301p_zcl_commands.o"
+rejoin_obj="$DIR/obj/app/glsd301p_rejoin.o"
+"$TC32_NM" -u "$app_obj" | grep -Eq ' U glsd301p_zcl_(onoff|level)_command$' || {
+  echo 'ERROR: target is not wired through shared ZCL command policy' >&2; exit 1;
+}
+"$TC32_NM" -u "$app_obj" | grep -Eq ' U glsd301p_rejoin_note_(parent_lost|rejoin_failure|init_failure)$' || {
+  echo 'ERROR: target is not wired through rejoin ownership' >&2; exit 1;
+}
+"$TC32_NM" -u "$zclcmd_obj" | grep -Eq ' U glsd301p_control_(emit|level_start_target|level_start_move|level_cancel)$' || {
+  echo 'ERROR: ZCL command policy is not wired through guarded control plane' >&2; exit 1;
+}
+"$TC32_NM" -u "$rejoin_obj" | grep -Eq ' U glsd301p_sat_inc_u32$' || {
+  echo 'ERROR: rejoin counters are not wired through saturating increment' >&2; exit 1;
+}
 for obj in "$DIR"/obj/app/*.o; do
   if "$TC32_NM" -u "$obj" 2>/dev/null | grep -Eq ' U ev_timer_task(Post|Cancel)$'; then
     echo "ERROR: pooled timer API referenced by application object: $obj" >&2; exit 1;
@@ -372,6 +411,10 @@ for sym in \
   glsd301p_control_io_step \
   glsd301p_control_emit \
   glsd301p_timer_io_start \
+  glsd301p_timer_retry_start_oneshot \
+  glsd301p_zcl_onoff_command \
+  glsd301p_zcl_level_command \
+  glsd301p_rejoin_init \
   glsd301p_hw_uart_send_frame \
   glsd301p_uart_transport_offer; do
   "$TC32_NM" "$elf" | grep -Eq " [Tt] ${sym}$" || {
@@ -414,6 +457,8 @@ grep -q 'libzb_ed' "$map" || { echo 'ERROR: End Device stack archive absent from
   echo APP_TIMER_API=OWNED_STATIC_DIRECT_ONLY
   echo UART_RUNTIME_TRANSPORT=NONBLOCKING_OFF_PRIORITY_ELAPSED_DEADLINE
   echo UART_BOOT=STATIC_DMA_SINGLE_ATTEMPT_DEFERRED_ARM
+  echo ZCL_COMMAND_POLICY=SHARED_DISPATCH_HARNESSED
+  echo REJOIN=OWNED_SINGLE_ATTEMPT_ZDO_SUCCESS_MAPPED_ONESHOT_RETRY_5S
   python3 - "$DIR/sdk-patches.json" <<'PY'
 import json, sys
 report = json.load(open(sys.argv[1]))

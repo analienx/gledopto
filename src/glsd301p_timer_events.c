@@ -14,6 +14,8 @@ static ev_timer_event_t g_health_event;
 static bool g_health_registered;
 static ev_timer_event_t g_retry_event;
 static bool g_retry_registered;
+static glsd301p_timer_cb_t g_retry_oneshot_cb;
+static void *g_retry_oneshot_data;
 static uint32_t g_reg_faults;
 
 void glsd301p_timer_events_init(void)
@@ -26,6 +28,8 @@ void glsd301p_timer_events_init(void)
     g_health_registered = false;
     memset(&g_retry_event, 0, sizeof(g_retry_event));
     g_retry_registered = false;
+    g_retry_oneshot_cb = NULL;
+    g_retry_oneshot_data = NULL;
     g_reg_faults = 0u;
 }
 
@@ -101,6 +105,50 @@ bool glsd301p_timer_retry_start(glsd301p_timer_cb_t cb, void *data)
 {
     return glsd301p_timer_start_one(&g_retry_event, &g_retry_registered, cb,
                                     data, GLSD301P_TIMER_RETRY_MS);
+}
+
+static int glsd301p_timer_retry_oneshot_wrap(void *data)
+{
+    glsd301p_timer_cb_t cb;
+    void *cb_data;
+    int rc;
+
+    (void)data;
+    cb = g_retry_oneshot_cb;
+    cb_data = g_retry_oneshot_data;
+    rc = (cb != NULL) ? cb(cb_data) : -1;
+    if (rc < 0) {
+        g_retry_oneshot_cb = NULL;
+        g_retry_oneshot_data = NULL;
+        g_retry_registered = false;
+        return -1;
+    }
+    /*
+     * Rearm request: the SDK rearms this same event with the returned
+     * period, so the stash stays for the next fire. ev_timer_exist is the
+     * real SDK membership check and keeps the flag honest if the caller
+     * stopped the event from inside its own callback before returning.
+     */
+    g_retry_registered = ev_timer_exist(&g_retry_event) ? true : false;
+    return rc;
+}
+
+bool glsd301p_timer_retry_start_oneshot(glsd301p_timer_cb_t cb, void *data)
+{
+    /*
+     * The wrapper is never NULL so start_one cannot take its NULL fault
+     * path; a NULL caller callback simply fires as a no-op one-shot. The
+     * stash lands only on success, so a refused start leaves no residue.
+     * Single-threaded main-loop servicing means no fire can interleave.
+     */
+    if (!glsd301p_timer_start_one(&g_retry_event, &g_retry_registered,
+                                  glsd301p_timer_retry_oneshot_wrap, NULL,
+                                  GLSD301P_TIMER_RETRY_MS)) {
+        return false;
+    }
+    g_retry_oneshot_cb = cb;
+    g_retry_oneshot_data = data;
+    return true;
 }
 
 void glsd301p_timer_io_stop(void)
