@@ -399,17 +399,24 @@ static void test_level_step_move_stop(void)
     register_clusters();
     attr_set_u8(ZCL_CLUSTER_GEN_ON_OFF, ZCL_ATTRID_ONOFF, 1u);
 
+    g_level.current_level = 0x10u;
     assert(dispatch_level(ZCL_CMD_LEVEL_STEP, step_up,
                           (u16)sizeof(step_up)) == ZCL_STA_SUCCESS);
     assert(g_level.mode == GLSD301P_LEVEL_TARGET);
-    /* 0xFE + 5 saturates at max through the guarded clamp. */
-    assert(g_level.target == DISPATCH_MAX_LEVEL);
+    assert(g_level.target == 0x15u);
 
     g_level.current_level = 0x05u;
     assert(dispatch_level(ZCL_CMD_LEVEL_STEP, step_down,
                           (u16)sizeof(step_down)) == ZCL_STA_SUCCESS);
     /* 0x05 - 0x0A floors at min, never wraps. */
+    assert(g_level.mode == GLSD301P_LEVEL_TARGET);
     assert(g_level.target == DISPATCH_MIN_LEVEL);
+
+    /* A saturating step short-circuits: already at target, stays IDLE. */
+    g_level.current_level = DISPATCH_MAX_LEVEL;
+    assert(dispatch_level(ZCL_CMD_LEVEL_STEP, step_up,
+                          (u16)sizeof(step_up)) == ZCL_STA_SUCCESS);
+    assert(g_level.mode == GLSD301P_LEVEL_IDLE);
 
     assert(dispatch_level(ZCL_CMD_LEVEL_MOVE, move,
                           (u16)sizeof(move)) == ZCL_STA_SUCCESS);
