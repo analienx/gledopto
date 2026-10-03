@@ -109,9 +109,14 @@ static void test_boot_arms_after_off_completion(void)
 
     turn_on(0xFEu);
     assert(g_onoff == 1u);
+    /* Boot restore queued OFF first: OFF priority holds on the wire. */
+    pump_ms(1u);
+    assert(host_uart_last_frame(last));
+    assert(memcmp(last, OFF, sizeof(last)) == 0);
     pump_ms(1u);
     assert(host_uart_last_frame(last));
     assert(memcmp(last, ON_FE, sizeof(last)) == 0);
+    assert(!glsd301p_uart_transport_has_pending(&g_transport));
 }
 
 static void test_boot_reject_locks_off(void)
@@ -376,6 +381,9 @@ static void test_static_io_works_with_full_pool(void)
 
     boot_via_pump();
     turn_on(0xFEu);
+    pump_ms(1u);
+    assert(host_uart_last_frame(last));
+    assert(memcmp(last, OFF, sizeof(last)) == 0);
     pump_ms(1u);
     assert(host_uart_last_frame(last));
     assert(memcmp(last, ON_FE, sizeof(last)) == 0);
