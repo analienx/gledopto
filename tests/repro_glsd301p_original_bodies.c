@@ -252,13 +252,6 @@ void ota_upgradeAbort(void)
 {
 }
 
-u8 sys_exceptionPost(u16 line, u8 evt)
-{
-    (void)line;
-    (void)evt;
-    return 0u;
-}
-
 u8 tl_zbTaskPost(tl_zb_callback_t func, void *arg)
 {
     (void)func;

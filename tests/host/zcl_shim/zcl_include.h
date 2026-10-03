@@ -42,13 +42,14 @@
 #include "common/bit.h"
 
 /*
- * Real OS headers (staged): the reporting body needs the timer API and
- * the exception-post macro, which the target chain provides through
- * zb_common.h. Requires -I<tree>/proj/os on every compile unit that
- * parses this shim.
+ * Real OS headers (staged): the ZCL bodies need the timer, exception
+ * and pool-buffer APIs, which the target chain provides through
+ * zb_common.h/tl_common.h. Requires -I<tree>/proj/os on every compile
+ * unit that parses this shim.
  */
 #include "ev_timer.h"
 #include "ev.h"
+#include "ev_buffer.h"
 
 /*
  * zb_common.h / nwk.h fragments the staged bodies need but whose full
