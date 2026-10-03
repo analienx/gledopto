@@ -372,8 +372,9 @@ jobs:
             -o build/host-tests/obj32/repro_zcl_ota.o
           reproobj='build/host-tests/obj32/repro_ev_timer.o build/host-tests/obj32/repro_ev_rtc.o build/host-tests/obj32/repro_mempool.o build/host-tests/obj32/repro_ev_buffer.o build/host-tests/obj32/repro_zcl.o build/host-tests/obj32/repro_zcl_reporting.o build/host-tests/obj32/repro_zcl_basic.o build/host-tests/obj32/repro_zcl_identify.o build/host-tests/obj32/repro_zcl_group.o build/host-tests/obj32/repro_zcl_onoff.o build/host-tests/obj32/repro_zcl_ota.o'
           # shellcheck disable=SC2086
-          cc -m32 $strict_repro -Ibuild/orig-sdk/proj/os $oinc $reproobj \
-            tests/host/hw_stub.c tests/repro_glsd301p_original_bodies.c \
+          cc -m32 $strict_repro -Isrc -Ibuild/orig-sdk/proj/os $oinc \
+            $reproobj tests/host/hw_stub.c \
+            tests/repro_glsd301p_original_bodies.c \
             -o build/host-tests/repro_original_bodies
           fails=0
           for c in identify0 identify1 triggereffect1 queryrsp0 groupadd1 groupview1 groupmember1 write1 cfgwrap40 cfgtrunc discrsp0 dfltrsp1 dflt0 readrsp4 writersp2 cfgrsp3 report4 disc1 disc2 disc4 readodd otaqueryrsp2 otablockshort r8leak; do
