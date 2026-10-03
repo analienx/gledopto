@@ -128,7 +128,10 @@ compile_one() {
   mkdir -p "$(dirname "$obj")"
   case "$source" in
     *.S) "$TC32_CC" "${asflags[@]}" "${defs[@]}" "${includes[@]}" -c "$source" -o "$obj" ;;
-    *glsd301p_telink_*.c)
+    # Application TUs that bind SDK headers need the same size_t predefined
+    # guard as the glsd301p_telink_* units; timer ownership is the only src/
+    # unit in that set (it alone sees ev_timer.h).
+    *glsd301p_telink_*.c|*src/glsd301p_timer_events.c)
       "$TC32_CC" "${f[@]}" "${defs[@]}" "${telink_first[@]}" "${includes[@]}" -c "$source" -o "$obj" ;;
     *) "$TC32_CC" "${f[@]}" "${defs[@]}" "${includes[@]}" -c "$source" -o "$obj" ;;
   esac
