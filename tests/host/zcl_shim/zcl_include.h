@@ -82,6 +82,13 @@ u8 tl_zbTaskPost(tl_zb_callback_t func, void *arg);
  * handler stamps last-message LQI/RSSI here; the harness owns the
  * storage since the ZB archive is not linked.
  */
+/*
+ * The root dispatcher is SDK-internal (no public declaration); the
+ * harness drives it synchronously instead of the async AF task path.
+ * Signature mirrors the definition in zcl.c at the pinned commit.
+ */
+void zcl_cmdHandler(void *pCmd);
+
 typedef struct {
     u16 numberOfResets;
     u16 persistentMemoryWrites;
