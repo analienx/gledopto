@@ -227,7 +227,14 @@ Proposed fix: pin implementation checkouts to
 `github.event.pull_request.head.sha || github.sha` (same pattern as the
 readiness workflow); assert/log actual HEAD; keep merge testing separate
 if useful.
-Fix commit: TBD. Hosted proof: TBD.
+Fix (G5 @ 384ebb2): both `cleanroom-guard.yml` implementation checkouts
+(boundary + TC32 jobs) pinned to the head pattern with an
+assert-equal/log step; no separate merge-test job (branch is the sole
+change source, nothing to integrate). All R1-R4/R6-R8 validation runs
+above remain merge-commit evidence; this run re-establishes the full
+suite as exact-head evidence.
+Validation: green at 384ebb2 (boundary 37149777232, readiness
+37149777209): SOURCE_HEAD == EXPECTED_HEAD == 384ebb2 in both jobs.
 
 ## R6 — Identify/Groups parsers read past malformed payloads (P1, CONFIRMED)
 
