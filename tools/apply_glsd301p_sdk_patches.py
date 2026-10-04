@@ -281,7 +281,7 @@ PATCHES = [
         "original_sha256": (
             "82ec54ff0ecee3f1e876371f085cb10bf73ed0dfb2647399ad7481adc8732166"
         ),
-        "patched_sha256": "3815ef4b526e4534b34b43696df532d5c47f6d9f7c0c55352eff122e0203f5bd",
+        "patched_sha256": "6272e38bcb598f23c55b832e8c16d2c93f51795ba42762f892a9760c9e0530c1",
         "marker": "glsd301p_gcnt",
         "edits": [
             {
@@ -291,8 +291,17 @@ PATCHES = [
                     "    addGroup.group_addr = BUILD_U16(pInMsg->pData[0], pInMsg->pData[1]);\n"
                 ),
                 "replacement": (
-                    "    if (pInMsg->dataLen < 2) {\n"
+                    "    if (pInMsg->dataLen < 3) {\n"
                     "        return ZCL_STA_MALFORMED_COMMAND;\n"
+                    "    }\n"
+                    "    {\n"
+                    "        u8 glsd301p_nlen = pInMsg->pData[2];\n"
+                    "        if (glsd301p_nlen > 15) {\n"
+                    "            return ZCL_STA_MALFORMED_COMMAND;\n"
+                    "        }\n"
+                    "        if (pInMsg->dataLen != (u16)3 + (u16)glsd301p_nlen) {\n"
+                    "            return ZCL_STA_MALFORMED_COMMAND;\n"
+                    "        }\n"
                     "    }\n"
                     "    aps_add_group_req_t addGroup;\n"
                     "\n"
@@ -336,7 +345,7 @@ PATCHES = [
                     "            if (glsd301p_gcnt > APS_GROUP_TABLE_NUM) {\n"
                     "                return ZCL_STA_INSUFFICIENT_SPACE;\n"
                     "            }\n"
-                    "            if (pInMsg->dataLen < (u16)1 + (u16)glsd301p_gcnt * (u16)2) {\n"
+                    "            if (pInMsg->dataLen != (u16)1 + (u16)glsd301p_gcnt * (u16)2) {\n"
                     "                return ZCL_STA_MALFORMED_COMMAND;\n"
                     "            }\n"
                     "        }\n"
@@ -369,8 +378,17 @@ PATCHES = [
                     "_CODE_ZCL_ static status_t zcl_addGroupIfIdentifyPrc(zclIncoming_t *pInMsg)\n"
                     "{\n"
                     "    u8 status = ZCL_STA_SUCCESS;\n"
-                    "    if (pInMsg->dataLen != 2) {\n"
+                    "    if (pInMsg->dataLen < 3) {\n"
                     "        return ZCL_STA_MALFORMED_COMMAND;\n"
+                    "    }\n"
+                    "    {\n"
+                    "        u8 glsd301p_nlen = pInMsg->pData[2];\n"
+                    "        if (glsd301p_nlen > 15) {\n"
+                    "            return ZCL_STA_MALFORMED_COMMAND;\n"
+                    "        }\n"
+                    "        if (pInMsg->dataLen != (u16)3 + (u16)glsd301p_nlen) {\n"
+                    "            return ZCL_STA_MALFORMED_COMMAND;\n"
+                    "        }\n"
                     "    }\n"
                 ),
             },
