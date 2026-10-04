@@ -120,12 +120,22 @@ uint8_t glsd301p_zcl_level_command(glsd301p_zcl_ctx_t *ctx,
         } else {
             target = (target > cmd->stepSize) ? (uint16_t)(target - cmd->stepSize) : ctx->min_level;
         }
-        if (!glsd301p_control_level_start_target(
-                ctx->control,
-                glsd301p_control_clamp_level(ctx->control, target),
-                cmd->transitionTime,
-                (uint8_t)(cmd_id == ZCL_CMD_LEVEL_STEP_WITH_ON_OFF ? 1u : 0u))) {
-            return ZCL_STA_FAILURE;
+        {
+            uint8_t clipped =
+                glsd301p_control_clamp_level(ctx->control, target);
+            uint8_t current = ctx->level->current_level;
+            uint16_t moved = clipped > current
+                                 ? (uint16_t)(clipped - current)
+                                 : (uint16_t)(current - clipped);
+            uint16_t duration = glsd301p_control_proportional_time(
+                cmd->stepSize, moved, cmd->transitionTime);
+
+            if (!glsd301p_control_level_start_target(
+                    ctx->control, clipped, duration,
+                    (uint8_t)(cmd_id == ZCL_CMD_LEVEL_STEP_WITH_ON_OFF ? 1u
+                                                                       : 0u))) {
+                return ZCL_STA_FAILURE;
+            }
         }
         return ZCL_STA_SUCCESS;
     }

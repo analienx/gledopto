@@ -64,6 +64,7 @@ void glsd301p_control_init(glsd301p_control_ctx_t *ctx,
         level->rate = 0u;
         level->rate_accum_milli = 0u;
         level->direction_up = 0u;
+        level->target_dir = 0;
         level->with_onoff = 0u;
         level->current_level = boot_level;
         level->remaining_time = 0u;
@@ -157,6 +158,25 @@ bool glsd301p_control_emit(glsd301p_control_ctx_t *ctx,
     return true;
 }
 
+uint16_t glsd301p_control_proportional_time(uint16_t requested_span,
+                                            uint16_t moved_span,
+                                            uint16_t duration)
+{
+    uint32_t scaled;
+
+    if (duration == 0u || duration == 0xFFFFu) {
+        return duration;
+    }
+    if (requested_span == 0u || moved_span == 0u ||
+        moved_span >= requested_span) {
+        return duration;
+    }
+    /* Ceil keeps a clipped move at or under the requested rate. */
+    scaled = (uint32_t)duration * (uint32_t)moved_span +
+             (uint32_t)(requested_span - 1u);
+    return (uint16_t)(scaled / (uint32_t)requested_span);
+}
+
 uint8_t glsd301p_control_clamp_level(const glsd301p_control_ctx_t *ctx,
                                      uint16_t level)
 {
@@ -185,6 +205,7 @@ void glsd301p_control_level_cancel(glsd301p_control_ctx_t *ctx)
 
     ctx->level->mode = GLSD301P_LEVEL_IDLE;
     ctx->level->rate_accum_milli = 0u;
+    ctx->level->target_dir = 0;
     ctx->level->remaining_time = 0u;
     ctx->level->trans_dur_ms = 0u;
     ctx->level->move_last_ms = 0u;
@@ -194,7 +215,7 @@ void glsd301p_control_level_cancel(glsd301p_control_ctx_t *ctx)
 static uint8_t glsd301p_control_apply_level(glsd301p_control_ctx_t *ctx,
                                             uint8_t level,
                                             uint8_t with_onoff,
-                                            uint8_t direction_up,
+                                            int8_t direction,
                                             uint32_t now_ms)
 {
     uint8_t frame[GLSD301P_CONTROL_FRAME_SIZE];
@@ -219,11 +240,21 @@ static uint8_t glsd301p_control_apply_level(glsd301p_control_ctx_t *ctx,
     }
 
     level = glsd301p_control_clamp_level(ctx, level);
+    /*
+     * R9: With On/Off follows the retained command direction only.
+     * +1 (real increase) applies ON at onset; -1 preserves output
+     * until the sample reaches minimum, then OFF; 0 (equality)
+     * preserves unconditionally and never invents an increase. The
+     * sample value alone must not energize: above-minimum samples of
+     * a decrease from OFF stay OFF.
+     */
     if (with_onoff) {
-        if (direction_up || level > ctx->min_level) {
+        if (direction > 0) {
             output = true;
-        } else if (level <= ctx->min_level) {
-            output = false;
+        } else if (direction < 0) {
+            if (level <= ctx->min_level) {
+                output = false;
+            }
         }
     }
 
@@ -248,7 +279,23 @@ bool glsd301p_control_level_start_target(glsd301p_control_ctx_t *ctx,
     }
 
     glsd301p_control_level_cancel(ctx);
-    target = glsd301p_control_clamp_level(ctx, target);
+    {
+        uint8_t current = ctx->level->current_level;
+        uint16_t requested_span = target > current
+                                      ? (uint16_t)(target - current)
+                                      : (uint16_t)(current - target);
+        uint16_t moved_span;
+
+        target = glsd301p_control_clamp_level(ctx, target);
+        /* R9: retained actual direction; equality is 0, never up. */
+        ctx->level->target_dir = (target > current) ? 1
+                                 : ((target < current) ? -1 : 0);
+        /* R16: below-min requests clip here; shrink their time. */
+        moved_span = target > current ? (uint16_t)(target - current)
+                                      : (uint16_t)(current - target);
+        transition_time = glsd301p_control_proportional_time(
+            requested_span, moved_span, transition_time);
+    }
 
     /*
      * Duration policy: 0 means immediate; reserved 0xFFFF ("as fast as
@@ -258,8 +305,7 @@ bool glsd301p_control_level_start_target(glsd301p_control_ctx_t *ctx,
     if (transition_time == 0u || transition_time == 0xFFFFu ||
         target == ctx->level->current_level) {
         return glsd301p_control_apply_level(
-                   ctx, target, with_onoff,
-                   (uint8_t)(target >= ctx->level->current_level ? 1u : 0u),
+                   ctx, target, with_onoff, ctx->level->target_dir,
                    glsd301p_timebase_now_ms()) != 0u;
     }
 
@@ -304,7 +350,7 @@ bool glsd301p_control_level_start_move(glsd301p_control_ctx_t *ctx,
 
     if (with_onoff && direction_up && !ctx->runtime->logical_output_enabled) {
         (void)glsd301p_control_apply_level(
-            ctx, ctx->level->current_level, 1u, 1u,
+            ctx, ctx->level->current_level, 1u, 1,
             glsd301p_timebase_now_ms());
     }
 
@@ -374,7 +420,7 @@ int glsd301p_control_level_cb(void *data)
         }
         if (glsd301p_control_apply_level(
                 ctx, next, ctx->level->with_onoff,
-                (uint8_t)(next >= ctx->level->current_level ? 1u : 0u),
+                ctx->level->target_dir,
                 now_ms) == 0u) {
             glsd301p_control_level_cancel(ctx);
             return -1;
@@ -412,7 +458,7 @@ int glsd301p_control_level_cb(void *data)
                        : ctx->min_level;
         }
         if (glsd301p_control_apply_level(ctx, next, ctx->level->with_onoff,
-                                         ctx->level->direction_up,
+                                         ctx->level->direction_up ? 1 : -1,
                                          now_ms) == 0u) {
             glsd301p_control_level_cancel(ctx);
             return -1;

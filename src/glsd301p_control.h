@@ -40,6 +40,11 @@ typedef enum {
  * the ZCL rate (levels/second) over elapsed ms into a milli-level
  * accumulator. Both survive callback delays and uint32 wrap; arithmetic
  * is bounded u32 with saturation, never overshooting.
+ *
+ * R9: target_dir retains the TARGET command's actual direction (+1 up,
+ * -1 down, 0 equal) from dispatch through every interpolation tick, so
+ * With On/Off effects never derive direction from rounded samples and
+ * equality never invents an increase. direction_up keeps serving MOVE.
  */
 typedef struct {
     uint8_t mode;
@@ -47,6 +52,7 @@ typedef struct {
     uint8_t rate;
     uint32_t rate_accum_milli;
     uint8_t direction_up;
+    int8_t target_dir;
     uint8_t with_onoff;
     uint8_t current_level;
     uint16_t remaining_time;
@@ -137,6 +143,19 @@ bool glsd301p_control_emit(glsd301p_control_ctx_t *ctx,
 
 uint8_t glsd301p_control_clamp_level(const glsd301p_control_ctx_t *ctx,
                                      uint16_t level);
+
+/*
+ * R16: proportional Step/MoveToLevel time after target clipping.
+ * Returns ceil(duration * moved_span / requested_span) when a finite
+ * nonzero duration covers a clipped move (0 < moved < requested);
+ * otherwise returns duration unchanged (immediate/reserved
+ * conventions, unclipped and fully-clipped moves keep their
+ * semantics; fully-clipped targets short-circuit as immediate in
+ * start_target). Bounded u32 arithmetic, no division by zero.
+ */
+uint16_t glsd301p_control_proportional_time(uint16_t requested_span,
+                                            uint16_t moved_span,
+                                            uint16_t duration);
 
 #ifdef __cplusplus
 }

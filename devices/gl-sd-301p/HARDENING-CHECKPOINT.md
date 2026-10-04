@@ -158,3 +158,36 @@ hosted. Execution style: direct (parent-held edits).
 
 Next action: M1 — author adverse-behavior regressions through
 production entry points; run negative controls against bc7196f.
+
+## M1 negative controls (2026-10-04, run 37220219614 @ b9a1025)
+
+Code under test is bc7196f + tests only (docs + 21 M1 cases). Old
+suites all pass first (`GLSD301P_ZCL_DISPATCH_SEQ=PASS`, AP intact);
+the isolation matrix then reports 17 FAIL / 4 PASS-NOW. Each FAIL is
+a stated behavioral assertion, not infra:
+
+- R9 `r9_repeat_min`: repeat minimum WithOnOff → `logical ON`
+  (expected OFF). `r9_equal`: equal target from OFF → ON.
+  `r9_zero_step`: zero-size WithOnOff steps → ON. `r9_down_off`:
+  2 s descent from OFF → ON mid-transition. `r9_replace_fault`:
+  retargeted downward leg → ON. Control `r9_up_onset` PASS.
+- R16 `r16_clipped`: clipped 4/40 Step keeps remaining 100
+  (expected ≤15). `r16_gap`: still TARGET after 2.4 s elapsed
+  (expected IDLE). Control `r16_controls` PASS.
+- R10 `r10_add_names` / `r10_addif_member`: 2-byte Add/AddIf
+  accepted (expected MALFORMED).
+- R11 `r11_readcfg` / `r11_discrsp` / `r11_shortforms` /
+  `r11_empty`: suffixes, 1-byte failures, empty frames accepted
+  (expected MALFORMED default responses). Control `r11_compound`
+  PASS.
+- R12 `r12_status`: mixed [unknown, configured] read answers 8
+  bytes, not 13 — the leaked UNSUPPORTED also shortens the
+  configured record on the wire (serializer emits fields only on
+  SUCCESS). Control `r12_alloc` PASS.
+- R13 `r13_chain`: Identify(5) leaves time 0 (expected 5).
+  `r13_endpoint`: misdirected Identify SUCCESS (expected
+  INVALID_FIELD). `r13_trigger`: reserved id/variant SUCCESS
+  (expected INVALID_FIELD).
+
+Next action: M2 — implement R9 retained-direction fix + R16
+proportional Step; matrix must go fully green with AP intact.

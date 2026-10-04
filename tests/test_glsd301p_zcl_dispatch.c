@@ -2249,6 +2249,33 @@ static void test_r9_replacement_and_fault(void)
     assert(!g_runtime.logical_output_enabled);
 }
 
+/*
+ * M2-added sibling (same R9 clause as r9_down_off, which failed on
+ * bc7196f): a retained-direction MOVE down from OFF preserves OFF
+ * above minimum and switches OFF on reaching minimum.
+ */
+static void test_r9_move_down_from_off_stays_off(void)
+{
+    const u8 down[] = {0x01u, 0x20u};
+    uint32_t base;
+
+    r9_setup_off_at_mid();
+    assert(dispatch_level(ZCL_CMD_LEVEL_MOVE_WITH_ON_OFF, down,
+                          (u16)sizeof(down)) == ZCL_STA_SUCCESS);
+    assert(g_level.mode == GLSD301P_LEVEL_MOVE);
+    base = host_uart_accepted_count();
+    pump_ms(1500u);
+    assert(g_level.mode == GLSD301P_LEVEL_MOVE);
+    assert(g_level.current_level > DISPATCH_MIN_LEVEL);
+    assert(!g_runtime.logical_output_enabled);
+    assert_frames_off_range(base, host_uart_accepted_count());
+    pump_ms(3000u);
+    assert(g_level.mode == GLSD301P_LEVEL_IDLE);
+    assert(g_level.current_level == DISPATCH_MIN_LEVEL);
+    assert(!g_runtime.logical_output_enabled);
+    assert_frames_off_range(base, host_uart_accepted_count());
+}
+
 static void r16_setup_on_at(uint8_t level)
 {
     u8 to_level[3];
@@ -3013,6 +3040,7 @@ static const r9_r16_case_t r9_r16_matrix[] = {
     {"r9_down_off", test_r9_downward_from_off_stays_off},
     {"r9_up_onset", test_r9_upward_onset_applies_on},
     {"r9_replace_fault", test_r9_replacement_and_fault},
+    {"r9_move_down", test_r9_move_down_from_off_stays_off},
     {"r16_clipped", test_r16_step_clipped_duration_proportional},
     {"r16_controls", test_r16_step_unclamped_and_immediate_controls},
     {"r16_gap", test_r16_step_clipped_elapsed_gap},
