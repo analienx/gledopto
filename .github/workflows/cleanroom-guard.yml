@@ -260,7 +260,7 @@ jobs:
             src/glsd301p_power_stage_policy.c src/glsd301p_output_guard.c \
             src/glsd301p_push_input.c src/glsd301p_pb4_compat.c src/glsd301p_runtime_core.c \
             src/glsd301p_uart_transport.c src/glsd301p_timebase.c src/glsd301p_uart_service.c \
-            src/glsd301p_control.c tests/host/hw_stub.c tests/test_glsd301p_control.c \
+            src/glsd301p_control.c src/glsd301p_identify.c tests/host/hw_stub.c tests/test_glsd301p_control.c \
             -o build/host-tests/test_glsd301p_control
           # shellcheck disable=SC2086
           cc $strict $inc src/glsd301p_timebase.c src/glsd301p_rejoin.c \
@@ -343,7 +343,7 @@ jobs:
             src/glsd301p_power_stage_policy.c src/glsd301p_output_guard.c \
             src/glsd301p_push_input.c src/glsd301p_pb4_compat.c src/glsd301p_runtime_core.c \
             src/glsd301p_uart_transport.c src/glsd301p_timebase.c src/glsd301p_uart_service.c \
-            src/glsd301p_control.c src/glsd301p_zcl_commands.c tests/host/hw_stub.c \
+            src/glsd301p_control.c src/glsd301p_identify.c src/glsd301p_zcl_commands.c tests/host/hw_stub.c \
             tests/test_glsd301p_zcl_dispatch.c -o build/host-tests/test_glsd301p_zcl_dispatch
       - name: Run original-body reproductions (pristine SDK, expect failure)
         shell: bash

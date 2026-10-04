@@ -116,6 +116,7 @@ app_sources=(
   "$CORE/glsd301p_uart_service.c"
   "$CORE/glsd301p_timer_events.c"
   "$CORE/glsd301p_control.c"
+  "$CORE/glsd301p_identify.c"
   "$CORE/glsd301p_zcl_commands.c"
   "$CORE/glsd301p_rejoin.c"
   "$CORE/glsd301p_bdb_adapter.c"

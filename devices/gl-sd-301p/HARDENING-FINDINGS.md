@@ -340,7 +340,16 @@ retained through interpolation; equality never invents an increase;
 OFF preserved for decreasing commands from OFF; ON applied at onset of
 a real increase, OFF on reaching minimum during a decrease; keep
 fault/readiness/PUSH/OFF preemption intact.
-Fix commit: TBD. Hosted proof: TBD.
+Fix (M2 @ f0a2845, green 5937ddf): `target_dir` (+1/-1/0) retained
+from dispatch through interpolation; With On/Off follows it only
+(up: ON at onset; down: preserve until min, then OFF; equal:
+preserve, never invent). MOVE-down sibling fixed via the same
+policy. Documented choice: equal-at-minimum from ON preserves ON
+(not a decrease, so no OFF mandate). One old unit expectation
+corrected with justification (it asserted ON for a downward
+WithOnOff from OFF — the defect itself).
+Validation: 7 R9 matrix cases green @ 5937ddf (boundary
+37221176908); AP suites green.
 
 ## R10 — Groups accepts malformed Add, rejects valid Add If Identifying (P2, CONFIRMED)
 
@@ -455,4 +464,10 @@ captured frames; negative control at bc7196f).
 Proposed fix: proportionally reduce finite Step duration on clipping
 with bounded arithmetic + explicit rounding; preserve
 immediate/reserved conventions and zero-step semantics.
-Fix commit: TBD. Hosted proof: TBD.
+Fix (M2 @ f0a2845, green 5937ddf): shared
+`glsd301p_control_proportional_time` (ceil, bounded u32) applied to
+Step spans in `zcl_commands.c` and to below-min MoveToLevel spans in
+`start_target` (same class); fully-clipped targets still
+short-circuit as immediate.
+Validation: 3 R16 matrix cases green @ 5937ddf (boundary
+37221176908); AP suites green.

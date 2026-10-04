@@ -165,15 +165,41 @@ static status_t thunk_onoff(zclIncomingAddrInfo_t *addr, u8 cmd_id,
     return glsd301p_zcl_onoff_command(&g_zctx, addr->dstEp, cmd_id, payload);
 }
 
-/* Mirrors glsd_identify_cb: accepted, no effect (locked by tests). */
+/* Mirrors glsd_identify_cb: the production R13 adapter. */
 static unsigned int identify_calls;
 static status_t thunk_identify(zclIncomingAddrInfo_t *addr, u8 cmd_id,
                                void *payload)
 {
-    (void)addr;
-    (void)cmd_id;
-    (void)payload;
+    zcl_identify_cmdPayload_t *cmd;
+
     identify_calls++;
+    if (addr == NULL || payload == NULL) {
+        return ZCL_STA_INVALID_FIELD;
+    }
+    if (addr->dstEp != DISPATCH_EP) {
+        return ZCL_STA_INVALID_FIELD;
+    }
+    cmd = (zcl_identify_cmdPayload_t *)payload;
+    if (cmd_id == ZCL_CMD_IDENTIFY) {
+        glsd301p_identify_on_identify(&g_ctx.identify,
+                                      cmd->identify.identifyTime,
+                                      &t_identify_time,
+                                      glsd301p_timebase_now_ms());
+        return ZCL_STA_SUCCESS;
+    }
+    if (cmd_id == ZCL_CMD_TRIGGER_EFFECT) {
+        if (!glsd301p_identify_effect_supported(
+                cmd->triggerEffect.effectId,
+                cmd->triggerEffect.effectVariant)) {
+            return ZCL_STA_INVALID_FIELD;
+        }
+        if (!glsd301p_control_identify_effect_start(
+                &g_ctx, cmd->triggerEffect.effectId,
+                glsd301p_timebase_now_ms())) {
+            return ZCL_STA_FAILURE;
+        }
+        return ZCL_STA_SUCCESS;
+    }
     return ZCL_STA_SUCCESS;
 }
 
@@ -419,6 +445,7 @@ static void fixture_init(zcl_hookFn_t hook)
                           &g_level, &g_onoff,
                           DISPATCH_MIN_LEVEL, DISPATCH_MAX_LEVEL,
                           DISPATCH_MAX_LEVEL, DISPATCH_MIN_LEVEL);
+    glsd301p_control_identify_bind_store(&g_ctx, &t_identify_time);
     g_on_time = 0u;
     g_off_wait_time = 0u;
     g_zctx.endpoint = DISPATCH_EP;
@@ -1807,12 +1834,19 @@ static void test_r8_noop_hook_returns_to_baseline(void)
 
 /* ---- Follow-ups ---- */
 
-static void test_followup_identify_accepted_no_effect(void)
+static void test_followup_identify_adapter_wiring(void)
 {
     const u8 identify[] = {0x05u, 0x00u};
     const u8 effect[] = {0x01u, 0x02u};
     unsigned int uart_base;
 
+    /*
+     * M3 correction: the pre-R13 no-op (SUCCESS with no state) was the
+     * defect. Identify now lands on the shared store and arms the
+     * countdown; the reserved effect variant is rejected truthfully
+     * before any state change. Commands themselves emit no wire
+     * traffic; the countdown ticks silently.
+     */
     fixture_init(NULL);
     boot_ready();
     uart_base = host_uart_send_attempts();
@@ -1820,16 +1854,21 @@ static void test_followup_identify_accepted_no_effect(void)
     assert(dispatch_identify(ZCL_CMD_IDENTIFY,
                              ZCL_FRAME_CLIENT_SERVER_DIR, identify,
                              (u16)sizeof(identify)) == ZCL_STA_SUCCESS);
+    assert(identify_calls == 1u);
+    assert(t_identify_time == 5u);
     assert(dispatch_identify(ZCL_CMD_TRIGGER_EFFECT,
                              ZCL_FRAME_CLIENT_SERVER_DIR, effect,
-                             (u16)sizeof(effect)) == ZCL_STA_SUCCESS);
-    /* Accepted for commissioning-tool compatibility; no state, no wire. */
+                             (u16)sizeof(effect)) == ZCL_STA_INVALID_FIELD);
     assert(identify_calls == 2u);
-    assert(t_identify_time == 0u);
+    assert(t_identify_time == 5u);
     assert(g_onoff == 0u);
     assert(g_level.mode == GLSD301P_LEVEL_IDLE);
     assert(host_uart_send_attempts() == uart_base);
     assert(af_count == 0u);
+
+    pump_ms(1000u);
+    assert(t_identify_time == 4u);
+    assert(host_uart_send_attempts() == uart_base);
 }
 
 static void test_followup_level_exact_lengths(void)
@@ -2969,8 +3008,13 @@ static void test_r13_identify_effect_chain(void)
                              (u16)sizeof(identify0)) == ZCL_STA_SUCCESS);
     assert(t_identify_time == 0u);
 
-    /* The attribute-write path feeds the same countdown. */
+    /*
+     * The attribute-write path feeds the same countdown. M3: the leg
+     * needs the household tick running (boot_ready starts it), as in
+     * the command leg above; without a running tick no time passes.
+     */
     fixture_init(noop_hook);
+    boot_ready();
     assert(root_frame(ZCL_CLUSTER_GEN_IDENTIFY, ZCL_CMD_WRITE, 0u,
                       ZCL_FRAME_CLIENT_SERVER_DIR, write_time7,
                       (u16)sizeof(write_time7), 1u));
@@ -2999,16 +3043,22 @@ static void test_r13_trigger_effect_truthful(void)
 {
     const u8 reserved_id[] = {0x02u, 0x00u};
     const u8 reserved_variant[] = {0x00u, 0x01u};
-    const u8 defined0[] = {0x00u, 0x00u};
-    const u8 defined1[] = {0x01u, 0x00u};
+    const u8 blink[] = {0x00u, 0x00u};
+    const u8 breathe[] = {0x01u, 0x00u};
+    uint32_t uart_base;
 
     /*
-     * Reserved effect ids/variants are rejected truthfully; defined
-     * ids stay accepted-without-blink for commissioning-tool
-     * compatibility (documented physical limit: no blink stage).
+     * M3 correction: the "accepted-without-blink" SUCCESS was the R13
+     * defect (a dimmer can modulate its output; SUCCESS with no
+     * visible program lies to the commissioner). Defined effects now
+     * run bounded visible programs through the guarded emit path and
+     * restore the pre-effect output; anything else is rejected
+     * truthfully before any state change.
      */
     fixture_init(NULL);
     boot_ready();
+
+    /* Unsupported ids and variants: rejected, nothing starts. */
     assert(dispatch_identify(ZCL_CMD_TRIGGER_EFFECT,
                              ZCL_FRAME_CLIENT_SERVER_DIR, reserved_id,
                              (u16)sizeof(reserved_id)) ==
@@ -3018,14 +3068,93 @@ static void test_r13_trigger_effect_truthful(void)
                              (u16)sizeof(reserved_variant)) ==
            ZCL_STA_INVALID_FIELD);
     assert(t_identify_time == 0u);
+    assert(g_level.mode == GLSD301P_LEVEL_IDLE);
+    assert(!glsd301p_timer_level_registered());
+
+    /* Blink from OFF: ON-phase, OFF-phase, restore, timer parked. */
+    uart_base = host_uart_accepted_count();
     assert(dispatch_identify(ZCL_CMD_TRIGGER_EFFECT,
-                             ZCL_FRAME_CLIENT_SERVER_DIR, defined0,
-                             (u16)sizeof(defined0)) == ZCL_STA_SUCCESS);
-    assert(dispatch_identify(ZCL_CMD_TRIGGER_EFFECT,
-                             ZCL_FRAME_CLIENT_SERVER_DIR, defined1,
-                             (u16)sizeof(defined1)) == ZCL_STA_SUCCESS);
-    assert(t_identify_time == 0u);
+                             ZCL_FRAME_CLIENT_SERVER_DIR, blink,
+                             (u16)sizeof(blink)) == ZCL_STA_SUCCESS);
+    assert(glsd301p_timer_level_registered());
+    pump_ms(150u);
+    assert(g_runtime.logical_output_enabled);
+    assert(g_level.current_level == DISPATCH_MAX_LEVEL);
+    pump_ms(150u);
     assert(!g_runtime.logical_output_enabled);
+    pump_ms(1200u);
+    assert(!g_runtime.logical_output_enabled);
+    assert(g_onoff == 0u);
+    assert(g_level.current_level == DISPATCH_MAX_LEVEL);
+    assert(g_level.mode == GLSD301P_LEVEL_IDLE);
+    assert(!glsd301p_timer_level_registered());
+    assert(host_uart_accepted_count() > uart_base);
+    assert(t_identify_time == 0u);
+
+    /* Breathe from OFF: forced ON with an exact ramp, then restore. */
+    assert(dispatch_identify(ZCL_CMD_TRIGGER_EFFECT,
+                             ZCL_FRAME_CLIENT_SERVER_DIR, breathe,
+                             (u16)sizeof(breathe)) == ZCL_STA_SUCCESS);
+    pump_ms(150u);
+    assert(g_runtime.logical_output_enabled);
+    assert(g_level.current_level == 0xE5u);
+    pump_ms(350u);
+    assert(g_runtime.logical_output_enabled);
+    assert(g_level.current_level == 0x80u);
+    pump_ms(1500u);
+    assert(!g_runtime.logical_output_enabled);
+    assert(g_onoff == 0u);
+    assert(g_level.current_level == DISPATCH_MAX_LEVEL);
+    assert(!glsd301p_timer_level_registered());
+
+    /*
+     * Re-trigger mid-effect keeps the original restore point: the
+     * ON-phase output must not become the restored state.
+     */
+    assert(dispatch_identify(ZCL_CMD_TRIGGER_EFFECT,
+                             ZCL_FRAME_CLIENT_SERVER_DIR, blink,
+                             (u16)sizeof(blink)) == ZCL_STA_SUCCESS);
+    pump_ms(150u);
+    assert(g_runtime.logical_output_enabled);
+    assert(dispatch_identify(ZCL_CMD_TRIGGER_EFFECT,
+                             ZCL_FRAME_CLIENT_SERVER_DIR, blink,
+                             (u16)sizeof(blink)) == ZCL_STA_SUCCESS);
+    pump_ms(1500u);
+    assert(!g_runtime.logical_output_enabled);
+    assert(g_onoff == 0u);
+    assert(g_level.current_level == DISPATCH_MAX_LEVEL);
+    assert(!glsd301p_timer_level_registered());
+
+    /* A remote command aborts the program; the new state wins. */
+    assert(dispatch_onoff(ZCL_CMD_ONOFF_ON, NULL, 0u) == ZCL_STA_SUCCESS);
+    assert(g_runtime.logical_output_enabled);
+    assert(dispatch_identify(ZCL_CMD_TRIGGER_EFFECT,
+                             ZCL_FRAME_CLIENT_SERVER_DIR, blink,
+                             (u16)sizeof(blink)) == ZCL_STA_SUCCESS);
+    pump_ms(300u);
+    assert(!g_runtime.logical_output_enabled);
+    assert(dispatch_onoff(ZCL_CMD_ONOFF_ON, NULL, 0u) == ZCL_STA_SUCCESS);
+    assert(g_runtime.logical_output_enabled);
+    pump_ms(1500u);
+    assert(g_runtime.logical_output_enabled);
+    assert(g_level.current_level == DISPATCH_MAX_LEVEL);
+    assert(g_onoff == 1u);
+    assert(!glsd301p_timer_level_registered());
+
+    /* The emit-less Stop restores the pre-effect output explicitly. */
+    assert(dispatch_identify(ZCL_CMD_TRIGGER_EFFECT,
+                             ZCL_FRAME_CLIENT_SERVER_DIR, blink,
+                             (u16)sizeof(blink)) == ZCL_STA_SUCCESS);
+    pump_ms(300u);
+    assert(!g_runtime.logical_output_enabled);
+    assert(dispatch_level(ZCL_CMD_LEVEL_STOP, NULL, 0u) == ZCL_STA_SUCCESS);
+    assert(g_runtime.logical_output_enabled);
+    assert(g_level.current_level == DISPATCH_MAX_LEVEL);
+    pump_ms(1500u);
+    assert(g_runtime.logical_output_enabled);
+    assert(!glsd301p_timer_level_registered());
+
+    assert(t_identify_time == 0u);
     assert(pool_free_total() == 26u);
 }
 
@@ -3136,7 +3265,7 @@ int main(int argc, char **argv)
     test_r7_pool_exhaustion_exits();
     test_r8_null_hook_returns_to_baseline();
     test_r8_noop_hook_returns_to_baseline();
-    test_followup_identify_accepted_no_effect();
+    test_followup_identify_adapter_wiring();
     test_followup_level_exact_lengths();
     test_followup_onoff_exact_lengths();
     test_followup_ota_bounds();

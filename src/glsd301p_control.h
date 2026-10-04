@@ -4,6 +4,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+#include "glsd301p_identify.h"
 #include "glsd301p_runtime_core.h"
 #include "glsd301p_uart_service.h"
 #include "glsd301p_uart_transport.h"
@@ -75,6 +76,13 @@ typedef struct {
     bool io_serviced_once;
     uint32_t io_last_ms;
     uint32_t io_max_gap_ms;
+    /*
+     * R13: the control plane hosts the Identify adapter. identify_store
+     * binds the ZCL IdentifyTime attribute (NULL until bound); the
+     * household IO tick polls the countdown through it.
+     */
+    glsd301p_identify_t identify;
+    uint16_t *identify_store;
 } glsd301p_control_ctx_t;
 
 void glsd301p_control_init(glsd301p_control_ctx_t *ctx,
@@ -156,6 +164,25 @@ uint8_t glsd301p_control_clamp_level(const glsd301p_control_ctx_t *ctx,
 uint16_t glsd301p_control_proportional_time(uint16_t requested_span,
                                             uint16_t moved_span,
                                             uint16_t duration);
+
+/*
+ * R13 Identify wiring. The store binds the ZCL IdentifyTime attribute;
+ * effect_start validates readiness and the effect id, cancels any
+ * running transition, and renders on the owned Level timer; it returns
+ * false without touching effect state when refused. effect_abort ends
+ * the program without emitting (the aborting cause always emits, except
+ * the emit-less Stop path, which restores explicitly) and reports
+ * whether a program was active. effect_restore re-emits the saved
+ * pre-effect output through the guarded path.
+ */
+void glsd301p_control_identify_bind_store(glsd301p_control_ctx_t *ctx,
+                                          uint16_t *store);
+bool glsd301p_control_identify_effect_start(glsd301p_control_ctx_t *ctx,
+                                            uint8_t effect_id,
+                                            uint32_t now_ms);
+bool glsd301p_control_identify_effect_abort(glsd301p_control_ctx_t *ctx);
+void glsd301p_control_identify_effect_restore(glsd301p_control_ctx_t *ctx,
+                                              uint32_t now_ms);
 
 #ifdef __cplusplus
 }
