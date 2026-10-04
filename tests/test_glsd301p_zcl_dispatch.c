@@ -2580,20 +2580,20 @@ static void test_r11_discover_rsp_suffixes(void)
     fixture_init(noop_hook);
 
     /* Incomplete trailing records are malformed, not truncated away. */
-    assert(root_frame(ZCL_CLUSTER_GEN_ON_OFF, ZCL_CMD_DISCOVER_ATTRS_RSP, 0u,
+    assert(root_frame(ZCL_CLUSTER_GEN_ON_OFF, ZCL_CMD_DISCOVER_ATTR_RSP, 0u,
                       ZCL_FRAME_SERVER_CLIENT_DIR, short_suffix,
                       (u16)sizeof(short_suffix), 1u));
     assert(af_count == 1u);
     assert(last_default_rsp(0u, &rsp_cmd, &status));
     assert(status == ZCL_STA_MALFORMED_COMMAND);
-    assert(root_frame(ZCL_CLUSTER_GEN_ON_OFF, ZCL_CMD_DISCOVER_ATTRS_RSP, 0u,
+    assert(root_frame(ZCL_CLUSTER_GEN_ON_OFF, ZCL_CMD_DISCOVER_ATTR_RSP, 0u,
                       ZCL_FRAME_SERVER_CLIENT_DIR, rec_plus_suffix,
                       (u16)sizeof(rec_plus_suffix), 2u));
     assert(af_count == 2u);
     assert(last_default_rsp(1u, &rsp_cmd, &status));
     assert(status == ZCL_STA_MALFORMED_COMMAND);
     assert(root_frame(ZCL_CLUSTER_GEN_ON_OFF,
-                      ZCL_CMD_DISCOVER_ATTRS_EXT_RSP, 0u,
+                      ZCL_CMD_DISCOVER_ATTR_EXTD_RSP, 0u,
                       ZCL_FRAME_SERVER_CLIENT_DIR, ext_suffix,
                       (u16)sizeof(ext_suffix), 3u));
     assert(af_count == 3u);
@@ -2601,14 +2601,14 @@ static void test_r11_discover_rsp_suffixes(void)
     assert(status == ZCL_STA_MALFORMED_COMMAND);
 
     /* Whole-record responses still parse (PASS-NOW controls). */
-    assert(root_frame(ZCL_CLUSTER_GEN_ON_OFF, ZCL_CMD_DISCOVER_ATTRS_RSP, 0u,
+    assert(root_frame(ZCL_CLUSTER_GEN_ON_OFF, ZCL_CMD_DISCOVER_ATTR_RSP, 0u,
                       ZCL_FRAME_SERVER_CLIENT_DIR, complete_only,
                       (u16)sizeof(complete_only), 4u));
-    assert(root_frame(ZCL_CLUSTER_GEN_ON_OFF, ZCL_CMD_DISCOVER_ATTRS_RSP, 0u,
+    assert(root_frame(ZCL_CLUSTER_GEN_ON_OFF, ZCL_CMD_DISCOVER_ATTR_RSP, 0u,
                       ZCL_FRAME_SERVER_CLIENT_DIR, one_rec,
                       (u16)sizeof(one_rec), 5u));
     assert(root_frame(ZCL_CLUSTER_GEN_ON_OFF,
-                      ZCL_CMD_DISCOVER_ATTRS_EXT_RSP, 0u,
+                      ZCL_CMD_DISCOVER_ATTR_EXTD_RSP, 0u,
                       ZCL_FRAME_SERVER_CLIENT_DIR, one_ext_rec,
                       (u16)sizeof(one_ext_rec), 6u));
     assert(pool_free_total() == 26u);
