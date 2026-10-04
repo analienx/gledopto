@@ -150,14 +150,14 @@ hosted. Execution style: direct (parent-held edits).
 ## Status
 
 - [x] M0 reconcile + review docs + R9–R16 ledger + checkpoint
-- [ ] M1 hosted adverse-behavior repros (R9–R13/R16, negative controls @ bc7196f)
-- [ ] M2 output + Level semantics (R9/R16) + regressions green
-- [ ] M3 protocol + commissioning (R10–R13) + audit questions + regressions green
+- [x] M1 hosted adverse-behavior repros (R9–R13/R16, negative controls @ bc7196f)
+- [x] M2 output + Level semantics (R9/R16) + regressions green
+- [x] M3 protocol + commissioning (R10–R13) + audit questions + regressions green
 - [ ] M4 fresh identity (R14) + seal + two matching TC32+OTA builds (R15)
 - [ ] M5 reconcile matrix + PR #8 body + issue #1 + stop (**independent acceptance review pending**)
 
-Next action: M1 — author adverse-behavior regressions through
-production entry points; run negative controls against bc7196f.
+Next action: M4 — seal the final SHA; run two matching clean TC32 +
+quarantine-OTA builds with full provenance (R15).
 
 ## M1 negative controls (2026-10-04, run 37220219614 @ b9a1025)
 
@@ -189,5 +189,58 @@ a stated behavioral assertion, not infra:
   INVALID_FIELD). `r13_trigger`: reserved id/variant SUCCESS
   (expected INVALID_FIELD).
 
-Next action: M2 — implement R9 retained-direction fix + R16
-proportional Step; matrix must go fully green with AP intact.
+## M2 output + Level semantics (2026-10-04 @ 5937ddf)
+
+- R9: TARGET commands retain their actual direction (`target_dir`
+  +1/-1/0) through interpolation; With On/Off follows it only (up:
+  ON at onset; down: ON preserved to min then OFF; equal: preserved,
+  never invented). MOVE-down sibling fixed via the same policy
+  (`f0a2845`, unit correction `afbf7db`, boot-level fix `5937ddf`).
+- R16: shared `glsd301p_control_proportional_time` (ceil,
+  bounded-u32): clipped Step time scales with the moved span;
+  below-min MoveToLevel scales with the admissible span.
+- State @ `5937ddf`: R9 7/7 + R16 3/3 green, AP suites green
+  (boundary 37221176908 reports failed=10 = the unimplemented
+  R10–R13 cases; readiness 37221176882 green).
+
+## M3 protocol + commissioning (2026-10-04 @ 7c0cf10)
+
+- R13 (`264c7cb` + fixes `dd027e8`/`083e917`/`9b25107`): new
+  `glsd301p_identify` adapter — shared-store countdown on the
+  household tick (command + attribute-write paths, ceiling adopt,
+  Query honest via store, Groups AddIf gated by the same store);
+  Blink/Breathe one-shots through the guarded emit path with
+  restore; abort on any remote/local/fault preemption (emit-less
+  Stop restores explicitly); reserved ids/variants INVALID_FIELD.
+  M3 corrections with justification: the M1
+  "accepted-without-blink" contract was the defect (real bounded
+  programs now); the no-op-locking followup updated; UART-silence
+  legs drain the queued boot-restore frame first; the Stop-restore
+  leg uses StopWithOnOff (plain Stop is correctly execute-if-off
+  gated while the mirror reads OFF).
+- R10 (`9ac2c85`): P4v2 exact group grammar (Add/AddIf uint16 +
+  counted string, namelen <= 15, exact length; membership exact
+  1+2*count); re-pinned `6272e38b…530c1`. R6 valid-shape tests moved
+  to the serializer shape.
+- R11/R12 (`7c0cf10`): P5v2 read-cfg request validator + whole
+  discover records + success-only 1-byte short forms + empty-frame
+  rejection + per-record cfg-response status init; re-pinned
+  `6f22053d…b961b8`.
+- State @ `7c0cf10`: full matrix failed=0 (22/22), AP suites green,
+  original-body repros PASS (boundary 37223816991); readiness
+  37223816970 green. Ingress map M3 reconciliation closes the
+  membership-policy question (EXACT) and the R10–R13 gaps.
+
+## M4 fresh identity (2026-10-04 @ cac2a6c)
+
+- R14: allocated GLSD-ED-003 / APP_BUILD 0x04 / FILE_VERSION
+  0x7F040001 / date 20261004 — confirmed unused across repo,
+  history, issues, PRs (001 → 002 → 003). Updated `version_cfg.h`,
+  build gates + manifest stamp, finalizer default, recovery
+  contract, wrapper test. Downgrade-safety preserved (0x7F04… >
+  vendor 0x2801…).
+- CI @ `cac2a6c`: boundary 37224045386 + readiness 37224045402,
+  both green.
+
+Next action: M4 seal + R15 — two matching clean TC32 +
+quarantine-OTA builds at the final SHA with full provenance.

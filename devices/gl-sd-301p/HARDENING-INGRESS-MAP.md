@@ -155,3 +155,32 @@ claim above (see `HARDENING-FINDINGS.md` R6/R7/R8 for fix commits):
   physical power-stage/flash/live-network proof, public OTA core
   beyond parsers, residual Level options/rate semantics. Each must
   resolve with evidence or stay a documented limit at M5.
+
+## M3 fix reconciliation (R10-R13 closed @ 7c0cf10)
+
+- R10 grammar gap closed by P4v2: Add/AddIf require the exact
+  uint16+counted-string form (namelen <= 15, exact 3+namelen, no
+  0xFF/trailing); GetMembership requires exact 1+2*count. The
+  membership-length policy question above resolves to EXACT, matching
+  the R6 ledger claim (previously minimum-only); Add If Identifying is
+  no longer over-strict (validates the same serializer shape, then
+  applies the identifying guard).
+- R11 residual grammar gaps closed by P5v2: read-cfg request
+  validator (whole 3-byte records, defined directions, non-empty);
+  discover rsp/ext whole 1+3n/1+4n records; write/cfg-rsp 1-byte
+  success-only short forms; empty write/report/read-rsp/read-cfg-rsp
+  frames malformed. Discover complete-only stays the sole legal
+  record-less response.
+- R12 status leak closed by P5v2: the read-cfg response builder
+  initializes status per record.
+- R13 effect gap closed by the `glsd301p_identify` adapter + control
+  effect overlay (see findings): shared-store countdown (command +
+  write paths), honest Query, Blink/Breathe programs with restore,
+  reserved ids/variants rejected. Plain Stop during an OFF-phase is
+  correctly gated by execute-if-off (SDK Options semantics); the
+  emit-less StopWithOnOff path restores explicitly.
+- M3 audit answers: countdown/effects add no timers (household 1 ms +
+  owned Level timer); trigger-effect validation precedes state
+  change; no new SDK surface beyond validated commands. Opaque
+  archives, physical proof, and compound-type nesting beyond the
+  harnessed flat struct/string stay documented limits (see M5).
