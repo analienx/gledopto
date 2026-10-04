@@ -1,5 +1,7 @@
 #include "glsd301p_identify.h"
 
+#include <stddef.h>
+
 #include "glsd301p_timebase.h"
 
 void glsd301p_identify_init(glsd301p_identify_t *st)
