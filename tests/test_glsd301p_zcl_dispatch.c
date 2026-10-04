@@ -2137,10 +2137,13 @@ static void test_r9_zero_step_with_onoff_no_energize(void)
     const u8 step_down_zero[] = {0x01u, 0x00u, 0x00u, 0x00u};
     uint32_t base;
 
-    /* Zero-size steps from OFF at minimum: no target change, no ON. */
+    /* Zero-size steps from OFF: no target change, no ON. */
+    uint8_t at;
+
     fixture_init(NULL);
     boot_ready();
     assert(!g_runtime.logical_output_enabled);
+    at = g_level.current_level;
     base = host_uart_accepted_count();
     assert(dispatch_level(ZCL_CMD_LEVEL_STEP_WITH_ON_OFF, step_up_zero,
                           (u16)sizeof(step_up_zero)) == ZCL_STA_SUCCESS);
@@ -2148,7 +2151,7 @@ static void test_r9_zero_step_with_onoff_no_energize(void)
                           (u16)sizeof(step_down_zero)) == ZCL_STA_SUCCESS);
     pump_ms(10u);
     assert(!g_runtime.logical_output_enabled);
-    assert(g_level.current_level == DISPATCH_MIN_LEVEL);
+    assert(g_level.current_level == at);
     assert_frames_off_range(base, host_uart_accepted_count());
 
     /* Zero-size steps from ON preserve ON (PASS-NOW control). */
