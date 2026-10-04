@@ -240,15 +240,26 @@ static void test_level_immediate_with_onoff(void)
     boot_via_pump();
     assert(g_onoff == 0u);
 
+    /*
+     * R9 correction (M2): the pre-fix version asserted ON after an
+     * immediate DOWNWARD WithOnOff (0xFE -> 0x64) from OFF. That was
+     * the `level > min` defect: a decrease from OFF must preserve OFF.
+     * The upward-immediate onset below keeps the original ON intent.
+     */
     assert(glsd301p_control_level_start_target(&g_ctx, 0x64u, 0u, 1u));
     assert(g_level.mode == GLSD301P_LEVEL_IDLE);
     assert(!glsd301p_timer_level_registered());
     assert(g_level.current_level == 0x64u);
+    assert(g_onoff == 0u);
+
+    /* An immediate increase from OFF still applies ON at onset. */
+    assert(glsd301p_control_level_start_target(&g_ctx, 0x70u, 0u, 1u));
+    assert(g_level.current_level == 0x70u);
     assert(g_onoff == 1u);
 
     /* A level-only immediate move while ON keeps the output energized. */
-    assert(glsd301p_control_level_start_target(&g_ctx, 0x70u, 0xFFFFu, 0u));
-    assert(g_level.current_level == 0x70u);
+    assert(glsd301p_control_level_start_target(&g_ctx, 0x80u, 0xFFFFu, 0u));
+    assert(g_level.current_level == 0x80u);
     assert(g_onoff == 1u);
 }
 
