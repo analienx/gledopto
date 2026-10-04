@@ -1228,13 +1228,13 @@ static void test_r6_groups_truncated(void)
 
 static void test_r6_groups_valid(void)
 {
-    const u8 add[] = {0x12u, 0x00u};
+    const u8 add[] = {0x12u, 0x00u, 0x00u};
     const u8 add_named[] = {0x34u, 0x00u, 0x03u, 'a', 'b', 'c'};
     const u8 view[] = {0x12u, 0x00u};
     const u8 membership0[] = {0x00u};
     const u8 membership1[] = {0x01u, 0x12u, 0x00u};
     const u8 remove[] = {0x12u, 0x00u};
-    const u8 add_if[] = {0x12u, 0x00u};
+    const u8 add_if[] = {0x12u, 0x00u, 0x00u};
 
     fixture_init(NULL);
     boot_ready();
@@ -1242,7 +1242,8 @@ static void test_r6_groups_valid(void)
     /*
      * Unicast group requests answer through the real send path, so the
      * handlers report CMD_HAS_RESP; only the silent add-if-identifying
-     * and remove-all shapes return plain SUCCESS.
+     * and remove-all shapes return plain SUCCESS. R10: Add/AddIf
+     * carry the counted-string shape (empty name here).
      */
     assert(dispatch_group(ZCL_CMD_GROUP_ADD_GROUP,
                           ZCL_FRAME_CLIENT_SERVER_DIR, add,
@@ -1849,6 +1850,8 @@ static void test_followup_identify_adapter_wiring(void)
      */
     fixture_init(NULL);
     boot_ready();
+    /* Drain the queued boot-restore frame before asserting silence. */
+    pump_ms(1u);
     uart_base = host_uart_send_attempts();
 
     assert(dispatch_identify(ZCL_CMD_IDENTIFY,
@@ -2941,7 +2944,7 @@ static void test_r13_identify_effect_chain(void)
     const u8 identify5[] = {0x05u, 0x00u};
     const u8 identify3[] = {0x03u, 0x00u};
     const u8 identify0[] = {0x00u, 0x00u};
-    const u8 add_if2[] = {0x12u, 0x00u};
+    const u8 add_if2[] = {0x12u, 0x00u, 0x00u};
     const u8 write_time7[] = {0x00u, 0x00u, 0x21u, 0x07u, 0x00u};
     u16 cluster;
     u8 cmd;
@@ -2950,15 +2953,15 @@ static void test_r13_identify_effect_chain(void)
     uint32_t uart_base;
 
     /*
-     * M1 note: the AddIf fixture below uses the pre-R10 two-byte shape
-     * because bc7196f rejects anything else; M3 moves it to the
-     * serializer shape with the adapter (justification recorded there).
-     * The registered callback is the target-identical no-op until M3
-     * wires the production adapter into both target and fixture.
+     * M3: the AddIf leg uses the serializer shape (group + empty
+     * counted string); the registered callback is the production R13
+     * adapter, target-identical.
      */
     fixture_init(NULL);
     boot_ready();
     assert(t_identify_time == 0u);
+    /* Drain the queued boot-restore frame before asserting silence. */
+    pump_ms(1u);
 
     /* Identify(5) takes effect on the shared IdentifyTime. */
     assert(dispatch_identify(ZCL_CMD_IDENTIFY,
