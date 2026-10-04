@@ -316,3 +316,143 @@ double-free); the R8 dispatch case now asserts return-to-baseline with
 the target's NULL hook (was leak documentation pre-fix).
 Validation: R8 suites green at 20208cc (boundary 37149493049):
 10 NULL-hook reads hold 26/26 free; pristine r8leak still reproduces.
+
+# Independent review R9-R16 (reviewed candidate bc7196f028d466a12ea992c2f2c3aa9cc2f6c764)
+
+Full text: `HARDENING-INDEPENDENT-REVIEW-20261004.md`.
+Acceptance oracle per row is A9–A16/AP in the goal brief; no row passes
+on compilation, grep, or prior-suite expectations alone.
+
+## R9 — Repeated minimum-level With On/Off command can re-energize output (P1, CONFIRMED)
+
+Source: `src/glsd301p_control.c:222,258,375` at bc7196f.
+Trigger: ready + ON above minimum; immediate Move to Level With On/Off
+to minimum emits OFF; repeating the identical command at minimum+OFF
+takes the `target == current_level` equality path (`>=`), sets
+`direction_up=1`, and emits ON. Descending transitions also derive
+direction from rounded samples (unchanged sample reads as upward), and
+`level > min_level` forces ON even when the semantic command decreases
+an already-OFF level.
+Original repro: TBD (M1 hosted adverse-behavior repro through real SDK
+Level dispatch → production control → UART capture).
+Proposed fix: base On/Off effects on the command's actual direction,
+retained through interpolation; equality never invents an increase;
+OFF preserved for decreasing commands from OFF; ON applied at onset of
+a real increase, OFF on reaching minimum during a decrease; keep
+fault/readiness/PUSH/OFF preemption intact.
+Fix commit: TBD. Hosted proof: TBD.
+
+## R10 — Groups accepts malformed Add, rejects valid Add If Identifying (P2, CONFIRMED)
+
+Source: `tools/apply_glsd301p_sdk_patches.py:294,335,372` (P4) and
+`tests/test_glsd301p_zcl_dispatch.c:1169,1210,1260` at bc7196f.
+P4 Add guards only two bytes, so a missing/truncated GroupName reaches
+`aps_add_group_req` membership mutation; Add If Identifying demands
+exactly two bytes although the pinned SDK serializer always emits the
+string prefix (three-byte minimum, empty name included). Tests lock in
+two-byte validity for both. Get Membership checks `< 1+2*count`
+(minimum) while the R6 ledger claims exact shape.
+Original repro: TBD (M1 SDK-serializer fixtures, truncated prefixes,
+count/name mismatch, capacity/identifying boundaries, APS + response
+observations).
+Proposed fix: validate the complete uint16 ID + bounded string form
+before mutation; accept valid empty/named inputs (unsupported names
+ignorable only after validation); reconcile the membership-length
+policy with exact-record validation.
+Fix commit: TBD. Hosted proof: TBD.
+
+## R11 — Foundation validators still accept incomplete record shapes (P2, CONFIRMED)
+
+Source: P5 in `tools/apply_glsd301p_sdk_patches.py:806,819,845,858`;
+pinned `zcl.c` `zcl_parseInReadReportCfgCmd`,
+`zcl_parseInDiscAttrsRspCmd`, `zcl_parseInDiscAttrsExtRspCmd`,
+`zcl_parseInWriteRspCmd`, `zcl_parseInCfgReportRspCmd` at bc7196f.
+Read Reporting Configuration divides `dataLen/3` without requiring
+whole records (trailing suffix silently discarded). Discover responses
+check only the leading byte (count truncates incomplete suffixes).
+Write/Configure-Reporting response guards accept any one-byte status
+although failures need record fields (success-only short form not
+status-checked). Accepted-malformed-input defects (no new OOB claim).
+Original repro: TBD (M1 real root/foundation grammar matrix).
+Proposed fix: command-specific complete-record validation incl.
+status-dependent forms, reserved directions/types, empty-payload
+legality, supported compound types; truthful rejection; no uniform
+fixed length on variable records.
+Fix commit: TBD. Hosted proof: TBD.
+
+## R12 — Read Reporting Configuration response status leaks between records (P2, CONFIRMED)
+
+Source: pinned `zcl.c:1968-2020`; P5 only widens the allocation
+(`apply_glsd301p_sdk_patches.py:664`) at bc7196f. `status` starts as
+SUCCESS outside the response loop; an unknown attribute sets
+UNSUPPORTED_ATTRIBUTE and a later configured attribute fills its
+fields without resetting status, so both records carry the first
+failure status. Existing tests miss mixed success/failure ordering.
+Original repro: TBD (M1 mixed orderings through production root
+dispatch with decoded wire statuses).
+Proposed fix: independently initialize/derive each record's status;
+keep cleanup ownership correct.
+Fix commit: TBD. Hosted proof: TBD.
+
+## R13 — Identify acknowledges success without implementing its effect (P2, CONFIRMED)
+
+Source: `firmware/glsd301p-ed/glsd301p_telink_target.c:243` and
+`tests/test_glsd301p_zcl_dispatch.c:168,1810` at bc7196f. The
+registered callback ignores payloads and returns SUCCESS; the SDK
+passes IdentifyTime to the app instead of applying it. Identify(5)
+leaves IdentifyTime at zero, Query emits no identifying response, Add
+Group If Identifying cannot be enabled by the accepted command. Tests
+lock in no-effect behavior and hand-set time for Groups coverage.
+Original repro: TBD (M1 production-adapter Identify→Query→AddIf→
+expiry/stop/restart chain, output unchanged).
+Proposed fix: target-shared bounded RAM IdentifyTime with owned
+countdown + Query/Groups integration incl. the attribute-write path;
+power output unaffected; physical-identification limits documented;
+unsupported Trigger Effect semantics rejected truthfully (no
+fabricated success, no power-stage blink).
+Fix commit: TBD. Hosted proof: TBD.
+
+## R14 — New firmware reuses the previous development image identity (P2, CONFIRMED)
+
+Source: `firmware/glsd301p-ed/version_cfg.h:7,14` + identity
+assertions at bc7196f. Still APP_BUILD `0x03`, FILE_VERSION
+`0x7F030001`, GLSD-ED-002 despite the prior goal's fresh-identity
+requirement; different bits share the earlier quarantined identity.
+Original repro: N/A (source/identity comparison).
+Proposed fix: allocate a fresh unused development identity from
+repository/issue history; update source, assertions, wrapper
+metadata, docs consistently; preserve quarantine (no publication or
+eligibility change).
+Fix commit: TBD. Hosted proof: TBD.
+
+## R15 — Handoff ledger and reproducibility evidence are incomplete (P2, CONFIRMED)
+
+Source: PR #8 body; `HARDENING-CHECKPOINT.md`,
+`HARDENING-INGRESS-MAP.md`, `HARDENING-FINDINGS.md`; both hosted
+workflows at bc7196f. PR body still describes `7184eec` + old hashes;
+checkpoint has contradictory complete/pending rows; ingress map keeps
+older unguarded/pending claims; R6 claims exact Membership length
+while code checks a minimum; only one wrapped OTA build evidenced
+(boundary job wraps no OTA), so two matching wrapped artifacts are
+unproved.
+Original repro: N/A (document/evidence comparison).
+Proposed fix: single current acceptance ledger (finding→fix→
+regression→raw evidence), history preserved; after sealing, two
+independent clean hosted TC32 + quarantine-wrapper runs at one final
+SHA with full provenance and matching ELF/raw/final/MAP/OTA hashes;
+PR body + issue result updated; remaining limits stated.
+Fix commit: TBD. Hosted proof: TBD.
+
+## R16 — Clamped Step retains the full unclamped transition time (P2, CONFIRMED)
+
+Source: `src/glsd301p_zcl_commands.c:106-127` at bc7196f. Step clamps
+its target to min/max but forwards unchanged `transitionTime`, so a
+4-unit clipped move (e.g. 250→254 of a 40-unit/10 s Step Up) takes
+the full 10 s instead of ~1 s proportional.
+Original repro: TBD (M1 real SDK Step dispatch, both bounds,
+unclamped controls, zero/reserved times, gaps/wrap, RemainingTime +
+captured frames; negative control at bc7196f).
+Proposed fix: proportionally reduce finite Step duration on clipping
+with bounded arithmetic + explicit rounding; preserve
+immediate/reserved conventions and zero-step semantics.
+Fix commit: TBD. Hosted proof: TBD.

@@ -104,9 +104,57 @@ PUBLIC EDIT-ONLY: local inspection/authoring only; all validation hosted.
 - [x] G1 UART fault boundary (R1,R2) — red 37142138291, fix green @ 6eb2bef (boundary 37142423473)
 - [x] G2 joined reconciliation (R3) — red 37142619613, fix green @ 8bde993 (boundary 37142816643)
 - [x] G3 elapsed-time transitions (R4) — red 37142931607, fix green @ dd85a37 (boundary 37143088126)
-- [ ] G2 joined reconciliation (R3) — target-wired adapter + fix
-- [ ] G3 elapsed-time transitions (R4) — repro + interpolation fix
-- [ ] G4 protocol bounds (R6,R7,R8) + bounded follow-ups
-- [ ] G5 exact-head coverage (R5) + claims + fresh identity
-- [ ] M6 seal + full gates + two matching clean TC32 builds
-- [ ] M7 PR #8 + issue #1 + stop (**independent acceptance review pending**)
+- [x] G4-A dispatch harness + 24-case pristine repro — red 37147368621
+- [x] G4-B SDK guards P2a/P2b/P3/P4/P5/P6 + harness fixes — green @ 20208cc (boundary 37149493049)
+- [x] G5 exact-head R5 + claims — green @ 384ebb2 (boundary 37149777232)
+- [x] M6 seal bc7196f — boundary 37150021744, dispatch re-run 37150235095, readiness 37150021753; two matching TC32 builds (elf 7f250345…)
+- [x] M7 PR #8 + issue #1 + stop (**independent acceptance review pending**)
+
+(R15 reconciliation 2026-10-04: removed stale duplicate pending G2/G3
+rows that contradicted the completed rows above; appended the missing
+G4–M7 completion rows with evidence.)
+
+---
+
+# Remediation of independent review R9-R16 (goal a75b22cd, brief sha256 `e34b3404…ec5fac76` verified)
+
+Reviewed candidate `bc7196f028d466a12ea992c2f2c3aa9cc2f6c764` (PR #8
+draft, quarantined); frozen baseline `760c1419` / PR #6 untouched.
+Forward commits on the same branch; no force push. Owner authorization
+in PR #8 comments (2026-10-04): next deep review assigned R9–R16;
+authorized scope is candidate implementation + GitHub-hosted
+validation; frozen/quarantine/acceptance boundary in force. No
+deployment, merge, release, OTA publication, or live-device actions.
+PUBLIC EDIT-ONLY: local inspection/authoring only; all validation
+hosted. Execution style: direct (parent-held edits).
+
+## M0 bootstrap record (2026-10-04)
+
+- Native goal `goal-01a107db-b370-7662-96eb-d4eeb5a02035`, session
+  `01a1017d-681f-7303-af97-8caf85983806` preserved.
+- Canonical `analienx/config` main `b0a91d01383a` reloaded
+  authenticated (skill 2.2, capability, mutation-safety,
+  project-context, registry); local config checkout is dirty/stale
+  and NOT used as authority.
+- Worktree `codex/glsd301p-client-hardening` at `bc7196f`, clean; no
+  other owner changed the candidate (newest PR/issue activity is the
+  owner authorization + my M7 checkpoint).
+- Review copied verbatim to `HARDENING-INDEPENDENT-REVIEW-20261004.md`
+  (sha256 `1b3fe96f…871212`); R9–R16 added to `HARDENING-FINDINGS.md`
+  as CONFIRMED with repro/fix/proof TBD.
+- Note: brief references `tools/muse/GOAL_BRIEFS.md` for work design;
+  absent from this checkout — proceeding on the brief's own milestone
+  structure (M0–M5) instead.
+- tools/muse skill note: using installed tool schemas as-is.
+
+## Status
+
+- [x] M0 reconcile + review docs + R9–R16 ledger + checkpoint
+- [ ] M1 hosted adverse-behavior repros (R9–R13/R16, negative controls @ bc7196f)
+- [ ] M2 output + Level semantics (R9/R16) + regressions green
+- [ ] M3 protocol + commissioning (R10–R13) + audit questions + regressions green
+- [ ] M4 fresh identity (R14) + seal + two matching TC32+OTA builds (R15)
+- [ ] M5 reconcile matrix + PR #8 body + issue #1 + stop (**independent acceptance review pending**)
+
+Next action: M1 — author adverse-behavior regressions through
+production entry points; run negative controls against bc7196f.

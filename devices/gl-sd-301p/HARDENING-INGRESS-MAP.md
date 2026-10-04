@@ -109,3 +109,49 @@ DiscoverCmdsRcvd(+Rsp), DiscoverCmdsGen(+Rsp), DiscoverAttrExtd(+Rsp).
    device execution in this task; quarantine holds.
 4. `zcl_ota.c` per-command bounds and OTA attribute writes: traced in G4,
    not pre-judged here.
+
+---
+
+## M0 reconciliation for R9–R16 (2026-10-04; rows above are history @ 7184eec)
+
+Current candidate: `bc7196f`. Disposition of every UNGUARDED/pending
+claim above (see `HARDENING-FINDINGS.md` R6/R7/R8 for fix commits):
+
+- Identify short reads (`zcl_identify.c:144,151-152,180`): GUARDED by
+  P3 (exact-2/exact-0) + harnessed. R13 opens the *effect* gap
+  (IdentifyTime never applied), not the parse.
+- Groups id/count reads: GUARDED by P4 + harnessed. R10 opens the
+  *grammar* gap (GroupName string form unvalidated; Add If
+  Identifying over-strict; membership-length policy vs ledger).
+- OnOff/Level: guarded (F6/P2a/P2b) + harnessed. R9/R16 open
+  *semantic* gaps (With On/Off direction invention; Step duration
+  after clipping), not parse.
+- OTA per-command bounds: GUARDED by P6 (all 10 parsers) + harnessed.
+  OTA core/flash/reboot stays an opaque/physical limit (no device
+  execution); parser-only evidence, inert stubs.
+- Write/report/read-rsp/cfg/read-cfg-rsp: GUARDED by P5 validators +
+  harnessed. R11 opens residual *grammar* gaps (read-cfg whole
+  records, discover-rsp suffixes, write/cfg-rsp status-dependent
+  short forms).
+- `u8 len` wraps (`zcl.c:1742,1859,1982`): widened to u16 by P5 +
+  wrap battery. Root status normalization removed (truthful
+  statuses); R8 cleanup hook-independent + allocation accounting.
+- `zcl_getAttrSize` unbounded reads: every caller now pre-validated
+  (P5 validators replicate its size logic with bounds); direct
+  unguarded call sites eliminated on enabled paths.
+- NV writes reachable only via report-table persistence
+  (`zcl_reportingTab_save` on successful ConfigReport); invalid input
+  rejected before table change (state-guarded regression).
+- Opposite-direction + response-side parsers: harnessed (identify
+  QueryRsp, groups responses via NULL-cb, OnOff/Level response sides
+  unreachable-by-dispatch, OTA requests both directions).
+- Group table / report table / pool ownership: as mapped above; pool
+  steady-state 26/26 + exhaustion fail-closed regressions hold.
+- 64-bit host vs 32-bit target: `-m32` pool-exact harness + TC32
+  target rebuild; exact per-type TC32 ABI probes remain a bounded
+  M3 audit question, not a claimed proof.
+- Remaining audit limits carried forward: opaque archives
+  (`libzb_ed.a`, MAC/APS internals, fragmentation, APS security),
+  physical power-stage/flash/live-network proof, public OTA core
+  beyond parsers, residual Level options/rate semantics. Each must
+  resolve with evidence or stay a documented limit at M5.
