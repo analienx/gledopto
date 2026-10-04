@@ -3144,13 +3144,21 @@ static void test_r13_trigger_effect_truthful(void)
     assert(g_onoff == 1u);
     assert(!glsd301p_timer_level_registered());
 
-    /* The emit-less Stop restores the pre-effect output explicitly. */
+    /*
+     * The emit-less Stop restores the pre-effect output explicitly.
+     * Plain Stop is gated by execute-if-off (the mirror reads OFF in
+     * the blink OFF-phase, so the SDK answers SUCCESS without
+     * reaching the callback); Stop With On/Off always executes.
+     */
     assert(dispatch_identify(ZCL_CMD_TRIGGER_EFFECT,
                              ZCL_FRAME_CLIENT_SERVER_DIR, blink,
                              (u16)sizeof(blink)) == ZCL_STA_SUCCESS);
     pump_ms(300u);
     assert(!g_runtime.logical_output_enabled);
     assert(dispatch_level(ZCL_CMD_LEVEL_STOP, NULL, 0u) == ZCL_STA_SUCCESS);
+    assert(!g_runtime.logical_output_enabled);
+    assert(dispatch_level(ZCL_CMD_LEVEL_STOP_WITH_ON_OFF, NULL, 0u) ==
+           ZCL_STA_SUCCESS);
     assert(g_runtime.logical_output_enabled);
     assert(g_level.current_level == DISPATCH_MAX_LEVEL);
     pump_ms(1500u);
