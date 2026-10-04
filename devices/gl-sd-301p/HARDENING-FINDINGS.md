@@ -368,7 +368,14 @@ Proposed fix: validate the complete uint16 ID + bounded string form
 before mutation; accept valid empty/named inputs (unsupported names
 ignorable only after validation); reconcile the membership-length
 policy with exact-record validation.
-Fix commit: TBD. Hosted proof: TBD.
+M1 repro: adverse-grammar matrix red at b9a1025 (boundary 37220219614).
+Fix (M3 @ 9ac2c85, green 7c0cf10): P4v2 requires the exact
+uint16+counted-string form (namelen <= 15, exact 3+namelen length, no
+0xFF/trailing) for Add and AddIf before any mutation; GetMembership
+requires exact 1+2*count. Two-byte Add/AddIf now MALFORMED; old R6
+valid-shape tests moved to the serializer shape with justification.
+Validation: r10_add_names + r10_addif_member green @ 7c0cf10
+(boundary 37223816991); AP suites green.
 
 ## R11 — Foundation validators still accept incomplete record shapes (P2, CONFIRMED)
 
@@ -387,7 +394,13 @@ Proposed fix: command-specific complete-record validation incl.
 status-dependent forms, reserved directions/types, empty-payload
 legality, supported compound types; truthful rejection; no uniform
 fixed length on variable records.
-Fix commit: TBD. Hosted proof: TBD.
+M1 repro: adverse-grammar matrix red at b9a1025 (boundary 37220219614).
+Fix (M3 @ 7c0cf10): P5v2 adds a read-cfg request validator (whole
+3-byte records, defined directions, non-empty) + hook; discover
+rsp/ext require whole 1+3n/1+4n records; write/cfg-rsp 1-byte form is
+success-only; write/report/read-rsp/read-cfg-rsp reject empty frames.
+Validation: 5 R11 matrix cases green @ 7c0cf10 (boundary
+37223816991); AP suites green.
 
 ## R12 — Read Reporting Configuration response status leaks between records (P2, CONFIRMED)
 
@@ -401,7 +414,12 @@ Original repro: TBD (M1 mixed orderings through production root
 dispatch with decoded wire statuses).
 Proposed fix: independently initialize/derive each record's status;
 keep cleanup ownership correct.
-Fix commit: TBD. Hosted proof: TBD.
+M1 repro: mixed-ordering matrix red at b9a1025 (boundary 37220219614).
+Fix (M3 @ 7c0cf10): P5v2 initializes the builder status to SUCCESS at
+the top of each response-record iteration (send-result reuse after the
+loop unchanged).
+Validation: r12_status + r12_alloc green @ 7c0cf10 (boundary
+37223816991); AP suites green.
 
 ## R13 — Identify acknowledges success without implementing its effect (P2, CONFIRMED)
 
@@ -419,7 +437,18 @@ countdown + Query/Groups integration incl. the attribute-write path;
 power output unaffected; physical-identification limits documented;
 unsupported Trigger Effect semantics rejected truthfully (no
 fabricated success, no power-stage blink).
-Fix commit: TBD. Hosted proof: TBD.
+M1 repro: adapter chain red at b9a1025 (boundary 37220219614).
+Fix (M3 @ 264c7cb..9b25107, green 7c0cf10): new `glsd301p_identify`
+adapter (shared-store countdown on the household tick, command +
+write paths with ceiling adopt, Query honest via store); Blink/Breathe
+one-shots through the guarded emit path with restore, abort on any
+remote/local/fault preemption; reserved ids/variants INVALID_FIELD.
+M3 correction: the M1 "accepted-without-blink" contract was the
+defect itself (a dimmer can modulate; SUCCESS with no visible program
+lies to the commissioner), so defined effects run real bounded
+programs; the no-op-locking followup was corrected with justification.
+Validation: 3 R13 matrix cases green @ 7c0cf10 (boundary 37223816991);
+AP suites green.
 
 ## R14 — New firmware reuses the previous development image identity (P2, CONFIRMED)
 

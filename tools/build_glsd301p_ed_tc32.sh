@@ -20,7 +20,7 @@ APP_SLOT_SIZE=0x34000
 BANK_B_BASE=0x40000
 BANK_B_SLOT_END=0x74000
 MAC_REGION_START=0x76000
-FILE_VERSION=0x7F030001
+FILE_VERSION=0x7F040001
 
 [[ -f "$SDK/platform/boot/8258/boot_8258.link" ]] || { echo 'ERROR: pinned TLSR8258 SDK fixture incomplete' >&2; exit 2; }
 [[ -f "$SDK/zigbee/lib/tc32/libzb_ed.a" ]] || { echo 'ERROR: libzb_ed.a missing' >&2; exit 2; }
@@ -209,7 +209,7 @@ grep -q 'glsd301p_rejoin_init' "$TARGET/glsd301p_telink_target.c" || {
 }
 
 # M5: RAM-only v2 health snapshot on Basic:0xFF10, read-only, refreshed by
-# the owned 1 s event; development identity GLSD-ED-002 / 0x7F030001.
+# the owned 1 s event; development identity GLSD-ED-003 / 0x7F040001.
 grep -q 'GLSD301P_HEALTH_ATTR_ID, ZCL_DATA_TYPE_OCTET_STR, ACCESS_CONTROL_READ, g_basic_health' \
   "$TARGET/glsd301p_telink_target.c" || {
   echo 'ERROR: Basic:0xFF10 health attribute entry missing or not read-only' >&2; exit 1;
@@ -226,13 +226,13 @@ grep -q 'glsd301p_health_note_bdb_status' "$TARGET/glsd301p_telink_target.c" || 
 if grep -q 'nv_\|zcl_nv\|reportAttr\|zcl_report' "$CORE/glsd301p_health.c"; then
   echo 'ERROR: health snapshot must not touch NVM or reporting' >&2; exit 1;
 fi
-grep -q '#define FILE_VERSION[[:space:]]*0x7F030001' "$TARGET/version_cfg.h" || {
-  echo 'ERROR: FILE_VERSION must be the allocated 0x7F030001' >&2; exit 1;
+grep -q '#define FILE_VERSION[[:space:]]*0x7F040001' "$TARGET/version_cfg.h" || {
+  echo 'ERROR: FILE_VERSION must be the allocated 0x7F040001' >&2; exit 1;
 }
-grep -q '#define APP_BUILD[[:space:]]*0x03' "$TARGET/version_cfg.h" || {
-  echo 'ERROR: APP_BUILD must be the allocated 03' >&2; exit 1;
+grep -q '#define APP_BUILD[[:space:]]*0x04' "$TARGET/version_cfg.h" || {
+  echo 'ERROR: APP_BUILD must be the allocated 04' >&2; exit 1;
 }
-[[ "$FILE_VERSION" == '0x7F030001' ]] || {
+[[ "$FILE_VERSION" == '0x7F040001' ]] || {
   echo 'ERROR: build FILE_VERSION drifted from allocated identity' >&2; exit 1;
 }
 
@@ -505,7 +505,7 @@ grep -q 'libzb_ed' "$map" || { echo 'ERROR: End Device stack archive absent from
   echo ZCL_COMMAND_POLICY=SHARED_DISPATCH_HARNESSED
   echo REJOIN=OWNED_SINGLE_ATTEMPT_ZDO_SUCCESS_MAPPED_ONESHOT_RETRY_5S
   echo HEALTH_SNAPSHOT=RAM_V2_48B_BASIC_0xFF10_READONLY_1S_OWNED
-  echo DEV_IDENTITY=GLSD-ED-002_APP_BUILD_03_FILE_VERSION_0x7F030001_DATE_20261003
+  echo DEV_IDENTITY=GLSD-ED-003_APP_BUILD_04_FILE_VERSION_0x7F040001_DATE_20261004
   python3 - "$DIR/sdk-patches.json" <<'PY'
 import json, sys
 report = json.load(open(sys.argv[1]))
