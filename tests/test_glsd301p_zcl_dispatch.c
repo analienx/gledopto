@@ -2012,8 +2012,1070 @@ static void test_followup_ota_abort_path(void)
     assert(pool_free_total() == 26u);
 }
 
-int main(void)
+/* ------------------------------------------------------------------ */
+/* R9-R16 adverse-behavior regressions (M1: assert fixed behavior).     */
+/* Each test drives a production entry point (real SDK dispatch into   */
+/* production control/adapters) and observes production state plus     */
+/* captured UART/AF bytes. Recorded negative controls fail on the      */
+/* reviewed bc7196f code for the stated assertion; controls marked     */
+/* PASS-NOW guard behavior the fix must preserve.                      */
+/* ------------------------------------------------------------------ */
+
+static const uint8_t OFF_FE[] = {0xA5u, 0x5Au, 0x01u, 0x00u, 0x04u, 0xAAu};
+
+static void assert_frame_off_at(uint32_t idx)
 {
+    uint8_t f[6];
+
+    assert(host_uart_accepted_frame(idx, f));
+    assert(memcmp(f, OFF_FE, sizeof(OFF_FE)) == 0);
+}
+
+static void assert_frame_level_at(uint32_t idx, uint8_t level)
+{
+    uint8_t f[6];
+    const uint8_t want[6] = {0xA5u, 0x5Au, 0x01u, level, 0x04u, 0xAAu};
+
+    assert(host_uart_accepted_frame(idx, f));
+    assert(memcmp(f, want, sizeof(want)) == 0);
+}
+
+static void assert_frames_off_range(uint32_t first, uint32_t past)
+{
+    uint32_t i;
+
+    for (i = first; i < past; i++) {
+        assert_frame_off_at(i);
+    }
+}
+
+/* OFF at 0x40 via production path (ON, level, OFF): level is retained. */
+static void r9_setup_off_at_mid(void)
+{
+    const u8 to_mid[] = {0x40u, 0x00u, 0x00u};
+
+    fixture_init(NULL);
+    boot_ready();
+    assert(dispatch_onoff(ZCL_CMD_ONOFF_ON, NULL, 0u) == ZCL_STA_SUCCESS);
+    assert(dispatch_level(ZCL_CMD_LEVEL_MOVE_TO_LEVEL_WITH_ON_OFF, to_mid,
+                          (u16)sizeof(to_mid)) == ZCL_STA_SUCCESS);
+    pump_ms(10u);
+    assert(g_runtime.logical_output_enabled);
+    assert(g_level.current_level == 0x40u);
+    assert(dispatch_onoff(ZCL_CMD_ONOFF_OFF, NULL, 0u) == ZCL_STA_SUCCESS);
+    pump_ms(10u);
+    assert(!g_runtime.logical_output_enabled);
+    assert(g_level.current_level == 0x40u);
+}
+
+static void test_r9_repeated_minimum_with_onoff_stays_off(void)
+{
+    const u8 to_mid[] = {0x40u, 0x00u, 0x00u};
+    const u8 to_min[] = {0x02u, 0x00u, 0x00u};
+    uint32_t base;
+
+    fixture_init(NULL);
+    boot_ready();
+    assert(dispatch_onoff(ZCL_CMD_ONOFF_ON, NULL, 0u) == ZCL_STA_SUCCESS);
+    assert(dispatch_level(ZCL_CMD_LEVEL_MOVE_TO_LEVEL_WITH_ON_OFF, to_mid,
+                          (u16)sizeof(to_mid)) == ZCL_STA_SUCCESS);
+    pump_ms(10u);
+    assert(g_runtime.logical_output_enabled);
+
+    /* First descent to minimum switches OFF. */
+    assert(dispatch_level(ZCL_CMD_LEVEL_MOVE_TO_LEVEL_WITH_ON_OFF, to_min,
+                          (u16)sizeof(to_min)) == ZCL_STA_SUCCESS);
+    pump_ms(10u);
+    assert(!g_runtime.logical_output_enabled);
+    assert(g_level.current_level == 0x02u);
+    base = host_uart_accepted_count();
+    assert(base > 0u);
+    assert_frame_off_at(base - 1u);
+
+    /* Repeating the identical minimum command must not re-energize. */
+    assert(dispatch_level(ZCL_CMD_LEVEL_MOVE_TO_LEVEL_WITH_ON_OFF, to_min,
+                          (u16)sizeof(to_min)) == ZCL_STA_SUCCESS);
+    pump_ms(10u);
+    assert(!g_runtime.logical_output_enabled);
+    assert(g_level.current_level == 0x02u);
+    assert_frames_off_range(base, host_uart_accepted_count());
+}
+
+static void test_r9_equal_level_with_onoff_preserves_output(void)
+{
+    const u8 to_mid[] = {0x40u, 0x00u, 0x00u};
+    uint32_t base;
+
+    /* Equal target from OFF must not invent an increase. */
+    r9_setup_off_at_mid();
+    base = host_uart_accepted_count();
+    assert(dispatch_level(ZCL_CMD_LEVEL_MOVE_TO_LEVEL_WITH_ON_OFF, to_mid,
+                          (u16)sizeof(to_mid)) == ZCL_STA_SUCCESS);
+    pump_ms(10u);
+    assert(!g_runtime.logical_output_enabled);
+    assert(g_level.current_level == 0x40u);
+    assert_frames_off_range(base, host_uart_accepted_count());
+
+    /* Equal target from ON preserves ON (PASS-NOW control). */
+    r9_setup_off_at_mid();
+    assert(dispatch_onoff(ZCL_CMD_ONOFF_ON, NULL, 0u) == ZCL_STA_SUCCESS);
+    pump_ms(10u);
+    assert(g_runtime.logical_output_enabled);
+    base = host_uart_accepted_count();
+    assert(dispatch_level(ZCL_CMD_LEVEL_MOVE_TO_LEVEL_WITH_ON_OFF, to_mid,
+                          (u16)sizeof(to_mid)) == ZCL_STA_SUCCESS);
+    pump_ms(10u);
+    assert(g_runtime.logical_output_enabled);
+    assert(g_level.current_level == 0x40u);
+    assert(host_uart_accepted_count() > base);
+    assert_frame_level_at(host_uart_accepted_count() - 1u, 0x40u);
+}
+
+static void test_r9_zero_step_with_onoff_no_energize(void)
+{
+    const u8 step_up_zero[] = {0x00u, 0x00u, 0x00u, 0x00u};
+    const u8 step_down_zero[] = {0x01u, 0x00u, 0x00u, 0x00u};
+    uint32_t base;
+
+    /* Zero-size steps from OFF at minimum: no target change, no ON. */
+    fixture_init(NULL);
+    boot_ready();
+    assert(!g_runtime.logical_output_enabled);
+    base = host_uart_accepted_count();
+    assert(dispatch_level(ZCL_CMD_LEVEL_STEP_WITH_ON_OFF, step_up_zero,
+                          (u16)sizeof(step_up_zero)) == ZCL_STA_SUCCESS);
+    assert(dispatch_level(ZCL_CMD_LEVEL_STEP_WITH_ON_OFF, step_down_zero,
+                          (u16)sizeof(step_down_zero)) == ZCL_STA_SUCCESS);
+    pump_ms(10u);
+    assert(!g_runtime.logical_output_enabled);
+    assert(g_level.current_level == DISPATCH_MIN_LEVEL);
+    assert_frames_off_range(base, host_uart_accepted_count());
+
+    /* Zero-size steps from ON preserve ON (PASS-NOW control). */
+    r9_setup_off_at_mid();
+    assert(dispatch_onoff(ZCL_CMD_ONOFF_ON, NULL, 0u) == ZCL_STA_SUCCESS);
+    pump_ms(10u);
+    assert(dispatch_level(ZCL_CMD_LEVEL_STEP_WITH_ON_OFF, step_up_zero,
+                          (u16)sizeof(step_up_zero)) == ZCL_STA_SUCCESS);
+    pump_ms(10u);
+    assert(g_runtime.logical_output_enabled);
+    assert(g_level.current_level == 0x40u);
+}
+
+static void test_r9_downward_from_off_stays_off(void)
+{
+    const u8 down[] = {0x10u, 0x14u, 0x00u};
+    uint32_t base;
+
+    /* 2 s descent; early ticks hold the quantized sample (no-change). */
+    r9_setup_off_at_mid();
+    assert(dispatch_level(ZCL_CMD_LEVEL_MOVE_TO_LEVEL_WITH_ON_OFF, down,
+                          (u16)sizeof(down)) == ZCL_STA_SUCCESS);
+    base = host_uart_accepted_count();
+    pump_ms(2500u);
+    assert(g_level.mode == GLSD301P_LEVEL_IDLE);
+    assert(g_level.current_level == 0x10u);
+    assert(!g_runtime.logical_output_enabled);
+    assert(host_uart_accepted_count() > base);
+    assert_frames_off_range(base, host_uart_accepted_count());
+}
+
+static void test_r9_upward_onset_applies_on(void)
+{
+    const u8 to_lo[] = {0x10u, 0x00u, 0x00u};
+    const u8 up[] = {0x40u, 0x14u, 0x00u};
+    uint8_t f[6];
+    uint32_t base;
+
+    /* PASS-NOW control: a real increase applies ON at onset, not at end. */
+    fixture_init(NULL);
+    boot_ready();
+    assert(dispatch_onoff(ZCL_CMD_ONOFF_ON, NULL, 0u) == ZCL_STA_SUCCESS);
+    assert(dispatch_level(ZCL_CMD_LEVEL_MOVE_TO_LEVEL_WITH_ON_OFF, to_lo,
+                          (u16)sizeof(to_lo)) == ZCL_STA_SUCCESS);
+    pump_ms(10u);
+    assert(dispatch_onoff(ZCL_CMD_ONOFF_OFF, NULL, 0u) == ZCL_STA_SUCCESS);
+    pump_ms(10u);
+    assert(!g_runtime.logical_output_enabled);
+    assert(g_level.current_level == 0x10u);
+
+    assert(dispatch_level(ZCL_CMD_LEVEL_MOVE_TO_LEVEL_WITH_ON_OFF, up,
+                          (u16)sizeof(up)) == ZCL_STA_SUCCESS);
+    base = host_uart_accepted_count();
+    pump_ms(150u);
+    assert(g_runtime.logical_output_enabled);
+    assert(host_uart_accepted_count() > base);
+    assert(host_uart_accepted_frame(base, f));
+    assert(f[2] == 0x01u && f[3] != 0x00u);
+
+    pump_ms(2500u);
+    assert(g_level.mode == GLSD301P_LEVEL_IDLE);
+    assert(g_level.current_level == 0x40u);
+    assert(g_runtime.logical_output_enabled);
+}
+
+static void test_r9_replacement_and_fault(void)
+{
+    const u8 down_far[] = {0x30u, 0x14u, 0x00u};
+    const u8 down_near[] = {0x10u, 0x14u, 0x00u};
+    uint32_t base;
+
+    /* A retargeted downward-from-OFF leg stays OFF throughout. */
+    r9_setup_off_at_mid();
+    assert(dispatch_level(ZCL_CMD_LEVEL_MOVE_TO_LEVEL_WITH_ON_OFF, down_far,
+                          (u16)sizeof(down_far)) == ZCL_STA_SUCCESS);
+    pump_ms(500u);
+    base = host_uart_accepted_count();
+    assert(dispatch_level(ZCL_CMD_LEVEL_MOVE_TO_LEVEL_WITH_ON_OFF, down_near,
+                          (u16)sizeof(down_near)) == ZCL_STA_SUCCESS);
+    pump_ms(2500u);
+    assert(g_level.mode == GLSD301P_LEVEL_IDLE);
+    assert(g_level.current_level == 0x10u);
+    assert(!g_runtime.logical_output_enabled);
+    assert_frames_off_range(base, host_uart_accepted_count());
+
+    /* Fault during the leg cancels and holds OFF (PASS-NOW control). */
+    r9_setup_off_at_mid();
+    assert(dispatch_level(ZCL_CMD_LEVEL_MOVE_TO_LEVEL_WITH_ON_OFF, down_near,
+                          (u16)sizeof(down_near)) == ZCL_STA_SUCCESS);
+    pump_ms(200u);
+    host_uart_set_busy(true);
+    pump_ms(40u);
+    assert(glsd301p_uart_service_deadline_faults(&g_uart) == 1u);
+    assert(g_level.mode == GLSD301P_LEVEL_IDLE);
+    assert(!g_runtime.logical_output_enabled);
+    host_uart_set_busy(false);
+    pump_ms(10u);
+    assert(!g_runtime.logical_output_enabled);
+}
+
+static void r16_setup_on_at(uint8_t level)
+{
+    u8 to_level[3];
+
+    fixture_init(NULL);
+    boot_ready();
+    assert(dispatch_onoff(ZCL_CMD_ONOFF_ON, NULL, 0u) == ZCL_STA_SUCCESS);
+    to_level[0] = level;
+    to_level[1] = 0x00u;
+    to_level[2] = 0x00u;
+    assert(dispatch_level(ZCL_CMD_LEVEL_MOVE_TO_LEVEL_WITH_ON_OFF, to_level,
+                          (u16)sizeof(to_level)) == ZCL_STA_SUCCESS);
+    pump_ms(10u);
+    assert(g_runtime.logical_output_enabled);
+    assert(g_level.current_level == level);
+}
+
+static void test_r16_step_clipped_duration_proportional(void)
+{
+    const u8 step_up40_10s[] = {0x00u, 0x28u, 0x64u, 0x00u};
+    const u8 step_down40_10s[] = {0x01u, 0x28u, 0x64u, 0x00u};
+
+    /* Max clip: 250 +40 -> 254 (4 of 40 units over 10 s): ~1 s. */
+    r16_setup_on_at(0xFAu);
+    assert(dispatch_level(ZCL_CMD_LEVEL_STEP_WITH_ON_OFF, step_up40_10s,
+                          (u16)sizeof(step_up40_10s)) == ZCL_STA_SUCCESS);
+    assert(g_level.mode == GLSD301P_LEVEL_TARGET);
+    assert(g_level.target == 0xFEu);
+    assert(g_level.remaining_time > 0u);
+    assert(g_level.remaining_time <= 15u);
+    pump_ms(800u);
+    assert(g_level.mode == GLSD301P_LEVEL_TARGET);
+    pump_ms(700u);
+    assert(g_level.mode == GLSD301P_LEVEL_IDLE);
+    assert(g_level.current_level == 0xFEu);
+    assert(g_runtime.logical_output_enabled);
+
+    /* Min clip mirror: 6 -40 -> 2 (4 of 40 units over 10 s): ~1 s. */
+    r16_setup_on_at(0x06u);
+    assert(dispatch_level(ZCL_CMD_LEVEL_STEP_WITH_ON_OFF, step_down40_10s,
+                          (u16)sizeof(step_down40_10s)) == ZCL_STA_SUCCESS);
+    assert(g_level.mode == GLSD301P_LEVEL_TARGET);
+    assert(g_level.target == DISPATCH_MIN_LEVEL);
+    assert(g_level.remaining_time > 0u);
+    assert(g_level.remaining_time <= 15u);
+    pump_ms(800u);
+    assert(g_level.mode == GLSD301P_LEVEL_TARGET);
+    pump_ms(700u);
+    assert(g_level.mode == GLSD301P_LEVEL_IDLE);
+    assert(g_level.current_level == DISPATCH_MIN_LEVEL);
+}
+
+static void test_r16_step_unclamped_and_immediate_controls(void)
+{
+    const u8 step_up4_10s[] = {0x00u, 0x04u, 0x64u, 0x00u};
+    const u8 step_up40_now[] = {0x00u, 0x28u, 0x00u, 0x00u};
+    const u8 step_up40_fast[] = {0x00u, 0x28u, 0xFFu, 0xFFu};
+    const u8 step_zero[] = {0x00u, 0x00u, 0x64u, 0x00u};
+
+    /* PASS-NOW controls: unclamped keeps full time; 0/0xFFFF/size-0 act now. */
+    r16_setup_on_at(0x40u);
+    assert(dispatch_level(ZCL_CMD_LEVEL_STEP_WITH_ON_OFF, step_up4_10s,
+                          (u16)sizeof(step_up4_10s)) == ZCL_STA_SUCCESS);
+    assert(g_level.mode == GLSD301P_LEVEL_TARGET);
+    assert(g_level.target == 0x44u);
+    assert(g_level.remaining_time == 100u);
+    pump_ms(1500u);
+    assert(g_level.mode == GLSD301P_LEVEL_TARGET);
+    pump_ms(9000u);
+    assert(g_level.mode == GLSD301P_LEVEL_IDLE);
+    assert(g_level.current_level == 0x44u);
+
+    r16_setup_on_at(0xFAu);
+    assert(dispatch_level(ZCL_CMD_LEVEL_STEP_WITH_ON_OFF, step_up40_now,
+                          (u16)sizeof(step_up40_now)) == ZCL_STA_SUCCESS);
+    assert(g_level.mode == GLSD301P_LEVEL_IDLE);
+    assert(g_level.current_level == 0xFEu);
+
+    r16_setup_on_at(0xFAu);
+    assert(dispatch_level(ZCL_CMD_LEVEL_STEP_WITH_ON_OFF, step_up40_fast,
+                          (u16)sizeof(step_up40_fast)) == ZCL_STA_SUCCESS);
+    assert(g_level.mode == GLSD301P_LEVEL_IDLE);
+    assert(g_level.current_level == 0xFEu);
+
+    r16_setup_on_at(0x40u);
+    assert(dispatch_level(ZCL_CMD_LEVEL_STEP_WITH_ON_OFF, step_zero,
+                          (u16)sizeof(step_zero)) == ZCL_STA_SUCCESS);
+    assert(g_level.mode == GLSD301P_LEVEL_IDLE);
+    assert(g_level.current_level == 0x40u);
+}
+
+static void test_r16_step_clipped_elapsed_gap(void)
+{
+    const u8 step_up40_10s[] = {0x00u, 0x28u, 0x64u, 0x00u};
+
+    /*
+     * Proportional time is elapsed-based: a 2 s clock jump (no timer
+     * service) mid-transition completes the ~1 s clipped move once the
+     * loop runs again; it must not wait out the unclipped 10 s.
+     */
+    r16_setup_on_at(0xFAu);
+    assert(dispatch_level(ZCL_CMD_LEVEL_STEP_WITH_ON_OFF, step_up40_10s,
+                          (u16)sizeof(step_up40_10s)) == ZCL_STA_SUCCESS);
+    pump_ms(300u);
+    assert(g_level.mode == GLSD301P_LEVEL_TARGET);
+    host_clock_advance(HOST_TICKS_PER_MS * 2000u);
+    pump_ms(100u);
+    assert(g_level.mode == GLSD301P_LEVEL_IDLE);
+    assert(g_level.current_level == 0xFEu);
+}
+
+/*
+ * Byte-identical transcription of the pinned SDK Add/AddIf request
+ * serializer (zcl_group.c zcl_group_add/zcl_group_addIfIdentify):
+ * uint16 group id + counted string; a NULL name emits a single 0x00
+ * (3-byte minimum); names clamp to 15 bytes. Returns payload length.
+ * All R10 valid fixtures come from here, never from bare uint16s.
+ */
+static u16 group_add_fixture(u16 group_id, const char *name, u8 out[18])
+{
+    u8 len = 0u;
+
+    if (name != NULL) {
+        size_t n = strlen(name);
+
+        len = (u8)(n > 15u ? 15u : n);
+    }
+    out[0] = (u8)(group_id & 0xFFu);
+    out[1] = (u8)((group_id >> 8) & 0xFFu);
+    out[2] = len;
+    if (len > 0u) {
+        memcpy(out + 3u, name, len);
+    }
+    return (u16)(3u + len);
+}
+
+static void test_r10_add_name_grammar(void)
+{
+    const u8 two[] = {0x12u, 0x00u};
+    const u8 truncated[] = {0x12u, 0x00u, 0x05u, 'A', 'B'};
+    const u8 trailing[] = {0x12u, 0x00u, 0x01u, 'A', 'B', 'C'};
+    const u8 overlong[19] = {0x12u, 0x00u, 0x10u, '0', '1', '2', '3',
+                             '4', '5', '6', '7', '8', '9', 'A', 'B', 'C',
+                             'D', 'E', 'F'};
+    const u8 sentinel[] = {0x12u, 0x00u, 0xFFu};
+    u8 pld[18];
+    u16 n;
+    u16 cluster;
+    u8 cmd;
+    const u8 *rsp;
+    u16 len;
+
+    /* Missing/truncated/trailing/overlong/sentinel names never mutate. */
+    fixture_init(NULL);
+    boot_ready();
+    assert(dispatch_group(ZCL_CMD_GROUP_ADD_GROUP,
+                          ZCL_FRAME_CLIENT_SERVER_DIR, two,
+                          (u16)sizeof(two)) == ZCL_STA_MALFORMED_COMMAND);
+    assert(dispatch_group(ZCL_CMD_GROUP_ADD_GROUP,
+                          ZCL_FRAME_CLIENT_SERVER_DIR, truncated,
+                          (u16)sizeof(truncated)) ==
+           ZCL_STA_MALFORMED_COMMAND);
+    assert(dispatch_group(ZCL_CMD_GROUP_ADD_GROUP,
+                          ZCL_FRAME_CLIENT_SERVER_DIR, trailing,
+                          (u16)sizeof(trailing)) == ZCL_STA_MALFORMED_COMMAND);
+    assert(dispatch_group(ZCL_CMD_GROUP_ADD_GROUP,
+                          ZCL_FRAME_CLIENT_SERVER_DIR, overlong,
+                          (u16)sizeof(overlong)) == ZCL_STA_MALFORMED_COMMAND);
+    assert(dispatch_group(ZCL_CMD_GROUP_ADD_GROUP,
+                          ZCL_FRAME_CLIENT_SERVER_DIR, sentinel,
+                          (u16)sizeof(sentinel)) == ZCL_STA_MALFORMED_COMMAND);
+    assert(aps_add_calls == 0u);
+    assert(fake_group_num == 0u);
+    assert(af_count == 0u);
+
+    /* Serializer-empty (NULL name) and named forms are accepted. */
+    n = group_add_fixture(0x0012u, NULL, pld);
+    assert(n == 3u);
+    assert(dispatch_group(ZCL_CMD_GROUP_ADD_GROUP,
+                          ZCL_FRAME_CLIENT_SERVER_DIR, pld,
+                          n) == ZCL_STA_CMD_HAS_RESP);
+    assert(aps_add_calls == 1u);
+    assert(fake_group_num == 1u);
+    assert(fake_groups[0] == 0x0012u);
+    assert(af_count == 1u);
+    assert(af_parse(0u, &cluster, &cmd, &rsp, &len));
+    assert(cmd == ZCL_CMD_GROUP_ADD_GROUP_RSP);
+    assert(len == 3u);
+    assert(rsp[0] == ZCL_STA_SUCCESS);
+    assert(rsp[1] == 0x12u && rsp[2] == 0x00u);
+
+    n = group_add_fixture(0x0034u, "abc", pld);
+    assert(n == 6u);
+    assert(dispatch_group(ZCL_CMD_GROUP_ADD_GROUP,
+                          ZCL_FRAME_CLIENT_SERVER_DIR, pld,
+                          n) == ZCL_STA_CMD_HAS_RESP);
+    assert(fake_group_num == 2u);
+
+    /* The serializer's own 15-byte clamp bound is accepted exactly. */
+    n = group_add_fixture(0x0056u, "0123456789ABCDE", pld);
+    assert(n == 18u);
+    assert(dispatch_group(ZCL_CMD_GROUP_ADD_GROUP,
+                          ZCL_FRAME_CLIENT_SERVER_DIR, pld,
+                          n) == ZCL_STA_CMD_HAS_RESP);
+    assert(fake_group_num == 3u);
+    assert(pool_free_total() == 26u);
+}
+
+static void test_r10_addif_and_membership_shapes(void)
+{
+    const u8 two[] = {0x12u, 0x00u};
+    u8 pld[18];
+    u8 members[4];
+    u8 crowd[1u + 2u * 255u];
+    unsigned int i;
+    u16 n;
+
+    /*
+     * AddIf uses the same name grammar as Add. Not identifying here,
+     * so valid shapes answer SUCCESS without acting (guard runs first).
+     */
+    fixture_init(NULL);
+    boot_ready();
+    assert(t_identify_time == 0u);
+    assert(dispatch_group(ZCL_CMD_GROUP_ADD_GROUP_IF_IDF,
+                          ZCL_FRAME_CLIENT_SERVER_DIR, two,
+                          (u16)sizeof(two)) == ZCL_STA_MALFORMED_COMMAND);
+    n = group_add_fixture(0x0012u, NULL, pld);
+    assert(dispatch_group(ZCL_CMD_GROUP_ADD_GROUP_IF_IDF,
+                          ZCL_FRAME_CLIENT_SERVER_DIR, pld,
+                          n) == ZCL_STA_SUCCESS);
+    assert(aps_add_calls == 0u);
+    assert(fake_group_num == 0u);
+    n = group_add_fixture(0x0012u, "nm", pld);
+    assert(dispatch_group(ZCL_CMD_GROUP_ADD_GROUP_IF_IDF,
+                          ZCL_FRAME_CLIENT_SERVER_DIR, pld,
+                          n) == ZCL_STA_SUCCESS);
+    assert(af_count == 0u);
+
+    /* Membership requires the exact 1+2*count shape: surplus rejected. */
+    members[0] = 0x01u;
+    members[1] = 0x12u;
+    members[2] = 0x00u;
+    members[3] = 0xFFu;
+    assert(dispatch_group(ZCL_CMD_GROUP_GET_MEMBERSHIP,
+                          ZCL_FRAME_CLIENT_SERVER_DIR, members,
+                          4u) == ZCL_STA_MALFORMED_COMMAND);
+    assert(dispatch_group(ZCL_CMD_GROUP_GET_MEMBERSHIP,
+                          ZCL_FRAME_CLIENT_SERVER_DIR, members,
+                          3u) == ZCL_STA_CMD_HAS_RESP);
+
+    /* Past-capacity counts stay INSUFFICIENT_SPACE (PASS-NOW control). */
+    crowd[0] = 255u;
+    for (i = 0u; i < 255u; i++) {
+        crowd[1u + 2u * i] = (u8)i;
+        crowd[1u + 2u * i + 1u] = 0u;
+    }
+    assert(dispatch_group(ZCL_CMD_GROUP_GET_MEMBERSHIP,
+                          ZCL_FRAME_CLIENT_SERVER_DIR, crowd,
+                          (u16)sizeof(crowd)) ==
+           ZCL_STA_INSUFFICIENT_SPACE);
+    assert(pool_free_total() == 26u);
+}
+
+static void test_r11_read_cfg_whole_records(void)
+{
+    const u8 one_plus_suffix[] = {0x00u, 0x00u, 0x00u, 0xFFu};
+    const u8 reserved_dir[] = {0x02u, 0x00u, 0x00u};
+    const u8 one_valid[] = {0x00u, 0x00u, 0x00u};
+    const u8 two_valid[] = {0x00u, 0x00u, 0x00u, 0x01u, 0x00u, 0x00u};
+    u16 cluster;
+    u8 cmd;
+    const u8 *pld;
+    u16 len;
+    u8 rsp_cmd;
+    u8 status;
+
+    fixture_init(noop_hook);
+
+    /* Trailing suffix past whole records is malformed, not discarded. */
+    assert(root_frame(ZCL_CLUSTER_GEN_ON_OFF, ZCL_CMD_READ_REPORT_CFG, 0u,
+                      ZCL_FRAME_CLIENT_SERVER_DIR, one_plus_suffix,
+                      (u16)sizeof(one_plus_suffix), 1u));
+    assert(af_count == 1u);
+    assert(last_default_rsp(0u, &rsp_cmd, &status));
+    assert(rsp_cmd == ZCL_CMD_READ_REPORT_CFG);
+    assert(status == ZCL_STA_MALFORMED_COMMAND);
+
+    /* Empty reads and reserved directions are malformed. */
+    assert(root_frame(ZCL_CLUSTER_GEN_ON_OFF, ZCL_CMD_READ_REPORT_CFG, 0u,
+                      ZCL_FRAME_CLIENT_SERVER_DIR, NULL, 0u, 2u));
+    assert(af_count == 2u);
+    assert(last_default_rsp(1u, &rsp_cmd, &status));
+    assert(status == ZCL_STA_MALFORMED_COMMAND);
+    assert(root_frame(ZCL_CLUSTER_GEN_ON_OFF, ZCL_CMD_READ_REPORT_CFG, 0u,
+                      ZCL_FRAME_CLIENT_SERVER_DIR, reserved_dir,
+                      (u16)sizeof(reserved_dir), 3u));
+    assert(af_count == 3u);
+    assert(last_default_rsp(2u, &rsp_cmd, &status));
+    assert(status == ZCL_STA_MALFORMED_COMMAND);
+
+    /* Whole-record reads still answer (PASS-NOW controls). */
+    assert(root_frame(ZCL_CLUSTER_GEN_ON_OFF, ZCL_CMD_READ_REPORT_CFG, 0u,
+                      ZCL_FRAME_CLIENT_SERVER_DIR, one_valid,
+                      (u16)sizeof(one_valid), 4u));
+    assert(af_count == 4u);
+    assert(af_parse(3u, &cluster, &cmd, &pld, &len));
+    assert(cmd == ZCL_CMD_READ_REPORT_CFG_RSP);
+    assert(root_frame(ZCL_CLUSTER_GEN_ON_OFF, ZCL_CMD_READ_REPORT_CFG, 0u,
+                      ZCL_FRAME_CLIENT_SERVER_DIR, two_valid,
+                      (u16)sizeof(two_valid), 5u));
+    assert(af_count == 5u);
+    assert(af_parse(4u, &cluster, &cmd, &pld, &len));
+    assert(cmd == ZCL_CMD_READ_REPORT_CFG_RSP);
+    assert(pool_free_total() == 26u);
+}
+
+static void test_r11_discover_rsp_suffixes(void)
+{
+    const u8 short_suffix[] = {0x01u, 0xFFu};
+    const u8 rec_plus_suffix[] = {0x00u, 0x12u, 0x00u, 0x20u, 0xFFu};
+    const u8 ext_suffix[] = {0x00u, 0x12u, 0x00u};
+    const u8 complete_only[] = {0x01u};
+    const u8 one_rec[] = {0x00u, 0x12u, 0x00u, 0x20u};
+    const u8 one_ext_rec[] = {0x00u, 0x12u, 0x00u, 0x20u, 0x03u};
+    u8 rsp_cmd;
+    u8 status;
+
+    fixture_init(noop_hook);
+
+    /* Incomplete trailing records are malformed, not truncated away. */
+    assert(root_frame(ZCL_CLUSTER_GEN_ON_OFF, ZCL_CMD_DISCOVER_ATTRS_RSP, 0u,
+                      ZCL_FRAME_SERVER_CLIENT_DIR, short_suffix,
+                      (u16)sizeof(short_suffix), 1u));
+    assert(af_count == 1u);
+    assert(last_default_rsp(0u, &rsp_cmd, &status));
+    assert(status == ZCL_STA_MALFORMED_COMMAND);
+    assert(root_frame(ZCL_CLUSTER_GEN_ON_OFF, ZCL_CMD_DISCOVER_ATTRS_RSP, 0u,
+                      ZCL_FRAME_SERVER_CLIENT_DIR, rec_plus_suffix,
+                      (u16)sizeof(rec_plus_suffix), 2u));
+    assert(af_count == 2u);
+    assert(last_default_rsp(1u, &rsp_cmd, &status));
+    assert(status == ZCL_STA_MALFORMED_COMMAND);
+    assert(root_frame(ZCL_CLUSTER_GEN_ON_OFF,
+                      ZCL_CMD_DISCOVER_ATTRS_EXT_RSP, 0u,
+                      ZCL_FRAME_SERVER_CLIENT_DIR, ext_suffix,
+                      (u16)sizeof(ext_suffix), 3u));
+    assert(af_count == 3u);
+    assert(last_default_rsp(2u, &rsp_cmd, &status));
+    assert(status == ZCL_STA_MALFORMED_COMMAND);
+
+    /* Whole-record responses still parse (PASS-NOW controls). */
+    assert(root_frame(ZCL_CLUSTER_GEN_ON_OFF, ZCL_CMD_DISCOVER_ATTRS_RSP, 0u,
+                      ZCL_FRAME_SERVER_CLIENT_DIR, complete_only,
+                      (u16)sizeof(complete_only), 4u));
+    assert(root_frame(ZCL_CLUSTER_GEN_ON_OFF, ZCL_CMD_DISCOVER_ATTRS_RSP, 0u,
+                      ZCL_FRAME_SERVER_CLIENT_DIR, one_rec,
+                      (u16)sizeof(one_rec), 5u));
+    assert(root_frame(ZCL_CLUSTER_GEN_ON_OFF,
+                      ZCL_CMD_DISCOVER_ATTRS_EXT_RSP, 0u,
+                      ZCL_FRAME_SERVER_CLIENT_DIR, one_ext_rec,
+                      (u16)sizeof(one_ext_rec), 6u));
+    assert(pool_free_total() == 26u);
+}
+
+static void test_r11_response_short_forms_status_checked(void)
+{
+    const u8 write_fail1[] = {0x01u};
+    const u8 write_ok1[] = {0x00u};
+    const u8 write_3p2[] = {0x00u, 0x00u, 0x00u, 0x01u, 0x02u};
+    const u8 cfg_fail1[] = {ZCL_STA_FAILURE};
+    const u8 cfg_ok1[] = {0x00u};
+    const u8 cfg_4p2[] = {0x00u, 0x00u, 0x00u, 0x00u, 0x01u, 0x02u};
+    u8 rsp_cmd;
+    u8 status;
+
+    fixture_init(noop_hook);
+
+    /*
+     * The one-byte form is success-only: a lone failure status needs
+     * its record fields, and record streams must be whole.
+     */
+    assert(root_frame(ZCL_CLUSTER_GEN_ON_OFF, ZCL_CMD_WRITE_RSP, 0u,
+                      ZCL_FRAME_SERVER_CLIENT_DIR, write_fail1,
+                      (u16)sizeof(write_fail1), 1u));
+    assert(af_count == 1u);
+    assert(last_default_rsp(0u, &rsp_cmd, &status));
+    assert(status == ZCL_STA_MALFORMED_COMMAND);
+    assert(root_frame(ZCL_CLUSTER_GEN_ON_OFF, ZCL_CMD_WRITE_RSP, 0u,
+                      ZCL_FRAME_SERVER_CLIENT_DIR, write_3p2,
+                      (u16)sizeof(write_3p2), 2u));
+    assert(af_count == 2u);
+    assert(last_default_rsp(1u, &rsp_cmd, &status));
+    assert(status == ZCL_STA_MALFORMED_COMMAND);
+    assert(root_frame(ZCL_CLUSTER_GEN_ON_OFF, ZCL_CMD_CONFIG_REPORT_RSP, 0u,
+                      ZCL_FRAME_SERVER_CLIENT_DIR, cfg_fail1,
+                      (u16)sizeof(cfg_fail1), 3u));
+    assert(af_count == 3u);
+    assert(last_default_rsp(2u, &rsp_cmd, &status));
+    assert(status == ZCL_STA_MALFORMED_COMMAND);
+    assert(root_frame(ZCL_CLUSTER_GEN_ON_OFF, ZCL_CMD_CONFIG_REPORT_RSP, 0u,
+                      ZCL_FRAME_SERVER_CLIENT_DIR, cfg_4p2,
+                      (u16)sizeof(cfg_4p2), 4u));
+    assert(af_count == 4u);
+    assert(last_default_rsp(3u, &rsp_cmd, &status));
+    assert(status == ZCL_STA_MALFORMED_COMMAND);
+
+    /* Success-only short forms still parse (PASS-NOW controls). */
+    assert(root_frame(ZCL_CLUSTER_GEN_ON_OFF, ZCL_CMD_WRITE_RSP, 0u,
+                      ZCL_FRAME_SERVER_CLIENT_DIR, write_ok1,
+                      (u16)sizeof(write_ok1), 5u));
+    assert(root_frame(ZCL_CLUSTER_GEN_ON_OFF, ZCL_CMD_CONFIG_REPORT_RSP, 0u,
+                      ZCL_FRAME_SERVER_CLIENT_DIR, cfg_ok1,
+                      (u16)sizeof(cfg_ok1), 6u));
+    assert(pool_free_total() == 26u);
+}
+
+static void test_r11_empty_record_frames_rejected(void)
+{
+    u8 rsp_cmd;
+    u8 status;
+
+    /*
+     * Variable-record commands need at least one whole record; empty
+     * payloads are malformed (discover's complete-only byte stays the
+     * one legal record-less response and is covered above).
+     */
+    fixture_init(noop_hook);
+    assert(root_frame(ZCL_CLUSTER_GEN_ON_OFF, ZCL_CMD_WRITE, 0u,
+                      ZCL_FRAME_CLIENT_SERVER_DIR, NULL, 0u, 1u));
+    assert(af_count == 1u);
+    assert(last_default_rsp(0u, &rsp_cmd, &status));
+    assert(status == ZCL_STA_MALFORMED_COMMAND);
+    assert(root_frame(ZCL_CLUSTER_GEN_ON_OFF, ZCL_CMD_REPORT, 0u,
+                      ZCL_FRAME_CLIENT_SERVER_DIR, NULL, 0u, 2u));
+    assert(af_count == 2u);
+    assert(last_default_rsp(1u, &rsp_cmd, &status));
+    assert(status == ZCL_STA_MALFORMED_COMMAND);
+    assert(root_frame(ZCL_CLUSTER_GEN_ON_OFF, ZCL_CMD_READ_RSP, 0u,
+                      ZCL_FRAME_SERVER_CLIENT_DIR, NULL, 0u, 3u));
+    assert(af_count == 3u);
+    assert(last_default_rsp(2u, &rsp_cmd, &status));
+    assert(status == ZCL_STA_MALFORMED_COMMAND);
+    assert(root_frame(ZCL_CLUSTER_GEN_ON_OFF, ZCL_CMD_READ_REPORT_CFG_RSP, 0u,
+                      ZCL_FRAME_SERVER_CLIENT_DIR, NULL, 0u, 4u));
+    assert(af_count == 4u);
+    assert(last_default_rsp(3u, &rsp_cmd, &status));
+    assert(status == ZCL_STA_MALFORMED_COMMAND);
+    assert(root_frame(ZCL_CLUSTER_GEN_ON_OFF, ZCL_CMD_WRITE_RSP, 0u,
+                      ZCL_FRAME_SERVER_CLIENT_DIR, NULL, 0u, 5u));
+    assert(af_count == 5u);
+    assert(last_default_rsp(4u, &rsp_cmd, &status));
+    assert(status == ZCL_STA_MALFORMED_COMMAND);
+    assert(root_frame(ZCL_CLUSTER_GEN_ON_OFF, ZCL_CMD_CONFIG_REPORT_RSP, 0u,
+                      ZCL_FRAME_SERVER_CLIENT_DIR, NULL, 0u, 6u));
+    assert(af_count == 6u);
+    assert(last_default_rsp(5u, &rsp_cmd, &status));
+    assert(status == ZCL_STA_MALFORMED_COMMAND);
+    assert(pool_free_total() == 26u);
+}
+
+static void test_r11_compound_type_controls(void)
+{
+    const u8 str_ok[] = {0x01u, 0x00u, 0x42u, 0x02u, 'h', 'i'};
+    const u8 str_short[] = {0x01u, 0x00u, 0x42u, 0x05u, 'h', 'i'};
+    const u8 struct_ok[] = {0x02u, 0x00u, 0x4Cu, 0x01u, 0x00u, 0x20u,
+                            0x07u};
+    const u8 struct_short[] = {0x02u, 0x00u, 0x4Cu, 0x01u, 0x00u, 0x20u};
+    u8 rsp_cmd;
+    u8 status;
+    u16 cluster;
+    u8 cmd;
+    const u8 *pld;
+    u16 len;
+
+    /* PASS-NOW controls: bounded compound values already validate. */
+    fixture_init(noop_hook);
+    assert(root_frame(ZCL_CLUSTER_GEN_BASIC, ZCL_CMD_WRITE, 0u,
+                      ZCL_FRAME_CLIENT_SERVER_DIR, str_ok,
+                      (u16)sizeof(str_ok), 1u));
+    assert(af_count == 1u);
+    assert(af_parse(0u, &cluster, &cmd, &pld, &len));
+    assert(cmd == ZCL_CMD_WRITE_RSP);
+    assert(root_frame(ZCL_CLUSTER_GEN_BASIC, ZCL_CMD_WRITE, 0u,
+                      ZCL_FRAME_CLIENT_SERVER_DIR, str_short,
+                      (u16)sizeof(str_short), 2u));
+    assert(af_count == 2u);
+    assert(last_default_rsp(1u, &rsp_cmd, &status));
+    assert(status == ZCL_STA_MALFORMED_COMMAND);
+    assert(root_frame(ZCL_CLUSTER_GEN_BASIC, ZCL_CMD_WRITE, 0u,
+                      ZCL_FRAME_CLIENT_SERVER_DIR, struct_ok,
+                      (u16)sizeof(struct_ok), 3u));
+    assert(af_count == 3u);
+    assert(af_parse(2u, &cluster, &cmd, &pld, &len));
+    assert(cmd == ZCL_CMD_WRITE_RSP);
+    assert(root_frame(ZCL_CLUSTER_GEN_BASIC, ZCL_CMD_WRITE, 0u,
+                      ZCL_FRAME_CLIENT_SERVER_DIR, struct_short,
+                      (u16)sizeof(struct_short), 4u));
+    assert(af_count == 4u);
+    assert(last_default_rsp(3u, &rsp_cmd, &status));
+    assert(status == ZCL_STA_MALFORMED_COMMAND);
+    assert(pool_free_total() == 26u);
+}
+
+static void test_r12_report_cfg_status_per_record(void)
+{
+    const u8 cfg[] = {0x00u, 0x00u, 0x00u, 0x10u, 0x01u, 0x00u, 0xFFu,
+                      0x00u};
+    const u8 mixed[] = {0x00u, 0xFFu, 0xFFu, 0x00u, 0x00u, 0x00u};
+    const u8 mixed_rev[] = {0x00u, 0x00u, 0x00u, 0x00u, 0xFFu, 0xFFu};
+    const u8 both_cfg[] = {0x00u, 0x00u, 0x00u, 0x00u, 0x00u, 0x00u};
+    u8 unrep[3];
+    u8 missing[3];
+    u16 cluster;
+    u8 cmd;
+    const u8 *pld;
+    u16 len;
+
+    fixture_init(noop_hook);
+    assert(root_frame(ZCL_CLUSTER_GEN_ON_OFF, ZCL_CMD_CONFIG_REPORT, 0u,
+                      ZCL_FRAME_CLIENT_SERVER_DIR, cfg, (u16)sizeof(cfg),
+                      1u));
+    assert(nv_save_calls == 1u);
+
+    /*
+     * Unknown-then-configured: the first failure status must not leak
+     * into the second record's success.
+     */
+    assert(root_frame(ZCL_CLUSTER_GEN_ON_OFF, ZCL_CMD_READ_REPORT_CFG, 0u,
+                      ZCL_FRAME_CLIENT_SERVER_DIR, mixed,
+                      (u16)sizeof(mixed), 2u));
+    assert(af_count == 2u);
+    assert(af_parse(1u, &cluster, &cmd, &pld, &len));
+    assert(cmd == ZCL_CMD_READ_REPORT_CFG_RSP);
+    assert(len == 13u);
+    assert(pld[0] == ZCL_STA_UNSUPPORTED_ATTRIBUTE);
+    assert(pld[1] == 0x00u && pld[2] == 0xFFu && pld[3] == 0xFFu);
+    assert(pld[4] == ZCL_STA_SUCCESS);
+    assert(pld[5] == 0x00u && pld[6] == 0x00u && pld[7] == 0x00u);
+    assert(pld[8] == ZCL_DATA_TYPE_BOOLEAN);
+
+    /* Reverse order and doubled success (PASS-NOW controls). */
+    assert(root_frame(ZCL_CLUSTER_GEN_ON_OFF, ZCL_CMD_READ_REPORT_CFG, 0u,
+                      ZCL_FRAME_CLIENT_SERVER_DIR, mixed_rev,
+                      (u16)sizeof(mixed_rev), 3u));
+    assert(af_count == 3u);
+    assert(af_parse(2u, &cluster, &cmd, &pld, &len));
+    assert(len == 13u);
+    assert(pld[0] == ZCL_STA_SUCCESS);
+    assert(pld[9] == ZCL_STA_UNSUPPORTED_ATTRIBUTE);
+    assert(root_frame(ZCL_CLUSTER_GEN_ON_OFF, ZCL_CMD_READ_REPORT_CFG, 0u,
+                      ZCL_FRAME_CLIENT_SERVER_DIR, both_cfg,
+                      (u16)sizeof(both_cfg), 4u));
+    assert(af_count == 4u);
+    assert(af_parse(3u, &cluster, &cmd, &pld, &len));
+    assert(len == 18u);
+    assert(pld[0] == ZCL_STA_SUCCESS);
+    assert(pld[9] == ZCL_STA_SUCCESS);
+
+    /* Unreportable attribute and missing configuration entries. */
+    unrep[0] = 0x00u;
+    unrep[1] = (u8)(ZCL_ATTRID_ON_TIME & 0xFFu);
+    unrep[2] = (u8)((ZCL_ATTRID_ON_TIME >> 8) & 0xFFu);
+    assert(root_frame(ZCL_CLUSTER_GEN_ON_OFF, ZCL_CMD_READ_REPORT_CFG, 0u,
+                      ZCL_FRAME_CLIENT_SERVER_DIR, unrep,
+                      (u16)sizeof(unrep), 5u));
+    assert(af_count == 5u);
+    assert(af_parse(4u, &cluster, &cmd, &pld, &len));
+    assert(len == 4u);
+    assert(pld[0] == ZCL_STA_UNREPORTABLE_ATTRIBUTE);
+    missing[0] = 0x00u;
+    missing[1] = (u8)(ZCL_ATTRID_LEVEL_CURRENT_LEVEL & 0xFFu);
+    missing[2] = (u8)((ZCL_ATTRID_LEVEL_CURRENT_LEVEL >> 8) & 0xFFu);
+    assert(root_frame(ZCL_CLUSTER_GEN_LEVEL_CONTROL, ZCL_CMD_READ_REPORT_CFG,
+                      0u, ZCL_FRAME_CLIENT_SERVER_DIR, missing,
+                      (u16)sizeof(missing), 6u));
+    assert(af_count == 6u);
+    assert(af_parse(5u, &cluster, &cmd, &pld, &len));
+    assert(len == 4u);
+    assert(pld[0] == ZCL_STA_NOT_FOUND);
+    assert(pool_free_total() == 26u);
+}
+
+static void test_r12_report_cfg_alloc_failure(void)
+{
+    const u8 read_cfg[] = {0x00u, 0x00u, 0x00u};
+    u8 *held[64];
+    unsigned n = 0u;
+    unsigned i;
+    u8 rsp_cmd;
+    u8 status;
+
+    /* PASS-NOW control: exhausted pool fails closed, never crashes. */
+    fixture_init(noop_hook);
+    while (n < 64u) {
+        u8 *b = ev_buf_allocate(1u);
+
+        if (b == NULL) {
+            break;
+        }
+        held[n++] = b;
+    }
+    assert(n == 26u);
+    assert(ev_buf_free(held[--n]) == BUFFER_SUCC);
+    assert(root_frame(ZCL_CLUSTER_GEN_ON_OFF, ZCL_CMD_READ_REPORT_CFG, 0u,
+                      ZCL_FRAME_CLIENT_SERVER_DIR, read_cfg,
+                      (u16)sizeof(read_cfg), 1u));
+    assert(af_count <= 1u);
+    if (af_count == 1u) {
+        assert(last_default_rsp(0u, &rsp_cmd, &status));
+        assert(status == ZCL_STA_INSUFFICIENT_SPACE);
+    }
+    for (i = 0u; i < n; i++) {
+        assert(ev_buf_free(held[i]) == BUFFER_SUCC);
+    }
+    assert(pool_free_total() == 26u);
+}
+
+static void test_r13_identify_effect_chain(void)
+{
+    const u8 identify5[] = {0x05u, 0x00u};
+    const u8 identify3[] = {0x03u, 0x00u};
+    const u8 identify0[] = {0x00u, 0x00u};
+    const u8 add_if2[] = {0x12u, 0x00u};
+    const u8 write_time7[] = {0x00u, 0x00u, 0x21u, 0x07u, 0x00u};
+    u16 cluster;
+    u8 cmd;
+    const u8 *pld;
+    u16 len;
+    uint32_t uart_base;
+
+    /*
+     * M1 note: the AddIf fixture below uses the pre-R10 two-byte shape
+     * because bc7196f rejects anything else; M3 moves it to the
+     * serializer shape with the adapter (justification recorded there).
+     * The registered callback is the target-identical no-op until M3
+     * wires the production adapter into both target and fixture.
+     */
+    fixture_init(NULL);
+    boot_ready();
+    assert(t_identify_time == 0u);
+
+    /* Identify(5) takes effect on the shared IdentifyTime. */
+    assert(dispatch_identify(ZCL_CMD_IDENTIFY,
+                             ZCL_FRAME_CLIENT_SERVER_DIR, identify5,
+                             (u16)sizeof(identify5)) == ZCL_STA_SUCCESS);
+    assert(t_identify_time == 5u);
+
+    /* Query answers the remaining time while identifying. */
+    assert(dispatch_identify(ZCL_CMD_IDENTIFY_QUERY,
+                             ZCL_FRAME_CLIENT_SERVER_DIR, NULL,
+                             0u) == ZCL_STA_CMD_HAS_RESP);
+    assert(af_count == 1u);
+    assert(af_parse(0u, &cluster, &cmd, &pld, &len));
+    assert(cmd == ZCL_CMD_IDENTIFY_QUERY_RSP);
+    assert(len == 2u);
+    assert(pld[0] == 0x05u && pld[1] == 0x00u);
+
+    /* The countdown runs with pumped time; output is untouched. */
+    uart_base = host_uart_accepted_count();
+    pump_ms(2000u);
+    assert(t_identify_time == 3u);
+    assert(host_uart_accepted_count() == uart_base);
+
+    /* The accepted command enables AddIf while time remains. */
+    assert(dispatch_group(ZCL_CMD_GROUP_ADD_GROUP_IF_IDF,
+                          ZCL_FRAME_CLIENT_SERVER_DIR, add_if2,
+                          (u16)sizeof(add_if2)) == ZCL_STA_SUCCESS);
+    assert(aps_add_calls == 1u);
+    assert(fake_group_num == 1u);
+
+    /* Expiry ends identification; AddIf goes quiet again. */
+    pump_ms(4000u);
+    assert(t_identify_time == 0u);
+    assert(dispatch_group(ZCL_CMD_GROUP_ADD_GROUP_IF_IDF,
+                          ZCL_FRAME_CLIENT_SERVER_DIR, add_if2,
+                          (u16)sizeof(add_if2)) == ZCL_STA_SUCCESS);
+    assert(aps_add_calls == 1u);
+    assert(fake_group_num == 1u);
+
+    /* Explicit stop and restart behave the same way. */
+    assert(dispatch_identify(ZCL_CMD_IDENTIFY,
+                             ZCL_FRAME_CLIENT_SERVER_DIR, identify3,
+                             (u16)sizeof(identify3)) == ZCL_STA_SUCCESS);
+    assert(t_identify_time == 3u);
+    assert(dispatch_identify(ZCL_CMD_IDENTIFY,
+                             ZCL_FRAME_CLIENT_SERVER_DIR, identify0,
+                             (u16)sizeof(identify0)) == ZCL_STA_SUCCESS);
+    assert(t_identify_time == 0u);
+
+    /* The attribute-write path feeds the same countdown. */
+    fixture_init(noop_hook);
+    assert(root_frame(ZCL_CLUSTER_GEN_IDENTIFY, ZCL_CMD_WRITE, 0u,
+                      ZCL_FRAME_CLIENT_SERVER_DIR, write_time7,
+                      (u16)sizeof(write_time7), 1u));
+    assert(t_identify_time == 7u);
+    pump_ms(1000u);
+    assert(t_identify_time == 6u);
+    assert(pool_free_total() == 26u);
+}
+
+static void test_r13_identify_wrong_endpoint(void)
+{
+    const u8 identify5[] = {0x05u, 0x00u};
+
+    /* A misdirected Identify is rejected and changes nothing. */
+    fixture_init(NULL);
+    boot_ready();
+    assert(dispatch_ep(ZCL_CLUSTER_GEN_IDENTIFY, ZCL_CMD_IDENTIFY,
+                       ZCL_FRAME_CLIENT_SERVER_DIR, identify5,
+                       (u16)sizeof(identify5),
+                       (u8)(DISPATCH_EP + 1u)) == ZCL_STA_INVALID_FIELD);
+    assert(t_identify_time == 0u);
+    assert(pool_free_total() == 26u);
+}
+
+static void test_r13_trigger_effect_truthful(void)
+{
+    const u8 reserved_id[] = {0x02u, 0x00u};
+    const u8 reserved_variant[] = {0x00u, 0x01u};
+    const u8 defined0[] = {0x00u, 0x00u};
+    const u8 defined1[] = {0x01u, 0x00u};
+
+    /*
+     * Reserved effect ids/variants are rejected truthfully; defined
+     * ids stay accepted-without-blink for commissioning-tool
+     * compatibility (documented physical limit: no blink stage).
+     */
+    fixture_init(NULL);
+    boot_ready();
+    assert(dispatch_identify(ZCL_CMD_TRIGGER_EFFECT,
+                             ZCL_FRAME_CLIENT_SERVER_DIR, reserved_id,
+                             (u16)sizeof(reserved_id)) ==
+           ZCL_STA_INVALID_FIELD);
+    assert(dispatch_identify(ZCL_CMD_TRIGGER_EFFECT,
+                             ZCL_FRAME_CLIENT_SERVER_DIR, reserved_variant,
+                             (u16)sizeof(reserved_variant)) ==
+           ZCL_STA_INVALID_FIELD);
+    assert(t_identify_time == 0u);
+    assert(dispatch_identify(ZCL_CMD_TRIGGER_EFFECT,
+                             ZCL_FRAME_CLIENT_SERVER_DIR, defined0,
+                             (u16)sizeof(defined0)) == ZCL_STA_SUCCESS);
+    assert(dispatch_identify(ZCL_CMD_TRIGGER_EFFECT,
+                             ZCL_FRAME_CLIENT_SERVER_DIR, defined1,
+                             (u16)sizeof(defined1)) == ZCL_STA_SUCCESS);
+    assert(t_identify_time == 0u);
+    assert(!g_runtime.logical_output_enabled);
+    assert(pool_free_total() == 26u);
+}
+
+typedef void (*r9_r16_test_fn_t)(void);
+
+typedef struct r9_r16_case {
+    const char *name;
+    r9_r16_test_fn_t fn;
+} r9_r16_case_t;
+
+static const r9_r16_case_t r9_r16_matrix[] = {
+    {"r9_repeat_min", test_r9_repeated_minimum_with_onoff_stays_off},
+    {"r9_equal", test_r9_equal_level_with_onoff_preserves_output},
+    {"r9_zero_step", test_r9_zero_step_with_onoff_no_energize},
+    {"r9_down_off", test_r9_downward_from_off_stays_off},
+    {"r9_up_onset", test_r9_upward_onset_applies_on},
+    {"r9_replace_fault", test_r9_replacement_and_fault},
+    {"r16_clipped", test_r16_step_clipped_duration_proportional},
+    {"r16_controls", test_r16_step_unclamped_and_immediate_controls},
+    {"r16_gap", test_r16_step_clipped_elapsed_gap},
+    {"r10_add_names", test_r10_add_name_grammar},
+    {"r10_addif_member", test_r10_addif_and_membership_shapes},
+    {"r11_readcfg", test_r11_read_cfg_whole_records},
+    {"r11_discrsp", test_r11_discover_rsp_suffixes},
+    {"r11_shortforms", test_r11_response_short_forms_status_checked},
+    {"r11_empty", test_r11_empty_record_frames_rejected},
+    {"r11_compound", test_r11_compound_type_controls},
+    {"r12_status", test_r12_report_cfg_status_per_record},
+    {"r12_alloc", test_r12_report_cfg_alloc_failure},
+    {"r13_chain", test_r13_identify_effect_chain},
+    {"r13_endpoint", test_r13_identify_wrong_endpoint},
+    {"r13_trigger", test_r13_trigger_effect_truthful},
+    {NULL, NULL},
+};
+
+/*
+ * Matrix isolation: each R9-R16 case runs in a fresh child process so
+ * one adverse-behavior failure cannot hide the remaining cases. Old
+ * suites keep running sequentially first (an AP regression aborts the
+ * run before the matrix, preserving the prior signal).
+ */
+static int r9_r16_run_matrix(const char *self)
+{
+    unsigned int i;
+    unsigned int failed = 0u;
+
+    for (i = 0u; r9_r16_matrix[i].name != NULL; i++) {
+        char cmd[256];
+        int rc;
+
+        snprintf(cmd, sizeof(cmd), "%s %s", self, r9_r16_matrix[i].name);
+        fflush(stdout);
+        rc = system(cmd);
+        printf("R9_R16_MATRIX %s %s\n", r9_r16_matrix[i].name,
+               rc == 0 ? "PASS" : "FAIL");
+        fflush(stdout);
+        if (rc != 0) {
+            failed++;
+        }
+    }
+    printf("R9_R16_MATRIX_DONE failed=%u\n", failed);
+    return failed == 0u ? 0 : 1;
+}
+
+int main(int argc, char **argv)
+{
+    unsigned int i;
+
+    if (argc > 1) {
+        for (i = 0u; r9_r16_matrix[i].name != NULL; i++) {
+            if (strcmp(argv[1], r9_r16_matrix[i].name) == 0) {
+                r9_r16_matrix[i].fn();
+                printf("R9_R16_CASE %s PASS\n", argv[1]);
+                return 0;
+            }
+        }
+        printf("R9_R16_CASE %s UNKNOWN\n", argv[1]);
+        return 2;
+    }
+
     test_level_move_with_onoff_ready();
     test_level_plain_move_gated_while_off();
     test_level_short_frames_rejected();
@@ -2050,6 +3112,11 @@ int main(void)
     test_followup_ota_abort_path();
     test_followup_ota_requests();
     test_cluster_via_root_dispatch();
+    printf("GLSD301P_ZCL_DISPATCH_SEQ=PASS\n");
+    fflush(stdout);
+    if (r9_r16_run_matrix(argv[0]) != 0) {
+        return 1;
+    }
     printf("GLSD301P_ZCL_DISPATCH=PASS\n");
     return 0;
 }
