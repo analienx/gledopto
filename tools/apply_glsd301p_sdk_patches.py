@@ -400,7 +400,7 @@ PATCHES = [
         "original_sha256": (
             "5f11eb33626af3821fc830b64bcbce79fb48633ea1ca00890b722144c17b2f2d"
         ),
-        "patched_sha256": "75567f2b24766f4dab940d53ebd66c955618efd5975643ee4367e845e405f274",
+        "patched_sha256": "6f22053d58be3130cb28c721d2ab1861d92e41d6cacc7d0ec488f7769bb961b8",
         "marker": "glsd301p_attrRecValid",
         "edits": [
             {
@@ -475,12 +475,16 @@ PATCHES = [
                     "    return 1;\n"
                     "}\n"
                     "\n"
-                    "/* attrID + dataType + value records (write, report). */\n"
+                    "/* attrID + dataType + value records (write, report). R11: at\n"
+                    " * least one whole record; empty payloads are malformed. */\n"
                     "static u8 glsd301p_attrRecValid(zclIncoming_t *pCmd)\n"
                     "{\n"
                     "    u8 *p = pCmd->pData;\n"
                     "    u16 rem = pCmd->dataLen;\n"
                     "    u16 n = 0;\n"
+                    "    if (rem == 0) {\n"
+                    "        return 0;\n"
+                    "    }\n"
                     "    while (rem > 0) {\n"
                     "        u16 vl = 0;\n"
                     "        if (rem < 3) {\n"
@@ -499,12 +503,16 @@ PATCHES = [
                     "    return 1;\n"
                     "}\n"
                     "\n"
-                    "/* attrID + status + [dataType + value] records (read response). */\n"
+                    "/* attrID + status + [dataType + value] records (read response).\n"
+                    " * R11: at least one whole record. */\n"
                     "static u8 glsd301p_readRspValid(zclIncoming_t *pCmd)\n"
                     "{\n"
                     "    u8 *p = pCmd->pData;\n"
                     "    u16 rem = pCmd->dataLen;\n"
                     "    u16 n = 0;\n"
+                    "    if (rem == 0) {\n"
+                    "        return 0;\n"
+                    "    }\n"
                     "    while (rem > 0) {\n"
                     "        if (rem < 3) {\n"
                     "            return 0;\n"
@@ -572,12 +580,16 @@ PATCHES = [
                     "    return 1;\n"
                     "}\n"
                     "\n"
-                    "/* read-reporting-configuration response records. */\n"
+                    "/* read-reporting-configuration response records. R11: at least\n"
+                    " * one whole record. */\n"
                     "static u8 glsd301p_readCfgRspValid(zclIncoming_t *pCmd)\n"
                     "{\n"
                     "    u8 *p = pCmd->pData;\n"
                     "    u16 rem = pCmd->dataLen;\n"
                     "    u16 n = 0;\n"
+                    "    if (rem == 0) {\n"
+                    "        return 0;\n"
+                    "    }\n"
                     "    while (rem > 0) {\n"
                     "        if (rem < 4) {\n"
                     "            return 0;\n"
@@ -610,6 +622,32 @@ PATCHES = [
                     "            p += 4;\n"
                     "            rem -= 4;\n"
                     "        }\n"
+                    "        n++;\n"
+                    "        if (n > 255) {\n"
+                    "            return 0;\n"
+                    "        }\n"
+                    "    }\n"
+                    "    return 1;\n"
+                    "}\n"
+                    "\n"
+                    "/* R11 read-reporting-configuration request records: the stream\n"
+                    " * is whole 3-byte records (direction + attrID) with a defined\n"
+                    " * direction (0x00 reported, 0x01 received); empty, ragged,\n"
+                    " * and reserved-direction frames are malformed. */\n"
+                    "static u8 glsd301p_readCfgValid(zclIncoming_t *pCmd)\n"
+                    "{\n"
+                    "    u8 *p = pCmd->pData;\n"
+                    "    u16 rem = pCmd->dataLen;\n"
+                    "    u16 n = 0;\n"
+                    "    if ((rem == 0) || (rem % 3 != 0)) {\n"
+                    "        return 0;\n"
+                    "    }\n"
+                    "    while (rem > 0) {\n"
+                    "        if ((p[0] != ZCL_SEND_ATTR_REPORTS) && (p[0] != 0x01)) {\n"
+                    "            return 0;\n"
+                    "        }\n"
+                    "        p += 3;\n"
+                    "        rem -= 3;\n"
                     "        n++;\n"
                     "        if (n > 255) {\n"
                     "            return 0;\n"
@@ -770,6 +808,19 @@ PATCHES = [
             },
             {
                 "anchor": (
+                    "    /* Parse In Read Report Configure Command */\n"
+                    "    zclReadReportCfgCmd_t *pReadReportCfgCmd = zcl_parseInReadReportCfgCmd(pCmd);\n"
+                ),
+                "replacement": (
+                    "    if (!glsd301p_readCfgValid(pCmd)) {\n"
+                    "        return ZCL_STA_MALFORMED_COMMAND;\n"
+                    "    }\n"
+                    "    /* Parse In Read Report Configure Command */\n"
+                    "    zclReadReportCfgCmd_t *pReadReportCfgCmd = zcl_parseInReadReportCfgCmd(pCmd);\n"
+                ),
+            },
+            {
+                "anchor": (
                     "    /* Parse In Default Response Command */\n"
                     "    zclDefaultRspCmd_t *pDfltRspCmd = zcl_parseInDftRspCmd(pCmd);\n"
                 ),
@@ -821,7 +872,7 @@ PATCHES = [
                     "    pDiscAttrRspCmd = zcl_parseInDiscAttrsRspCmd(pCmd);\n"
                 ),
                 "replacement": (
-                    "    if (pCmd->dataLen < 1) {\n"
+                    "    if ((pCmd->dataLen < 1) || (((pCmd->dataLen - 1u) % 3u) != 0u)) {\n"
                     "        return ZCL_STA_MALFORMED_COMMAND;\n"
                     "    }\n"
                     "    /* Parse In Discover Attributes Response Command */\n"
@@ -834,7 +885,7 @@ PATCHES = [
                     "    pDiscAttrExtRspCmd = zcl_parseInDiscAttrsExtRspCmd(pCmd);\n"
                 ),
                 "replacement": (
-                    "    if (pCmd->dataLen < 1) {\n"
+                    "    if ((pCmd->dataLen < 1) || (((pCmd->dataLen - 1u) % 4u) != 0u)) {\n"
                     "        return ZCL_STA_MALFORMED_COMMAND;\n"
                     "    }\n"
                     "    /* Parse In Discover Extended Attributes Response Command */\n"
@@ -860,7 +911,11 @@ PATCHES = [
                     "    pWriteRspCmd = zcl_parseInWriteRspCmd(pCmd);\n"
                 ),
                 "replacement": (
-                    "    if ((pCmd->dataLen != 1) && ((pCmd->dataLen < 3) || (pCmd->dataLen % 3 != 0))) {\n"
+                    "    if (pCmd->dataLen == 1) {\n"
+                    "        if (pCmd->pData[0] != ZCL_STA_SUCCESS) {\n"
+                    "            return ZCL_STA_MALFORMED_COMMAND;\n"
+                    "        }\n"
+                    "    } else if ((pCmd->dataLen < 3) || (pCmd->dataLen % 3 != 0)) {\n"
                     "        return ZCL_STA_MALFORMED_COMMAND;\n"
                     "    }\n"
                     "    /* Parse In Write Response Command */\n"
@@ -873,11 +928,28 @@ PATCHES = [
                     "    pCfgReportRspCmd = zcl_parseInCfgReportRspCmd(pCmd);\n"
                 ),
                 "replacement": (
-                    "    if ((pCmd->dataLen != 1) && ((pCmd->dataLen < 4) || (pCmd->dataLen % 4 != 0))) {\n"
+                    "    if (pCmd->dataLen == 1) {\n"
+                    "        if (pCmd->pData[0] != ZCL_STA_SUCCESS) {\n"
+                    "            return ZCL_STA_MALFORMED_COMMAND;\n"
+                    "        }\n"
+                    "    } else if ((pCmd->dataLen < 4) || (pCmd->dataLen % 4 != 0)) {\n"
                     "        return ZCL_STA_MALFORMED_COMMAND;\n"
                     "    }\n"
                     "    /* Parse In Configure Report Response Command */\n"
                     "    pCfgReportRspCmd = zcl_parseInCfgReportRspCmd(pCmd);\n"
+                ),
+            },
+            {
+                "anchor": (
+                    "    for (u8 i = 0; i < pReadReportCfgCmd->numAttr; i++) {\n"
+                    "        zclAttrInfo_t *pAttrEntry = zcl_findAttribute(endpoint, clusterId, pReadReportCfgCmd->attrList[i].attrID);\n"
+                ),
+                "replacement": (
+                    "    for (u8 i = 0; i < pReadReportCfgCmd->numAttr; i++) {\n"
+                    "        /* R12: per-record status; a prior record's failure\n"
+                    "         * must not leak into a later record's success. */\n"
+                    "        status = ZCL_STA_SUCCESS;\n"
+                    "        zclAttrInfo_t *pAttrEntry = zcl_findAttribute(endpoint, clusterId, pReadReportCfgCmd->attrList[i].attrID);\n"
                 ),
             },
         ],
