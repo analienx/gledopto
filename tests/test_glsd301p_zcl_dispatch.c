@@ -4021,6 +4021,288 @@ static void test_r22_reporting_direction_grammar(void)
     assert(pool_free_total() == 26u);
 }
 
+/*
+ * R24 (M1): Write Response long records describe failures only — a
+ * single success byte is the only success shape. The reviewed guard
+ * accepts every 3-byte multiple without inspecting statuses, so the
+ * long-success and mixed legs below are RED until M2. Short success
+ * and failure-only legs are PASS-NOW controls.
+ */
+static void test_r24_write_rsp_status_grammar(void)
+{
+    const u8 long_success[] = {0x00u, 0x00u, 0x00u};
+    const u8 mixed[] = {0x86u, 0x00u, 0x00u, 0x00u, 0x01u, 0x00u};
+    const u8 fail_only[] = {0x86u, 0x00u, 0x00u};
+    const u8 short_ok[] = {0x00u};
+    u8 rsp_cmd;
+    u8 status;
+
+    fixture_init(noop_hook);
+
+    /* Short success still parses (control). */
+    assert(root_frame(ZCL_CLUSTER_GEN_ON_OFF, ZCL_CMD_WRITE_RSP, 0u,
+                      ZCL_FRAME_SERVER_CLIENT_DIR, short_ok,
+                      (u16)sizeof(short_ok), 1u));
+    assert(af_count == 1u);
+    assert(last_default_rsp(0u, &rsp_cmd, &status));
+    assert(status == ZCL_STA_SUCCESS);
+
+    /* Failure-only long form still parses (control). */
+    assert(root_frame(ZCL_CLUSTER_GEN_ON_OFF, ZCL_CMD_WRITE_RSP, 0u,
+                      ZCL_FRAME_SERVER_CLIENT_DIR, fail_only,
+                      (u16)sizeof(fail_only), 2u));
+    assert(af_count == 2u);
+    assert(last_default_rsp(1u, &rsp_cmd, &status));
+    assert(status == ZCL_STA_SUCCESS);
+
+    /* Long success record: only failures may be long. */
+    assert(root_frame(ZCL_CLUSTER_GEN_ON_OFF, ZCL_CMD_WRITE_RSP, 0u,
+                      ZCL_FRAME_SERVER_CLIENT_DIR, long_success,
+                      (u16)sizeof(long_success), 3u));
+    assert(af_count == 3u);
+    assert(last_default_rsp(2u, &rsp_cmd, &status));
+    assert(status == ZCL_STA_MALFORMED_COMMAND);
+
+    /* Mixed stream containing a success record. */
+    assert(root_frame(ZCL_CLUSTER_GEN_ON_OFF, ZCL_CMD_WRITE_RSP, 0u,
+                      ZCL_FRAME_SERVER_CLIENT_DIR, mixed,
+                      (u16)sizeof(mixed), 4u));
+    assert(af_count == 4u);
+    assert(last_default_rsp(3u, &rsp_cmd, &status));
+    assert(status == ZCL_STA_MALFORMED_COMMAND);
+
+    assert(pool_free_total() == 26u);
+}
+
+/*
+ * R24 (M1): Configure Reporting Response long records are
+ * (status, direction, attrID) failure entries; success is the lone
+ * status byte. The reviewed guard checks directions but leaves
+ * status bytes unrestricted, so the long-success and mixed legs are
+ * RED until M2 (the old cfgrsp_ok control blessed the first shape).
+ */
+static void test_r24_cfg_rsp_status_grammar(void)
+{
+    const u8 long_success[] = {0x00u, 0x00u, 0x00u, 0x00u};
+    const u8 mixed[] = {0x86u, 0x00u, 0x00u, 0x00u,
+                        0x00u, 0x00u, 0x01u, 0x00u};
+    const u8 fail_only[] = {0x86u, 0x00u, 0x00u, 0x00u};
+    const u8 short_ok[] = {0x00u};
+    u8 rsp_cmd;
+    u8 status;
+
+    fixture_init(noop_hook);
+
+    /* Short success still parses (control). */
+    assert(root_frame(ZCL_CLUSTER_GEN_ON_OFF, ZCL_CMD_CONFIG_REPORT_RSP,
+                      0u, ZCL_FRAME_SERVER_CLIENT_DIR, short_ok,
+                      (u16)sizeof(short_ok), 1u));
+    assert(af_count == 1u);
+    assert(last_default_rsp(0u, &rsp_cmd, &status));
+    assert(status == ZCL_STA_SUCCESS);
+
+    /* Failure-only long form still parses (control). */
+    assert(root_frame(ZCL_CLUSTER_GEN_ON_OFF, ZCL_CMD_CONFIG_REPORT_RSP,
+                      0u, ZCL_FRAME_SERVER_CLIENT_DIR, fail_only,
+                      (u16)sizeof(fail_only), 2u));
+    assert(af_count == 2u);
+    assert(last_default_rsp(1u, &rsp_cmd, &status));
+    assert(status == ZCL_STA_SUCCESS);
+
+    /* Long success record: only failures may be long. */
+    assert(root_frame(ZCL_CLUSTER_GEN_ON_OFF, ZCL_CMD_CONFIG_REPORT_RSP,
+                      0u, ZCL_FRAME_SERVER_CLIENT_DIR, long_success,
+                      (u16)sizeof(long_success), 3u));
+    assert(af_count == 3u);
+    assert(last_default_rsp(2u, &rsp_cmd, &status));
+    assert(status == ZCL_STA_MALFORMED_COMMAND);
+
+    /* Mixed stream containing a success record. */
+    assert(root_frame(ZCL_CLUSTER_GEN_ON_OFF, ZCL_CMD_CONFIG_REPORT_RSP,
+                      0u, ZCL_FRAME_SERVER_CLIENT_DIR, mixed,
+                      (u16)sizeof(mixed), 4u));
+    assert(af_count == 4u);
+    assert(last_default_rsp(3u, &rsp_cmd, &status));
+    assert(status == ZCL_STA_MALFORMED_COMMAND);
+
+    assert(pool_free_total() == 26u);
+}
+
+/*
+ * R24 (M1): Read Reporting Configuration Response directions are
+ * defined (0x00/0x01) in every record, success or failure. The
+ * reviewed validator checks directions only in the success branch,
+ * so the failure-with-reserved-direction leg is RED until M2.
+ */
+static void test_r24_read_cfg_rsp_failure_direction(void)
+{
+    const u8 fail_dir2[] = {0x86u, 0x02u, 0x00u, 0x00u};
+    const u8 fail_dir0[] = {0x86u, 0x00u, 0x00u, 0x00u};
+    const u8 success_rec[] = {0x00u, 0x00u, 0x00u, 0x00u, 0x20u,
+                              0x01u, 0x00u, 0xFFu, 0xFFu};
+    u8 rsp_cmd;
+    u8 status;
+
+    fixture_init(noop_hook);
+
+    /* Failure with a defined direction still parses (control). */
+    assert(root_frame(ZCL_CLUSTER_GEN_ON_OFF, ZCL_CMD_READ_REPORT_CFG_RSP,
+                      0u, ZCL_FRAME_SERVER_CLIENT_DIR, fail_dir0,
+                      (u16)sizeof(fail_dir0), 1u));
+    assert(af_count == 1u);
+    assert(last_default_rsp(0u, &rsp_cmd, &status));
+    assert(status == ZCL_STA_SUCCESS);
+
+    /* Success record still parses (control). */
+    assert(root_frame(ZCL_CLUSTER_GEN_ON_OFF, ZCL_CMD_READ_REPORT_CFG_RSP,
+                      0u, ZCL_FRAME_SERVER_CLIENT_DIR, success_rec,
+                      (u16)sizeof(success_rec), 2u));
+    assert(af_count == 2u);
+    assert(last_default_rsp(1u, &rsp_cmd, &status));
+    assert(status == ZCL_STA_SUCCESS);
+
+    /* Failure record with a reserved direction. */
+    assert(root_frame(ZCL_CLUSTER_GEN_ON_OFF, ZCL_CMD_READ_REPORT_CFG_RSP,
+                      0u, ZCL_FRAME_SERVER_CLIENT_DIR, fail_dir2,
+                      (u16)sizeof(fail_dir2), 3u));
+    assert(af_count == 3u);
+    assert(last_default_rsp(2u, &rsp_cmd, &status));
+    assert(status == ZCL_STA_MALFORMED_COMMAND);
+
+    assert(pool_free_total() == 26u);
+}
+
+/*
+ * R24 (M1): a refused Undivided write answers failures only — the
+ * all-success one-byte response is reserved for whole success. The
+ * reviewed SDK pre-validation stores one entry per record, so the
+ * mixed write below emits a 6-byte SUCCESS-carrying response (the
+ * old r18 leg blessed it); the exact-bytes leg is RED until M2.
+ * Refused writes never restart Identify (PASS-NOW control: the R18
+ * observer site lives inside the needWrite apply pass).
+ */
+static void test_r24_undivided_refused_failure_only(void)
+{
+    const u8 identify5[] = {0x05u, 0x00u};
+    const u8 write_mixed[] = {0xFFu, 0xFFu, 0x20u, 0x00u,
+                              0x00u, 0x00u, 0x21u, 0x05u, 0x00u};
+    u16 cluster;
+    u8 cmd;
+    const u8 *pld;
+    u16 len;
+
+    fixture_init(noop_hook);
+    boot_ready();
+    assert(dispatch_identify(ZCL_CMD_IDENTIFY,
+                             ZCL_FRAME_CLIENT_SERVER_DIR, identify5,
+                             (u16)sizeof(identify5)) == ZCL_STA_SUCCESS);
+    pump_ms(1000u);
+    assert(t_identify_time == 4u);
+    assert(root_frame(ZCL_CLUSTER_GEN_IDENTIFY, ZCL_CMD_WRITE_UNDIVIDED,
+                      0u, ZCL_FRAME_CLIENT_SERVER_DIR, write_mixed,
+                      (u16)sizeof(write_mixed), 7u));
+    assert(t_identify_time == 4u);
+    assert(af_count == 1u);
+    assert(af_parse(0u, &cluster, &cmd, &pld, &len));
+    assert(cmd == ZCL_CMD_WRITE_RSP && len == 3u);
+    assert(pld[0] == ZCL_STA_UNSUPPORTED_ATTRIBUTE);
+    assert(pld[1] == 0xFFu && pld[2] == 0xFFu);
+    /* No restart: the old countdown keeps its phase. */
+    pump_ms(1000u);
+    assert(t_identify_time == 3u);
+
+    assert(pool_free_total() == 26u);
+}
+
+/* One NO_RSP IdentifyTime record (attr 0x0000, u16, value 7). */
+static void r26_write_rec(u8 *dst, unsigned i)
+{
+    dst[5u * i + 0u] = 0x00u;
+    dst[5u * i + 1u] = 0x00u;
+    dst[5u * i + 2u] = 0x21u;
+    dst[5u * i + 3u] = 0x07u;
+    dst[5u * i + 4u] = 0x00u;
+}
+
+/*
+ * R26 (M1): NO_RSP multi-write allocation edges on the unpacked
+ * host layout. Parsed storage is sizeof(cmd)+N*sizeof(rec)+2*N:
+ * 4+10*N host (N=50 needs exactly 504, N=51 needs 514), versus
+ * 1+9*N packed (N=55 needs 496, N=56 needs 505). NO_RSP carries no
+ * response allocation, so accept/refuse is purely the parse
+ * request against the 504-byte largest buffer; accept is observed
+ * through the IdentifyTime store, refuse through the default
+ * response. M1 asserts the host edges (green here); the packed
+ * mutant binary diverges at N=51/N=55, demonstrating the layout
+ * delta the current evidence cannot see. M2 makes this case
+ * layout-adaptive with exact per-layout outcomes.
+ */
+static void test_r26_write_alloc_boundary(void)
+{
+    static u8 payload[5u * 56u];
+    unsigned n;
+    u8 rsp_cmd;
+    u8 status;
+
+    for (n = 0u; n < 56u; n++) {
+        r26_write_rec(payload, n);
+    }
+
+    /* N=50: exact 504-byte fit, accepted on both layouts. */
+    printf("R26_BOUNDARY n=50 expect=accept\n");
+    fflush(stdout);
+    fixture_init(noop_hook);
+    boot_ready();
+    assert(root_frame(ZCL_CLUSTER_GEN_IDENTIFY, ZCL_CMD_WRITE_NO_RSP,
+                      0u, ZCL_FRAME_CLIENT_SERVER_DIR, payload,
+                      5u * 50u, 1u));
+    assert(t_identify_time == 7u);
+    assert(af_count == 0u);
+    assert(pool_free_total() == 26u);
+
+    /* N=51: 514 bytes, refused on the unpacked host. */
+    printf("R26_BOUNDARY n=51 expect=refuse-host\n");
+    fflush(stdout);
+    fixture_init(noop_hook);
+    boot_ready();
+    assert(root_frame(ZCL_CLUSTER_GEN_IDENTIFY, ZCL_CMD_WRITE_NO_RSP,
+                      0u, ZCL_FRAME_CLIENT_SERVER_DIR, payload,
+                      5u * 51u, 2u));
+    assert(t_identify_time == 0u);
+    assert(af_count == 1u);
+    assert(last_default_rsp(0u, &rsp_cmd, &status));
+    assert(status == ZCL_STA_INSUFFICIENT_SPACE);
+    assert(pool_free_total() == 26u);
+
+    /* N=55: refused on the unpacked host. */
+    printf("R26_BOUNDARY n=55 expect=refuse-host\n");
+    fflush(stdout);
+    fixture_init(noop_hook);
+    boot_ready();
+    assert(root_frame(ZCL_CLUSTER_GEN_IDENTIFY, ZCL_CMD_WRITE_NO_RSP,
+                      0u, ZCL_FRAME_CLIENT_SERVER_DIR, payload,
+                      5u * 55u, 3u));
+    assert(t_identify_time == 0u);
+    assert(af_count == 1u);
+    assert(last_default_rsp(0u, &rsp_cmd, &status));
+    assert(status == ZCL_STA_INSUFFICIENT_SPACE);
+    assert(pool_free_total() == 26u);
+
+    /* N=56: 505 packed bytes, refused on both layouts. */
+    printf("R26_BOUNDARY n=56 expect=refuse-both\n");
+    fflush(stdout);
+    fixture_init(noop_hook);
+    boot_ready();
+    assert(root_frame(ZCL_CLUSTER_GEN_IDENTIFY, ZCL_CMD_WRITE_NO_RSP,
+                      0u, ZCL_FRAME_CLIENT_SERVER_DIR, payload,
+                      5u * 56u, 4u));
+    assert(t_identify_time == 0u);
+    assert(af_count == 1u);
+    assert(last_default_rsp(0u, &rsp_cmd, &status));
+    assert(status == ZCL_STA_INSUFFICIENT_SPACE);
+    assert(pool_free_total() == 26u);
+}
+
 typedef void (*r9_r16_test_fn_t)(void);
 
 typedef struct r9_r16_case {
@@ -4126,6 +4408,46 @@ static int r17_r23_run_matrix(const char *self)
     return failed == 0u ? 0 : 1;
 }
 
+typedef void (*r24_r26_test_fn_t)(void);
+
+typedef struct r24_r26_case {
+    const char *name;
+    r24_r26_test_fn_t fn;
+} r24_r26_case_t;
+
+static const r24_r26_case_t r24_r26_matrix[] = {
+    {"r24_writeresp", test_r24_write_rsp_status_grammar},
+    {"r24_cfgrsp", test_r24_cfg_rsp_status_grammar},
+    {"r24_readcfgrsp", test_r24_read_cfg_rsp_failure_direction},
+    {"r24_undivided", test_r24_undivided_refused_failure_only},
+    {"r26_boundary", test_r26_write_alloc_boundary},
+    {NULL, NULL},
+};
+
+/* Same isolation as the earlier matrices: one child per case. */
+static int r24_r26_run_matrix(const char *self)
+{
+    unsigned int i;
+    unsigned int failed = 0u;
+
+    for (i = 0u; r24_r26_matrix[i].name != NULL; i++) {
+        char cmd[256];
+        int rc;
+
+        snprintf(cmd, sizeof(cmd), "%s %s", self, r24_r26_matrix[i].name);
+        fflush(stdout);
+        rc = system(cmd);
+        printf("R24_R26_MATRIX %s %s\n", r24_r26_matrix[i].name,
+               rc == 0 ? "PASS" : "FAIL");
+        fflush(stdout);
+        if (rc != 0) {
+            failed++;
+        }
+    }
+    printf("R24_R26_MATRIX_DONE failed=%u\n", failed);
+    return failed == 0u ? 0 : 1;
+}
+
 /*
  * R23 host-vs-target foundation layout comparison. The hosted harness
  * compiles the pinned SDK -m32 WITHOUT packing; the TC32 target packs
@@ -4146,6 +4468,13 @@ static int r17_r23_run_matrix(const char *self)
  */
 static void test_r23_host_foundation_layout(void)
 {
+    /*
+     * R26: these asserts pin the unpacked -m32 host layout. The
+     * packed target-layout binary (GLSD301P_PACKED_TARGET_LAYOUT)
+     * skips them; M2 asserts its packed sizes against generated
+     * TC32 metadata instead.
+     */
+#ifndef GLSD301P_PACKED_TARGET_LAYOUT
     _Static_assert(sizeof(zclWriteRec_t) == 8u, "host write rec");
     _Static_assert(offsetof(zclWriteRec_t, attrID) == 0u, "host w/rec attr");
     _Static_assert(offsetof(zclWriteRec_t, dataType) == 2u, "host w/rec ty");
@@ -4256,6 +4585,7 @@ static void test_r23_host_foundation_layout(void)
     _Static_assert(sizeof(zclWriteCmd_t) + sizeof(zclWriteRec_t) + 2u <=
                        BUFFER_GROUP_0,
                    "host alloc single small");
+#endif
 
     /*
      * Runtime witness: the pool behaves per the geometry above (26
@@ -4284,7 +4614,14 @@ int main(int argc, char **argv)
                 return 0;
             }
         }
-        printf("R17_R23_CASE %s UNKNOWN\n", argv[1]);
+        for (i = 0u; r24_r26_matrix[i].name != NULL; i++) {
+            if (strcmp(argv[1], r24_r26_matrix[i].name) == 0) {
+                r24_r26_matrix[i].fn();
+                printf("R24_R26_CASE %s PASS\n", argv[1]);
+                return 0;
+            }
+        }
+        printf("R24_R26_CASE %s UNKNOWN\n", argv[1]);
         return 2;
     }
 
@@ -4331,6 +4668,9 @@ int main(int argc, char **argv)
         return 1;
     }
     if (r17_r23_run_matrix(argv[0]) != 0) {
+        return 1;
+    }
+    if (r24_r26_run_matrix(argv[0]) != 0) {
         return 1;
     }
     printf("GLSD301P_ZCL_DISPATCH=PASS\n");

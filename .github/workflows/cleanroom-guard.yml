@@ -345,6 +345,126 @@ jobs:
             src/glsd301p_uart_transport.c src/glsd301p_timebase.c src/glsd301p_uart_service.c \
             src/glsd301p_control.c src/glsd301p_identify.c src/glsd301p_zcl_commands.c tests/host/hw_stub.c \
             tests/test_glsd301p_zcl_dispatch.c -o build/host-tests/test_glsd301p_zcl_dispatch
+      - name: R25/R26 mutant controls (ephemeral copies, expect kill)
+        shell: bash
+        run: |
+          set -euo pipefail
+          # All mutants live in ephemeral $RUNNER_TEMP copies; production
+          # sources, frozen refs and the staged SDK are never modified.
+          # Each mutant must be KILLED (nonzero oracle exit). A SURVIVED
+          # mutant fails this step. M1 expects red here (dead work
+          # counter, no allocation oracle, host-only layout asserts);
+          # M2 turns every leg green without changing these expectations.
+          strict_zcl="-std=gnu11 -DWIN32 -Wall -Wextra -Werror -fsanitize=address,undefined -fno-omit-frame-pointer"
+          sdkflags="-std=gnu11 -DWIN32 -fsanitize=address,undefined -fno-omit-frame-pointer"
+          inc="-Isrc -Itests/host"
+          zclinc="-Ibuild/host-sdk/zigbee -Ibuild/host-sdk/zigbee/zcl -Ibuild/host-sdk/proj"
+          zclsrc='build/host-sdk/zigbee/zcl/general'
+          sdkobj32='build/host-tests/obj32/ev_timer.o build/host-tests/obj32/ev_rtc.o build/host-tests/obj32/mempool.o build/host-tests/obj32/ev_buffer.o build/host-tests/obj32/zcl.o build/host-tests/obj32/zcl_reporting.o build/host-tests/obj32/zcl_basic.o build/host-tests/obj32/zcl_identify.o build/host-tests/obj32/zcl_group.o build/host-tests/obj32/zcl_level.o build/host-tests/obj32/zcl_onoff.o build/host-tests/obj32/zcl_ota.o'
+          mut="$RUNNER_TEMP/glsd301p-mutants"
+          mkdir -p "$mut"
+          verdict=0
+          # --- R25: slow-loop tick mutant vs the r19 work oracle ---
+          python3 tools/glsd301p_make_tick_mutant.py --src src/glsd301p_identify.c --out "$mut/identify.c"
+          grep -q R25_MUTANT_LOOP_ACTIVE "$mut/identify.c"
+          # shellcheck disable=SC2086
+          cc -m32 $strict_zcl -Ibuild/host-sdk/proj/os $zclinc $inc $sdkobj32 \
+            build/host-tests/obj32/timer_events.o src/glsd301p_uart_frame.c \
+            src/glsd301p_power_stage_policy.c src/glsd301p_output_guard.c \
+            src/glsd301p_push_input.c src/glsd301p_pb4_compat.c src/glsd301p_runtime_core.c \
+            src/glsd301p_uart_transport.c src/glsd301p_timebase.c src/glsd301p_uart_service.c \
+            src/glsd301p_control.c "$mut/identify.c" src/glsd301p_zcl_commands.c tests/host/hw_stub.c \
+            tests/test_glsd301p_zcl_dispatch.c -o "$mut/dispatch_work"
+          if "$mut/dispatch_work" r19_bound >"$mut/work.log" 2>&1; then
+            grep -q R25_MUTANT_LOOP_ACTIVE "$mut/work.log"
+            echo 'R25_MUTANT=SURVIVED (dead counter cannot see the loop)'
+            verdict=1
+          else
+            grep -q R25_MUTANT_LOOP_ACTIVE "$mut/work.log"
+            echo 'R25_MUTANT=KILLED'
+          fi
+          # --- R26: u16->u8 allocation narrowing vs r26_boundary ---
+          mkdir -p "$mut/sdk/zigbee/zcl"
+          sed -e 's/u16 len = sizeof(zclCfgReportCmd_t)/u8 len = sizeof(zclCfgReportCmd_t)/' \
+              -e 's/u16 len = sizeof(zclCfgReportRspCmd_t)/u8 len = sizeof(zclCfgReportRspCmd_t)/' \
+              -e 's/u16 len = sizeof(zclReadReportCfgRspCmd_t)/u8 len = sizeof(zclReadReportCfgRspCmd_t)/' \
+              build/host-sdk/zigbee/zcl/zcl.c > "$mut/sdk/zigbee/zcl/zcl.c"
+          grep -q 'u8 len = sizeof(zclCfgReportCmd_t)' "$mut/sdk/zigbee/zcl/zcl.c"
+          # shellcheck disable=SC2086
+          cc -m32 $sdkflags -Ibuild/host-sdk/proj/os $zclinc \
+            -c "$mut/sdk/zigbee/zcl/zcl.c" -o "$mut/zcl_narrow.o"
+          sdkobj_narrow=$(echo "$sdkobj32" | sed 's|build/host-tests/obj32/zcl.o|'"$mut"'/zcl_narrow.o|')
+          # shellcheck disable=SC2086
+          cc -m32 $strict_zcl -Ibuild/host-sdk/proj/os $zclinc $inc $sdkobj_narrow \
+            build/host-tests/obj32/timer_events.o src/glsd301p_uart_frame.c \
+            src/glsd301p_power_stage_policy.c src/glsd301p_output_guard.c \
+            src/glsd301p_push_input.c src/glsd301p_pb4_compat.c src/glsd301p_runtime_core.c \
+            src/glsd301p_uart_transport.c src/glsd301p_timebase.c src/glsd301p_uart_service.c \
+            src/glsd301p_control.c src/glsd301p_identify.c src/glsd301p_zcl_commands.c tests/host/hw_stub.c \
+            tests/test_glsd301p_zcl_dispatch.c -o "$mut/dispatch_narrow"
+          if "$mut/dispatch_narrow" r26_boundary >"$mut/narrow.log" 2>&1; then
+            echo 'R26_NARROW_MUTANT=SURVIVED (no allocation oracle; pool slack hides it)'
+            verdict=1
+          else
+            echo 'R26_NARROW_MUTANT=KILLED'
+          fi
+          # --- R26: packed target-layout binary vs the host r26 oracle ---
+          mkdir -p "$mut/objp"
+          packed_zcl="-std=gnu11 -DWIN32 -Wall -Wextra -Werror -fpack-struct -fsanitize=address,undefined -fno-sanitize=alignment -fno-omit-frame-pointer -DGLSD301P_PACKED_TARGET_LAYOUT"
+          packed_sdk="-std=gnu11 -DWIN32 -fpack-struct -fsanitize=address,undefined -fno-sanitize=alignment -fno-omit-frame-pointer"
+          for unit in ev_timer ev_rtc; do
+            # shellcheck disable=SC2086
+            cc -m32 $packed_sdk -Isrc -Itests/host -Ibuild/host-sdk/proj/os $zclinc \
+              -c "build/host-sdk/proj/os/$unit.c" -o "$mut/objp/$unit.o"
+          done
+          # shellcheck disable=SC2086
+          cc -m32 $packed_sdk $zclinc -c build/host-sdk/proj/common/mempool.c \
+            -o "$mut/objp/mempool.o"
+          # shellcheck disable=SC2086
+          cc -m32 $packed_sdk "-Dassert(ignore)=((void)0)" \
+            -Ibuild/host-sdk/proj/os $zclinc \
+            -c build/host-sdk/proj/os/ev_buffer.c -o "$mut/objp/ev_buffer.o"
+          for unit in zcl zcl_reporting; do
+            # shellcheck disable=SC2086
+            cc -m32 $packed_sdk -Ibuild/host-sdk/proj/os $zclinc \
+              -c "build/host-sdk/zigbee/zcl/$unit.c" \
+              -o "$mut/objp/$unit.o"
+          done
+          for unit in zcl_basic zcl_identify zcl_group zcl_level zcl_onoff; do
+            # shellcheck disable=SC2086
+            cc -m32 $packed_sdk -Ibuild/host-sdk/proj/os $zclinc \
+              -c "$zclsrc/$unit.c" \
+              -o "$mut/objp/$unit.o"
+          done
+          # shellcheck disable=SC2086
+          cc -m32 $packed_sdk -Ibuild/host-sdk/proj/os $zclinc \
+            -c build/host-sdk/zigbee/zcl/ota_upgrading/zcl_ota.c \
+            -o "$mut/objp/zcl_ota.o"
+          # shellcheck disable=SC2086
+          cc -m32 $packed_sdk -Ibuild/host-sdk/proj/os $zclinc \
+            -c src/glsd301p_timer_events.c \
+            -o "$mut/objp/timer_events.o"
+          sdkobj_packed="$mut/objp/ev_timer.o $mut/objp/ev_rtc.o $mut/objp/mempool.o $mut/objp/ev_buffer.o $mut/objp/zcl.o $mut/objp/zcl_reporting.o $mut/objp/zcl_basic.o $mut/objp/zcl_identify.o $mut/objp/zcl_group.o $mut/objp/zcl_level.o $mut/objp/zcl_onoff.o $mut/objp/zcl_ota.o"
+          # shellcheck disable=SC2086
+          cc -m32 $packed_zcl -Ibuild/host-sdk/proj/os $zclinc $inc $sdkobj_packed \
+            "$mut/objp/timer_events.o" src/glsd301p_uart_frame.c \
+            src/glsd301p_power_stage_policy.c src/glsd301p_output_guard.c \
+            src/glsd301p_push_input.c src/glsd301p_pb4_compat.c src/glsd301p_runtime_core.c \
+            src/glsd301p_uart_transport.c src/glsd301p_timebase.c src/glsd301p_uart_service.c \
+            src/glsd301p_control.c src/glsd301p_identify.c src/glsd301p_zcl_commands.c tests/host/hw_stub.c \
+            tests/test_glsd301p_zcl_dispatch.c -o "$mut/dispatch_packed"
+          if "$mut/dispatch_packed" r26_boundary >"$mut/packed.log" 2>&1; then
+            echo 'R26_PACKED_RUN=PASS (host oracle unexpectedly holds packed)'
+          else
+            echo 'R26_PACKED_RUN=DIVERGED (layout delta demonstrated; host oracle is host-only)'
+            cat "$mut/packed.log"
+            verdict=1
+          fi
+          if [ "$verdict" -ne 0 ]; then
+            echo 'GLSD301P_MUTANTS=RED'
+            exit 1
+          fi
+          echo 'GLSD301P_MUTANTS=PASS'
       - name: Run original-body reproductions (pristine SDK, expect failure)
         shell: bash
         run: |
