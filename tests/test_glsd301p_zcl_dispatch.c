@@ -4318,8 +4318,14 @@ static const char *r26_layout_name(void)
  * Unpacked vs packed parse edges: write 4+10*N (N=50 exact fit)
  * vs 1+9*N (N=55 fits, N=56 needs 505); report 4+9*N (N=55 fits)
  * vs 1+8*N (N=62 fits, N=63 needs 505); configure 4+16*N (N=31
- * fits) vs 1+14*N (N=35 fits, N=36 needs 505); read-cfg-rsp build
+ * fits) vs 1+14*N (N=34 fits, N=36 needs 505); read-cfg-rsp build
  * 4+16*N (N=31 fits) vs 1+15*N (N=33 fits, N=34 needs 511).
+ * Response-path allocations are part of every verdict: the AF send
+ * allocates 5 header bytes above the serialized body, so e.g. a
+ * 35-record packed configure (140-byte body) refuses at the send
+ * (145 > 144 group-2 usable) even though its parse fits. The leg
+ * set keeps the parse request binding and asserts the whole
+ * request set (message, parse, response struct, serial, send).
  */
 static void r26_write_leg(const u8 *payload, unsigned n, u8 seq)
 {
@@ -4350,6 +4356,8 @@ static void r26_write_leg(const u8 *payload, unsigned n, u8 seq)
         assert(af_count == 1u);
         assert(last_default_rsp(0u, &rsp_cmd, &status));
         assert(status == ZCL_STA_INSUFFICIENT_SPACE);
+        /* Default-response send: 2-byte body + 5 header bytes. */
+        assert(glsd_alloc_observe_count_size(7u) >= 1u);
     }
     assert(pool_free_total() == 26u);
 }
@@ -4378,6 +4386,7 @@ static void r26_report_leg(const u8 *payload, unsigned n, u8 seq)
     assert(last_default_rsp(0u, &rsp_cmd, &status));
     assert(status == (accept ? ZCL_STA_SUCCESS
                              : ZCL_STA_INSUFFICIENT_SPACE));
+    assert(glsd_alloc_observe_count_size(7u) >= 1u);
     assert(pool_free_total() == 26u);
 }
 
@@ -4408,7 +4417,11 @@ static void r26_cfg_leg(const u8 *payload, unsigned n, u8 seq)
     assert(glsd_alloc_observe_count_size((uint16_t)req) >= 1u);
     assert(glsd_alloc_observe_count_size((uint16_t)msg) >= 1u);
     if (accept) {
+        uint32_t send = 5u + 4u * (uint32_t)n;
+
         assert(glsd_alloc_observe_count_size((uint16_t)rsp) >= 1u);
+        assert(glsd_alloc_observe_count_size(4u * (uint16_t)n) >= 1u);
+        assert(glsd_alloc_observe_count_size((uint16_t)send) >= 1u);
         assert(nv_save_calls == 0u);
         assert(af_count == 1u);
         assert(af_parse(0u, &cluster, &cmd, &pld, &len));
@@ -4426,6 +4439,7 @@ static void r26_cfg_leg(const u8 *payload, unsigned n, u8 seq)
         assert(af_count == 1u);
         assert(last_default_rsp(0u, &rsp_cmd, &status));
         assert(status == ZCL_STA_INSUFFICIENT_SPACE);
+        assert(glsd_alloc_observe_count_size(7u) >= 1u);
     }
     assert(pool_free_total() == 26u);
 }
@@ -4458,6 +4472,10 @@ static void r26_readcfg_leg(const u8 *payload, unsigned n, u8 seq)
     assert(glsd_alloc_observe_count_size((uint16_t)msg) >= 1u);
     assert(glsd_alloc_observe_count_size((uint16_t)rsp) >= 1u);
     if (accept) {
+        uint32_t send = 5u + 4u * (uint32_t)n;
+
+        assert(glsd_alloc_observe_count_size(4u * (uint16_t)n) >= 1u);
+        assert(glsd_alloc_observe_count_size((uint16_t)send) >= 1u);
         assert(af_count == 1u);
         assert(af_parse(0u, &cluster, &cmd, &pld, &len));
         printf("R26_READCFG_RSP n=%u cmd=0x%02X len=%u b0=0x%02X\n", n,
@@ -4474,6 +4492,7 @@ static void r26_readcfg_leg(const u8 *payload, unsigned n, u8 seq)
         assert(af_count == 1u);
         assert(last_default_rsp(0u, &rsp_cmd, &status));
         assert(status == ZCL_STA_INSUFFICIENT_SPACE);
+        assert(glsd_alloc_observe_count_size(7u) >= 1u);
     }
     assert(pool_free_total() == 26u);
 }
@@ -4509,7 +4528,7 @@ static void test_r26_alloc_boundaries(void)
     r26_report_leg(rpayload, 63u, 8u);
     r26_cfg_leg(cpayload, 31u, 9u);
     r26_cfg_leg(cpayload, 32u, 10u);
-    r26_cfg_leg(cpayload, 35u, 11u);
+    r26_cfg_leg(cpayload, 34u, 11u);
     r26_cfg_leg(cpayload, 36u, 12u);
     r26_readcfg_leg(qpayload, 31u, 13u);
     r26_readcfg_leg(qpayload, 32u, 14u);
