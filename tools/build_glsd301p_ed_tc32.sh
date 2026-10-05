@@ -317,6 +317,12 @@ ABI_ASSERT(glsd_write_rec_attr, __builtin_offsetof(zclWriteRec_t, attrID) == 0u)
 ABI_ASSERT(glsd_write_rec_type, __builtin_offsetof(zclWriteRec_t, dataType) == 2u);
 ABI_ASSERT(glsd_write_rec_data, __builtin_offsetof(zclWriteRec_t, attrData) == 3u);
 ABI_ASSERT(glsd_write_cmd_size, sizeof(zclWriteCmd_t) == 1u);
+ABI_ASSERT(glsd_read_cmd_size, sizeof(zclReadRspCmd_t) == 1u);
+ABI_ASSERT(glsd_wr_rsp_cmd_size, sizeof(zclWriteRspCmd_t) == 1u);
+ABI_ASSERT(glsd_cfg_rsp_cmd_size, sizeof(zclCfgReportRspCmd_t) == 1u);
+ABI_ASSERT(glsd_readcfg_cmd_size, sizeof(zclReadReportCfgCmd_t) == 1u);
+ABI_ASSERT(glsd_readcfgrsp_cmd_size, sizeof(zclReadReportCfgRspCmd_t) == 1u);
+ABI_ASSERT(glsd_dflt_cmd_size, sizeof(zclDefaultRspCmd_t) == 2u);
 ABI_ASSERT(glsd_report_rec_size, sizeof(zclReport_t) == 7u);
 ABI_ASSERT(glsd_report_cmd_size, sizeof(zclReportCmd_t) == 1u);
 ABI_ASSERT(glsd_write_rsp_size, sizeof(zclWriteRspStatus_t) == 3u);

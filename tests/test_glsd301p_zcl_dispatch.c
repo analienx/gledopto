@@ -4131,12 +4131,14 @@ static int r17_r23_run_matrix(const char *self)
  * compiles the pinned SDK -m32 WITHOUT packing; the TC32 target packs
  * every TU. Documented deltas (host vs target): write/report records
  * 8 vs 7, write-rsp records 4 vs 3, cfg records 16 vs 14, read-cfg
- * records 4 vs 3, read-cfg-rsp records 16 vs 15. Read-rsp records (8)
- * and all command wrappers (1) match. The delta is harmless because
+ * records 4 vs 3, read-cfg-rsp records 16 vs 15, and the flexible
+ * command wrappers (host pads the trailing count byte to the element
+ * alignment: 4 for pointer-carrying records, 2 for u16 records, vs
+ * packed 1). Read-rsp records match (8). The delta is harmless because
  * parsed commands are allocated, filled, consumed and freed inside
  * SDK-compiled code in both binaries; they cross to app code only as
- * opaque attrCmd pointers (enforced by the build-script gate that
- * forbids app/harness dereference of parsed internals). Pool geometry
+ * opaque incoming-message slots (enforced by the build-script gate
+ * that forbids app/harness dereference of parsed internals). Pool geometry
  * and the 255-cap u16/fail-closed allocation thresholds hold
  * identically on both layouts; the target half is asserted by the
  * TC32 ABI probe in tools/build_glsd301p_ed_tc32.sh, which must be
@@ -4148,9 +4150,9 @@ static void test_r23_host_foundation_layout(void)
     _Static_assert(offsetof(zclWriteRec_t, attrID) == 0u, "host w/rec attr");
     _Static_assert(offsetof(zclWriteRec_t, dataType) == 2u, "host w/rec ty");
     _Static_assert(offsetof(zclWriteRec_t, attrData) == 4u, "host w/rec da");
-    _Static_assert(sizeof(zclWriteCmd_t) == 1u, "host write cmd");
+    _Static_assert(sizeof(zclWriteCmd_t) == 4u, "host write cmd");
     _Static_assert(sizeof(zclReport_t) == 8u, "host report rec");
-    _Static_assert(sizeof(zclReportCmd_t) == 1u, "host report cmd");
+    _Static_assert(sizeof(zclReportCmd_t) == 4u, "host report cmd");
     _Static_assert(sizeof(zclWriteRspStatus_t) == 4u, "host wrsp rec");
     _Static_assert(offsetof(zclWriteRspStatus_t, status) == 0u,
                    "host wrsp st");
@@ -4179,7 +4181,14 @@ static void test_r23_host_foundation_layout(void)
                    "host cfg tmo");
     _Static_assert(offsetof(zclCfgReportRec_t, reportableChange) == 12u,
                    "host cfg chg");
-    _Static_assert(sizeof(zclCfgReportCmd_t) == 1u, "host cfg cmd");
+    _Static_assert(sizeof(zclCfgReportCmd_t) == 4u, "host cfg cmd");
+    _Static_assert(sizeof(zclReadRspCmd_t) == 4u, "host rrsp cmd");
+    _Static_assert(sizeof(zclWriteRspCmd_t) == 2u, "host wrsp cmd");
+    _Static_assert(sizeof(zclCfgReportRspCmd_t) == 2u, "host crsp cmd");
+    _Static_assert(sizeof(zclReadReportCfgCmd_t) == 2u, "host rdcfg cmd");
+    _Static_assert(sizeof(zclReadReportCfgRspCmd_t) == 4u,
+                   "host rdcfgrsp cmd");
+    _Static_assert(sizeof(zclDefaultRspCmd_t) == 2u, "host dflt cmd");
     _Static_assert(sizeof(zclCfgReportStatus_t) == 4u, "host crsp rec");
     _Static_assert(offsetof(zclCfgReportStatus_t, status) == 0u,
                    "host crsp st");
