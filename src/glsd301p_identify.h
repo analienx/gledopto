@@ -43,17 +43,20 @@ extern "C" {
 #define GLSD301P_ZCL_CMD_IDENTIFY 0x00u
 #define GLSD301P_ZCL_CMD_TRIGGER_EFFECT 0x40u
 
+/*
+ * R25: the former tick_steps_max self-reported work counter was
+ * removed — it was never updated, so it could not detect a work
+ * regression. Bounded work is now observed externally: the hosted
+ * gcov oracle (tools/glsd301p_work_oracle.py over
+ * tests/test_glsd301p_tick_work.c) proves the tick executes an
+ * input-independent block sequence for small and large gaps alike,
+ * and kills a deliberate slow-loop mutant. The O(1) arithmetic
+ * below is unchanged.
+ */
 typedef struct {
     uint16_t countdown;
     uint32_t second_mark_ms;
     bool second_mark_valid;
-    /*
-     * R19 diagnostic: maximum per-tick catch-up steps executed by
-     * glsd301p_identify_tick(). RAM-only, never affects behavior; the
-     * O(1) path executes no catch-up steps, so this stays 0 and trips
-     * only if a per-second loop is ever reintroduced.
-     */
-    uint32_t tick_steps_max;
 } glsd301p_identify_t;
 
 typedef enum {

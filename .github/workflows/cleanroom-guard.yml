@@ -338,12 +338,13 @@ jobs:
             -o build/host-tests/obj32/timer_events.o
           sdkobj32='build/host-tests/obj32/ev_timer.o build/host-tests/obj32/ev_rtc.o build/host-tests/obj32/mempool.o build/host-tests/obj32/ev_buffer.o build/host-tests/obj32/zcl.o build/host-tests/obj32/zcl_reporting.o build/host-tests/obj32/zcl_basic.o build/host-tests/obj32/zcl_identify.o build/host-tests/obj32/zcl_group.o build/host-tests/obj32/zcl_level.o build/host-tests/obj32/zcl_onoff.o build/host-tests/obj32/zcl_ota.o'
           # shellcheck disable=SC2086
-          cc -m32 $strict_zcl -Ibuild/host-sdk/proj/os $zclinc $inc $sdkobj32 \
+          cc -m32 $strict_zcl -Wl,--wrap=ev_buf_allocate -Ibuild/host-sdk/proj/os $zclinc $inc $sdkobj32 \
             build/host-tests/obj32/timer_events.o src/glsd301p_uart_frame.c \
             src/glsd301p_power_stage_policy.c src/glsd301p_output_guard.c \
             src/glsd301p_push_input.c src/glsd301p_pb4_compat.c src/glsd301p_runtime_core.c \
             src/glsd301p_uart_transport.c src/glsd301p_timebase.c src/glsd301p_uart_service.c \
             src/glsd301p_control.c src/glsd301p_identify.c src/glsd301p_zcl_commands.c tests/host/hw_stub.c \
+            tests/host/alloc_observe.c \
             tests/test_glsd301p_zcl_dispatch.c -o build/host-tests/test_glsd301p_zcl_dispatch
       - name: R25/R26 mutant controls (ephemeral copies, expect kill)
         id: mutants
@@ -368,24 +369,24 @@ jobs:
           mut="$RUNNER_TEMP/glsd301p-mutants"
           mkdir -p "$mut"
           verdict=0
-          # --- R25: slow-loop tick mutant vs the r19 work oracle ---
+          # --- R25: gcov work oracle on production tick + slow-loop mutant ---
+          if python3 tools/glsd301p_work_oracle.py --root "$PWD" \
+              --work "$mut/cov" --identify "$PWD/src/glsd301p_identify.c" \
+              --small-ms 2000 --large-ms 200000 --expect identical; then
+            echo 'R25_ORACLE=PASS (production tick work is gap-independent)'
+          else
+            echo 'R25_ORACLE=FAIL'
+            verdict=1
+          fi
           python3 tools/glsd301p_make_tick_mutant.py --src src/glsd301p_identify.c --out "$mut/identify.c"
           grep -q R25_MUTANT_LOOP_ACTIVE "$mut/identify.c"
-          # shellcheck disable=SC2086
-          cc -m32 $strict_zcl -Ibuild/host-sdk/proj/os $zclinc $inc $sdkobj32 \
-            build/host-tests/obj32/timer_events.o src/glsd301p_uart_frame.c \
-            src/glsd301p_power_stage_policy.c src/glsd301p_output_guard.c \
-            src/glsd301p_push_input.c src/glsd301p_pb4_compat.c src/glsd301p_runtime_core.c \
-            src/glsd301p_uart_transport.c src/glsd301p_timebase.c src/glsd301p_uart_service.c \
-            src/glsd301p_control.c "$mut/identify.c" src/glsd301p_zcl_commands.c tests/host/hw_stub.c \
-            tests/test_glsd301p_zcl_dispatch.c -o "$mut/dispatch_work"
-          if "$mut/dispatch_work" r19_bound >"$mut/work.log" 2>&1; then
-            grep -q R25_MUTANT_LOOP_ACTIVE "$mut/work.log"
-            echo 'R25_MUTANT=SURVIVED (dead counter cannot see the loop)'
-            verdict=1
+          if python3 tools/glsd301p_work_oracle.py --root "$PWD" \
+              --work "$mut/covmut" --identify "$mut/identify.c" \
+              --small-ms 2000 --large-ms 200000 --expect differ; then
+            echo 'R25_MUTANT=KILLED (loop work observed)'
           else
-            grep -q R25_MUTANT_LOOP_ACTIVE "$mut/work.log"
-            echo 'R25_MUTANT=KILLED'
+            echo 'R25_MUTANT=SURVIVED'
+            verdict=1
           fi
           # --- R26: u16->u8 allocation narrowing vs r26_boundary ---
           mkdir -p "$mut/sdk/zigbee/zcl"
@@ -399,18 +400,20 @@ jobs:
             -c "$mut/sdk/zigbee/zcl/zcl.c" -o "$mut/zcl_narrow.o"
           sdkobj_narrow=$(echo "$sdkobj32" | sed 's|build/host-tests/obj32/zcl.o|'"$mut"'/zcl_narrow.o|')
           # shellcheck disable=SC2086
-          cc -m32 $strict_zcl -Ibuild/host-sdk/proj/os $zclinc $inc $sdkobj_narrow \
+          cc -m32 $strict_zcl -Wl,--wrap=ev_buf_allocate -Ibuild/host-sdk/proj/os $zclinc $inc $sdkobj_narrow \
             build/host-tests/obj32/timer_events.o src/glsd301p_uart_frame.c \
             src/glsd301p_power_stage_policy.c src/glsd301p_output_guard.c \
             src/glsd301p_push_input.c src/glsd301p_pb4_compat.c src/glsd301p_runtime_core.c \
             src/glsd301p_uart_transport.c src/glsd301p_timebase.c src/glsd301p_uart_service.c \
             src/glsd301p_control.c src/glsd301p_identify.c src/glsd301p_zcl_commands.c tests/host/hw_stub.c \
+            tests/host/alloc_observe.c \
             tests/test_glsd301p_zcl_dispatch.c -o "$mut/dispatch_narrow"
           if "$mut/dispatch_narrow" r26_boundary >"$mut/narrow.log" 2>&1; then
-            echo 'R26_NARROW_MUTANT=SURVIVED (no allocation oracle; pool slack hides it)'
+            echo 'R26_NARROW_MUTANT=SURVIVED (boundary oracle missed the narrowing)'
             verdict=1
           else
-            echo 'R26_NARROW_MUTANT=KILLED'
+            echo 'R26_NARROW_MUTANT=KILLED (recorded-request asserts)'
+            tail -5 "$mut/narrow.log"
           fi
           # --- R26: packed target-layout binary vs the host r26 oracle ---
           mkdir -p "$mut/objp"
@@ -450,19 +453,36 @@ jobs:
             -o "$mut/objp/timer_events.o"
           sdkobj_packed="$mut/objp/ev_timer.o $mut/objp/ev_rtc.o $mut/objp/mempool.o $mut/objp/ev_buffer.o $mut/objp/zcl.o $mut/objp/zcl_reporting.o $mut/objp/zcl_basic.o $mut/objp/zcl_identify.o $mut/objp/zcl_group.o $mut/objp/zcl_level.o $mut/objp/zcl_onoff.o $mut/objp/zcl_ota.o"
           # shellcheck disable=SC2086
-          cc -m32 $packed_zcl -Ibuild/host-sdk/proj/os $zclinc $inc $sdkobj_packed \
+          cc -m32 $packed_zcl -Wl,--wrap=ev_buf_allocate -Ibuild/host-sdk/proj/os $zclinc $inc $sdkobj_packed \
             "$mut/objp/timer_events.o" src/glsd301p_uart_frame.c \
             src/glsd301p_power_stage_policy.c src/glsd301p_output_guard.c \
             src/glsd301p_push_input.c src/glsd301p_pb4_compat.c src/glsd301p_runtime_core.c \
             src/glsd301p_uart_transport.c src/glsd301p_timebase.c src/glsd301p_uart_service.c \
             src/glsd301p_control.c src/glsd301p_identify.c src/glsd301p_zcl_commands.c tests/host/hw_stub.c \
+            tests/host/alloc_observe.c \
             tests/test_glsd301p_zcl_dispatch.c -o "$mut/dispatch_packed"
           if "$mut/dispatch_packed" r26_boundary >"$mut/packed.log" 2>&1; then
-            echo 'R26_PACKED_RUN=PASS (host oracle unexpectedly holds packed)'
+            echo 'R26_PACKED_RUN=PASS (layout-adaptive oracle holds packed)'
           else
-            echo 'R26_PACKED_RUN=DIVERGED (layout delta demonstrated; host oracle is host-only)'
+            echo 'R26_PACKED_RUN=FAIL (packed target-layout behavior diverged)'
             cat "$mut/packed.log"
             verdict=1
+          fi
+          # --- R26: layout-mismatch mutant vs the packed asserts ---
+          # A corrupted target-ABI value must fail the packed compile.
+          mkdir -p "$mut/badabi"
+          sed 's/#define GLSD301P_TARGET_WRITE_REC 7u/#define GLSD301P_TARGET_WRITE_REC 8u/' \
+            tests/host/glsd301p_target_abi.h > "$mut/badabi/glsd301p_target_abi.h"
+          grep -q 'TARGET_WRITE_REC 8u' "$mut/badabi/glsd301p_target_abi.h"
+          # shellcheck disable=SC2086
+          if cc -m32 $packed_zcl -I"$mut/badabi" \
+              -Ibuild/host-sdk/proj/os $zclinc $inc -fsyntax-only \
+              tests/test_glsd301p_zcl_dispatch.c 2>"$mut/badabi.log"; then
+            echo 'R26_LAYOUT_MUTANT=SURVIVED (packed asserts missed the mismatch)'
+            verdict=1
+          else
+            echo 'R26_LAYOUT_MUTANT=KILLED (packed static asserts)'
+            grep -m1 'packed write rec' "$mut/badabi.log" || true
           fi
           if [ "$verdict" -ne 0 ]; then
             echo 'GLSD301P_MUTANTS=RED'
@@ -514,7 +534,7 @@ jobs:
             tests/repro_glsd301p_original_bodies.c \
             -o build/host-tests/repro_original_bodies
           fails=0
-          for c in identify0 identify1 triggereffect1 queryrsp0 groupadd1 groupview1 groupmember1 write1 cfgwrap40 cfgtrunc discrsp0 dfltrsp1 dflt0 readrsp4 writersp2 cfgrsp3 report4 disc1 disc2 disc4 readodd otaqueryrsp2 otablockshort r8leak reportstruct reportnested reportrestype reportarray cfgdir2 cfgrspdir2 readcfgrspdir2; do
+          for c in identify0 identify1 triggereffect1 queryrsp0 groupadd1 groupview1 groupmember1 write1 cfgwrap40 cfgtrunc discrsp0 dfltrsp1 dflt0 readrsp4 writersp2 cfgrsp3 report4 disc1 disc2 disc4 readodd otaqueryrsp2 otablockshort r8leak reportstruct reportnested reportrestype reportarray cfgdir2 cfgrspdir2 readcfgrspdir2 writersplong writerspmixed cfgrsplong cfgrspmixed readcfgrspfaildir2 undivmixed; do
             set +e
             build/host-tests/repro_original_bodies "$c" > "build/repro-$c.log" 2>&1
             rc=$?

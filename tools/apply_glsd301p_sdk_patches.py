@@ -400,7 +400,7 @@ PATCHES = [
         "original_sha256": (
             "5f11eb33626af3821fc830b64bcbce79fb48633ea1ca00890b722144c17b2f2d"
         ),
-        "patched_sha256": "0c34d2622d50b104046f7cc69588408241ab165eb86758ab303105fe1d78cadf",
+        "patched_sha256": "e1a4f403a5d0b593b7cb723825905c792e2e1e06304c4f263d66dfee9af6e752",
         "marker": "glsd301p_attrRecValid",
         "edits": [
             {
@@ -637,6 +637,11 @@ PATCHES = [
                     "    }\n"
                     "    while (rem > 0) {\n"
                     "        if (rem < 4) {\n"
+                    "            return 0;\n"
+                    "        }\n"
+                    "        /* R24: every record carries a defined\n"
+                    "         * direction, success or failure. */\n"
+                    "        if ((p[1] != ZCL_SEND_ATTR_REPORTS) && (p[1] != 0x01)) {\n"
                     "            return 0;\n"
                     "        }\n"
                     "        if (p[0] == ZCL_STA_SUCCESS) {\n"
@@ -966,6 +971,17 @@ PATCHES = [
                     "        }\n"
                     "    } else if ((pCmd->dataLen < 3) || (pCmd->dataLen % 3 != 0)) {\n"
                     "        return ZCL_STA_MALFORMED_COMMAND;\n"
+                    "    } else {\n"
+                    "        /* R24 (P5v5): long Write Responses describe\n"
+                    "         * failures only; success is the lone status\n"
+                    "         * byte, so any SUCCESS record here is\n"
+                    "         * malformed. */\n"
+                    "        u16 glsd_off;\n"
+                    "        for (glsd_off = 0; glsd_off < pCmd->dataLen; glsd_off += 3) {\n"
+                    "            if (pCmd->pData[glsd_off] == ZCL_STA_SUCCESS) {\n"
+                    "                return ZCL_STA_MALFORMED_COMMAND;\n"
+                    "            }\n"
+                    "        }\n"
                     "    }\n"
                     "    /* Parse In Write Response Command */\n"
                     "    pWriteRspCmd = zcl_parseInWriteRspCmd(pCmd);\n"
@@ -984,13 +1000,17 @@ PATCHES = [
                     "    } else if ((pCmd->dataLen < 4) || (pCmd->dataLen % 4 != 0)) {\n"
                     "        return ZCL_STA_MALFORMED_COMMAND;\n"
                     "    } else {\n"
-                    "        /* R22 (P5v4): long forms carry (status, direction,\n"
-                    "         * attrID) per record; only defined directions\n"
-                    "         * validate. Status bytes are unrestricted. */\n"
+                    "        /* R24 (P5v5): long forms carry (status,\n"
+                    "         * direction, attrID) failure records; success\n"
+                    "         * is the lone status byte. Only defined\n"
+                    "         * directions validate. */\n"
                     "        u16 glsd_off;\n"
                     "        for (glsd_off = 0; glsd_off < pCmd->dataLen; glsd_off += 4) {\n"
                     "            u8 glsd_dir = pCmd->pData[glsd_off + 1];\n"
                     "            if ((glsd_dir != ZCL_SEND_ATTR_REPORTS) && (glsd_dir != 0x01)) {\n"
+                    "                return ZCL_STA_MALFORMED_COMMAND;\n"
+                    "            }\n"
+                    "            if (pCmd->pData[glsd_off] == ZCL_STA_SUCCESS) {\n"
                     "                return ZCL_STA_MALFORMED_COMMAND;\n"
                     "            }\n"
                     "        }\n"
@@ -1042,6 +1062,36 @@ PATCHES = [
                     "        if (status == ZCL_STA_SUCCESS) {\n"
                     "            glsd301p_sdk_write_observer(endpoint, clusterId, pWriteRec->attrID, pWriteRec->dataType, pWriteRec->attrData);\n"
                     "        }\n"
+                ),
+            },
+            {
+                "anchor": (
+                    "    pWriteRspCmd->numAttr = pWriteCmd->numAttr;\n"
+                    "\n"
+                    "    if (needWrite) {\n"
+                ),
+                "replacement": (
+                    "    /* R24 (P5v5): a refused atomic write answers\n"
+                    "     * failures only; all-success stays the one-byte\n"
+                    "     * response (set in the needWrite pass below). */\n"
+                    "    if (!needWrite) {\n"
+                    "        u8 glsd_fail = 0;\n"
+                    "        u8 glsd_i;\n"
+                    "        for (glsd_i = 0; glsd_i < pWriteCmd->numAttr; glsd_i++) {\n"
+                    "            if (pWriteRspCmd->attrList[glsd_i].status != ZCL_STA_SUCCESS) {\n"
+                    "                pWriteRspCmd->attrList[glsd_fail].status =\n"
+                    "                    pWriteRspCmd->attrList[glsd_i].status;\n"
+                    "                pWriteRspCmd->attrList[glsd_fail].attrID =\n"
+                    "                    pWriteRspCmd->attrList[glsd_i].attrID;\n"
+                    "                glsd_fail++;\n"
+                    "            }\n"
+                    "        }\n"
+                    "        pWriteRspCmd->numAttr = glsd_fail;\n"
+                    "    } else {\n"
+                    "        pWriteRspCmd->numAttr = pWriteCmd->numAttr;\n"
+                    "    }\n"
+                    "\n"
+                    "    if (needWrite) {\n"
                 ),
             },
             {

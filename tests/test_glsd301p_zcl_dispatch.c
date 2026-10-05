@@ -40,6 +40,8 @@
 #include "glsd301p_uart_transport.h"
 #include "glsd301p_zcl_commands.h"
 
+#include "alloc_observe.h"
+#include "glsd301p_target_abi.h"
 #include "hw_stub.h"
 
 #define DISPATCH_EP 0x0Bu
@@ -3505,7 +3507,11 @@ static void test_r18_write_receipt_restart(void)
     pump_ms(501u); /* t=1500 */
     assert(t_identify_time == 4u);
 
-    /* Undivided with one invalid record applies nothing (control). */
+    /*
+     * Undivided with one invalid record applies nothing (control).
+     * R24: the old 6-byte expectation blessed the defective mixed
+     * response; a refused atomic write now answers failures only.
+     */
     fixture_init(noop_hook);
     boot_ready();
     assert(dispatch_identify(ZCL_CMD_IDENTIFY,
@@ -3519,9 +3525,9 @@ static void test_r18_write_receipt_restart(void)
     assert(t_identify_time == 4u);
     assert(af_count == 1u);
     assert(af_parse(0u, &cluster, &cmd, &pld, &len));
-    assert(cmd == ZCL_CMD_WRITE_RSP && len == 6u);
+    assert(cmd == ZCL_CMD_WRITE_RSP && len == 3u);
     assert(pld[0] == ZCL_STA_UNSUPPORTED_ATTRIBUTE);
-    assert(pld[3] == ZCL_STA_SUCCESS);
+    assert(pld[1] == 0xFFu && pld[2] == 0xFFu);
     pump_ms(1000u);
     assert(t_identify_time == 3u);
 
@@ -3549,12 +3555,14 @@ static void test_r19_identify_catchup_bounded(void)
     const u8 identify10[] = {0x0Au, 0x00u};
 
     /*
-     * M1: one IO step must do constant bounded Identify work no matter
-     * how large the service gap is. The reviewed tick loops once per
-     * elapsed second (200 iterations for a 200 s gap, and it keeps
-     * looping with the countdown at zero), so the tick_steps_max legs
-     * below are RED until M2. End-state legs already pass and pin the
-     * no-time-loss behavior the fix must preserve.
+     * One IO step must do constant bounded Identify work no matter
+     * how large the service gap is. R25: the former tick_steps_max
+     * self-report legs are gone with the dead counter; the work
+     * bound itself is now proven by the hosted gcov oracle
+     * (tools/glsd301p_work_oracle.py), which observes the actual
+     * shared tick. These legs pin the end states, residual phase,
+     * wrap, saturation and UART/input service the oracle run must
+     * also preserve.
      */
 
     /* Zero countdown, 200 s gap in one IO step: no catch-up work. */
@@ -3562,10 +3570,8 @@ static void test_r19_identify_catchup_bounded(void)
     boot_ready();
     pump_ms(1u);
     assert(t_identify_time == 0u);
-    assert(g_ctx.identify.tick_steps_max == 0u);
     jump_ms(200000u);
     assert(t_identify_time == 0u);
-    assert(g_ctx.identify.tick_steps_max <= 2u);
     /* The IO sequence still ran: gap recorded, UART alive after. */
     assert(g_ctx.io_max_gap_ms == 200000u);
     assert(dispatch_onoff(ZCL_CMD_ONOFF_ON, NULL, 0u) == ZCL_STA_SUCCESS);
@@ -3586,7 +3592,6 @@ static void test_r19_identify_catchup_bounded(void)
     assert(t_identify_time == 0xFFFFu);
     jump_ms(200000u);
     assert(t_identify_time == (uint16_t)(0xFFFFu - 200u));
-    assert(g_ctx.identify.tick_steps_max <= 2u);
 
     /* The same bound holds across a host-tick wrap. */
     fixture_init(NULL);
@@ -3600,7 +3605,6 @@ static void test_r19_identify_catchup_bounded(void)
     assert(t_identify_time == 10u);
     jump_ms(200000u);
     assert(t_identify_time == 0u);
-    assert(g_ctx.identify.tick_steps_max <= 2u);
     assert(dispatch_onoff(ZCL_CMD_ONOFF_ON, NULL, 0u) == ZCL_STA_SUCCESS);
     {
         uint32_t base = host_uart_accepted_count();
@@ -3946,7 +3950,7 @@ static void test_r22_reporting_direction_grammar(void)
     const u8 cfg_dir1[] = {0x01u, 0x00u, 0x00u, 0x10u, 0x00u};
     const u8 readcfgrsp_dir2[] = {0x00u, 0x02u, 0x00u, 0x00u, 0x10u, 0x00u};
     const u8 cfgrsp_dir2[] = {0x00u, 0x02u, 0x00u, 0x00u};
-    const u8 cfgrsp_ok[] = {0x00u, 0x00u, 0x00u, 0x00u};
+    const u8 cfgrsp_fail[] = {0x86u, 0x00u, 0x00u, 0x00u};
     const u8 cfgrsp_short[] = {0x00u};
     u16 cluster;
     u8 cmd;
@@ -4004,10 +4008,15 @@ static void test_r22_reporting_direction_grammar(void)
     assert(last_default_rsp(4u, &rsp_cmd, &status));
     assert(status == ZCL_STA_MALFORMED_COMMAND);
 
-    /* Defined-direction long and short forms parse (controls). */
+    /*
+     * R24: the old cfgrsp_ok control blessed `00 00 00 00` (a long
+     * success record), which the corrected grammar rejects — success
+     * is the lone status byte. The defined-direction long control is
+     * now failure-only.
+     */
     assert(root_frame(ZCL_CLUSTER_GEN_ON_OFF, ZCL_CMD_CONFIG_REPORT_RSP,
-                      0u, ZCL_FRAME_SERVER_CLIENT_DIR, cfgrsp_ok,
-                      (u16)sizeof(cfgrsp_ok), 6u));
+                      0u, ZCL_FRAME_SERVER_CLIENT_DIR, cfgrsp_fail,
+                      (u16)sizeof(cfgrsp_fail), 6u));
     assert(af_count == 6u);
     assert(last_default_rsp(5u, &rsp_cmd, &status));
     assert(status == ZCL_STA_SUCCESS);
@@ -4214,7 +4223,7 @@ static void test_r24_undivided_refused_failure_only(void)
     assert(pool_free_total() == 26u);
 }
 
-/* One NO_RSP IdentifyTime record (attr 0x0000, u16, value 7). */
+/* R26 boundary record builders (unknown attrs except the write store). */
 static void r26_write_rec(u8 *dst, unsigned i)
 {
     dst[5u * i + 0u] = 0x00u;
@@ -4224,82 +4233,407 @@ static void r26_write_rec(u8 *dst, unsigned i)
     dst[5u * i + 4u] = 0x00u;
 }
 
-/*
- * R26 (M1): NO_RSP multi-write allocation edges on the unpacked
- * host layout. Parsed storage is sizeof(cmd)+N*sizeof(rec)+2*N:
- * 4+10*N host (N=50 needs exactly 504, N=51 needs 514), versus
- * 1+9*N packed (N=55 needs 496, N=56 needs 505). NO_RSP carries no
- * response allocation, so accept/refuse is purely the parse
- * request against the 504-byte largest buffer; accept is observed
- * through the IdentifyTime store, refuse through the default
- * response. M1 asserts the host edges (green here); the packed
- * mutant binary diverges at N=51/N=55, demonstrating the layout
- * delta the current evidence cannot see. M2 makes this case
- * layout-adaptive with exact per-layout outcomes.
- */
-static void test_r26_write_alloc_boundary(void)
+static void r26_report_rec(u8 *dst, unsigned i)
 {
-    static u8 payload[5u * 56u];
-    unsigned n;
+    dst[4u * i + 0u] = 0xFFu;
+    dst[4u * i + 1u] = 0xFFu;
+    dst[4u * i + 2u] = 0x20u;
+    dst[4u * i + 3u] = 0x00u;
+}
+
+static void r26_cfg_rec(u8 *dst, unsigned i)
+{
+    dst[8u * i + 0u] = 0x00u;
+    dst[8u * i + 1u] = 0xFFu;
+    dst[8u * i + 2u] = 0xFFu;
+    dst[8u * i + 3u] = 0x10u;
+    dst[8u * i + 4u] = 0x01u;
+    dst[8u * i + 5u] = 0x00u;
+    dst[8u * i + 6u] = 0xFFu;
+    dst[8u * i + 7u] = 0xFFu;
+}
+
+static void r26_readcfg_rec(u8 *dst, unsigned i)
+{
+    dst[3u * i + 0u] = 0x00u;
+    dst[3u * i + 1u] = 0xFFu;
+    dst[3u * i + 2u] = 0xFFu;
+}
+
+/* Exact parsed-storage requests for this binary's own layout. */
+static uint32_t r26_req_write(unsigned n)
+{
+    return (uint32_t)sizeof(zclWriteCmd_t) +
+           (uint32_t)n * (uint32_t)sizeof(zclWriteRec_t) + 2u * n;
+}
+
+static uint32_t r26_req_report(unsigned n)
+{
+    return (uint32_t)sizeof(zclReportCmd_t) +
+           (uint32_t)n * (uint32_t)sizeof(zclReport_t) + 1u * n;
+}
+
+static uint32_t r26_req_cfg(unsigned n)
+{
+    return (uint32_t)sizeof(zclCfgReportCmd_t) +
+           (uint32_t)n * (uint32_t)sizeof(zclCfgReportRec_t);
+}
+
+static uint32_t r26_req_cfgrsp(unsigned n)
+{
+    return (uint32_t)sizeof(zclCfgReportRspCmd_t) +
+           (uint32_t)n * (uint32_t)sizeof(zclCfgReportStatus_t);
+}
+
+static uint32_t r26_req_readcfg(unsigned n)
+{
+    return (uint32_t)sizeof(zclReadReportCfgCmd_t) +
+           (uint32_t)n * (uint32_t)sizeof(zclReadReportCfgRec_t);
+}
+
+static uint32_t r26_req_readcfgrsp(unsigned n)
+{
+    return (uint32_t)sizeof(zclReadReportCfgRspCmd_t) +
+           (uint32_t)n * (uint32_t)sizeof(zclReportCfgRspRec_t);
+}
+
+static const char *r26_layout_name(void)
+{
+    return sizeof(zclWriteRec_t) == 7u ? "packed" : "unpacked";
+}
+
+/*
+ * R26 (M2): allocation edges for Write/Report/Configure/ReadCfg
+ * flows at exact count boundaries, executed in BOTH the unpacked
+ * host binary and the packed target-layout binary. Every expected
+ * request is computed from this binary's own sizeof values, so the
+ * same code asserts the correct per-layout outcome (accept iff the
+ * parse request fits the 504-byte largest buffer) plus the exact
+ * recorded allocation requests (parse, response structs, incoming
+ * message) via the --wrap observation seam. A u16->u8 narrowing
+ * mutant requests the wrapped value and fails the recorded-request
+ * asserts deterministically; pool slack cannot hide it. Cleanup is
+ * asserted on accept and refuse paths alike.
+ *
+ * Unpacked vs packed parse edges: write 4+10*N (N=50 exact fit)
+ * vs 1+9*N (N=55 fits, N=56 needs 505); report 4+9*N (N=55 fits)
+ * vs 1+8*N (N=62 fits, N=63 needs 505); configure 4+16*N (N=31
+ * fits) vs 1+14*N (N=35 fits, N=36 needs 505); read-cfg-rsp build
+ * 4+16*N (N=31 fits) vs 1+15*N (N=33 fits, N=34 needs 511).
+ */
+static void r26_write_leg(const u8 *payload, unsigned n, u8 seq)
+{
+    uint32_t req = r26_req_write(n);
+    uint32_t msg =
+        (uint32_t)sizeof(apsdeDataInd_t) + 3u + 5u * (uint32_t)n;
+    int accept = (req <= (uint32_t)LARGE_BUFFER);
     u8 rsp_cmd;
     u8 status;
 
+    printf("R26_BOUNDARY flow=write n=%u req=%u msg=%u expect=%s layout=%s\n",
+           n, req, msg, accept ? "accept" : "refuse",
+           r26_layout_name());
+    fflush(stdout);
+    fixture_init(noop_hook);
+    boot_ready();
+    glsd_alloc_observe_reset();
+    assert(root_frame(ZCL_CLUSTER_GEN_IDENTIFY, ZCL_CMD_WRITE_NO_RSP,
+                      0u, ZCL_FRAME_CLIENT_SERVER_DIR, payload,
+                      (u16)(5u * n), seq));
+    assert(glsd_alloc_observe_count_size((uint16_t)req) >= 1u);
+    assert(glsd_alloc_observe_count_size((uint16_t)msg) >= 1u);
+    if (accept) {
+        assert(t_identify_time == 7u);
+        assert(af_count == 0u);
+    } else {
+        assert(t_identify_time == 0u);
+        assert(af_count == 1u);
+        assert(last_default_rsp(0u, &rsp_cmd, &status));
+        assert(status == ZCL_STA_INSUFFICIENT_SPACE);
+    }
+    assert(pool_free_total() == 26u);
+}
+
+static void r26_report_leg(const u8 *payload, unsigned n, u8 seq)
+{
+    uint32_t req = r26_req_report(n);
+    uint32_t msg =
+        (uint32_t)sizeof(apsdeDataInd_t) + 3u + 4u * (uint32_t)n;
+    int accept = (req <= (uint32_t)LARGE_BUFFER);
+    u8 rsp_cmd;
+    u8 status;
+
+    printf("R26_BOUNDARY flow=report n=%u req=%u msg=%u expect=%s layout=%s\n",
+           n, req, msg, accept ? "accept" : "refuse",
+           r26_layout_name());
+    fflush(stdout);
+    fixture_init(noop_hook);
+    glsd_alloc_observe_reset();
+    assert(root_frame(ZCL_CLUSTER_GEN_ON_OFF, ZCL_CMD_REPORT, 0u,
+                      ZCL_FRAME_CLIENT_SERVER_DIR, payload,
+                      (u16)(4u * n), seq));
+    assert(glsd_alloc_observe_count_size((uint16_t)req) >= 1u);
+    assert(glsd_alloc_observe_count_size((uint16_t)msg) >= 1u);
+    assert(af_count == 1u);
+    assert(last_default_rsp(0u, &rsp_cmd, &status));
+    assert(status == (accept ? ZCL_STA_SUCCESS
+                             : ZCL_STA_INSUFFICIENT_SPACE));
+    assert(pool_free_total() == 26u);
+}
+
+static void r26_cfg_leg(const u8 *payload, unsigned n, u8 seq)
+{
+    uint32_t req = r26_req_cfg(n);
+    uint32_t rsp = r26_req_cfgrsp(n);
+    uint32_t msg =
+        (uint32_t)sizeof(apsdeDataInd_t) + 3u + 8u * (uint32_t)n;
+    int accept = (req <= (uint32_t)LARGE_BUFFER);
+    u16 cluster;
+    u8 cmd;
+    const u8 *pld;
+    u16 len;
+    u8 rsp_cmd;
+    u8 status;
+    unsigned i;
+
+    printf("R26_BOUNDARY flow=cfg n=%u req=%u rsp=%u msg=%u expect=%s layout=%s\n",
+           n, req, rsp, msg, accept ? "accept" : "refuse",
+           r26_layout_name());
+    fflush(stdout);
+    fixture_init(noop_hook);
+    glsd_alloc_observe_reset();
+    assert(root_frame(ZCL_CLUSTER_GEN_ON_OFF, ZCL_CMD_CONFIG_REPORT, 0u,
+                      ZCL_FRAME_CLIENT_SERVER_DIR, payload,
+                      (u16)(8u * n), seq));
+    assert(glsd_alloc_observe_count_size((uint16_t)req) >= 1u);
+    assert(glsd_alloc_observe_count_size((uint16_t)msg) >= 1u);
+    if (accept) {
+        assert(glsd_alloc_observe_count_size((uint16_t)rsp) >= 1u);
+        assert(nv_save_calls == 0u);
+        assert(af_count == 1u);
+        assert(af_parse(0u, &cluster, &cmd, &pld, &len));
+        assert(cmd == ZCL_CMD_CONFIG_REPORT_RSP && len == 4u * n);
+        for (i = 0u; i < n; i++) {
+            assert(pld[4u * i] == ZCL_STA_UNSUPPORTED_ATTRIBUTE);
+            assert(pld[4u * i + 1u] == 0x00u);
+            assert(pld[4u * i + 2u] == 0xFFu);
+            assert(pld[4u * i + 3u] == 0xFFu);
+        }
+    } else {
+        assert(af_count == 1u);
+        assert(last_default_rsp(0u, &rsp_cmd, &status));
+        assert(status == ZCL_STA_INSUFFICIENT_SPACE);
+    }
+    assert(pool_free_total() == 26u);
+}
+
+static void r26_readcfg_leg(const u8 *payload, unsigned n, u8 seq)
+{
+    uint32_t req = r26_req_readcfg(n);
+    uint32_t rsp = r26_req_readcfgrsp(n);
+    uint32_t msg =
+        (uint32_t)sizeof(apsdeDataInd_t) + 3u + 3u * (uint32_t)n;
+    int accept = (rsp <= (uint32_t)LARGE_BUFFER);
+    u16 cluster;
+    u8 cmd;
+    const u8 *pld;
+    u16 len;
+    u8 rsp_cmd;
+    u8 status;
+    unsigned i;
+
+    printf("R26_BOUNDARY flow=readcfg n=%u req=%u rsp=%u msg=%u expect=%s layout=%s\n",
+           n, req, rsp, msg, accept ? "accept" : "refuse",
+           r26_layout_name());
+    fflush(stdout);
+    fixture_init(noop_hook);
+    glsd_alloc_observe_reset();
+    assert(root_frame(ZCL_CLUSTER_GEN_ON_OFF, ZCL_CMD_READ_REPORT_CFG,
+                      0u, ZCL_FRAME_CLIENT_SERVER_DIR, payload,
+                      (u16)(3u * n), seq));
+    assert(glsd_alloc_observe_count_size((uint16_t)req) >= 1u);
+    assert(glsd_alloc_observe_count_size((uint16_t)msg) >= 1u);
+    assert(glsd_alloc_observe_count_size((uint16_t)rsp) >= 1u);
+    if (accept) {
+        assert(af_count == 1u);
+        assert(af_parse(0u, &cluster, &cmd, &pld, &len));
+        assert(cmd == ZCL_CMD_READ_REPORT_CFG_RSP && len == 4u * n);
+        for (i = 0u; i < n; i++) {
+            assert(pld[4u * i] == ZCL_STA_UNSUPPORTED_ATTRIBUTE);
+            assert(pld[4u * i + 1u] == 0x00u);
+            assert(pld[4u * i + 2u] == 0xFFu);
+            assert(pld[4u * i + 3u] == 0xFFu);
+        }
+    } else {
+        assert(af_count == 1u);
+        assert(last_default_rsp(0u, &rsp_cmd, &status));
+        assert(status == ZCL_STA_INSUFFICIENT_SPACE);
+    }
+    assert(pool_free_total() == 26u);
+}
+
+static void test_r26_alloc_boundaries(void)
+{
+    static u8 wpayload[5u * 56u];
+    static u8 rpayload[4u * 63u];
+    static u8 cpayload[8u * 36u];
+    static u8 qpayload[3u * 34u];
+    unsigned n;
+
     for (n = 0u; n < 56u; n++) {
-        r26_write_rec(payload, n);
+        r26_write_rec(wpayload, n);
+    }
+    for (n = 0u; n < 63u; n++) {
+        r26_report_rec(rpayload, n);
+    }
+    for (n = 0u; n < 36u; n++) {
+        r26_cfg_rec(cpayload, n);
+    }
+    for (n = 0u; n < 34u; n++) {
+        r26_readcfg_rec(qpayload, n);
     }
 
-    /* N=50: exact 504-byte fit, accepted on both layouts. */
-    printf("R26_BOUNDARY n=50 expect=accept\n");
-    fflush(stdout);
-    fixture_init(noop_hook);
-    boot_ready();
-    assert(root_frame(ZCL_CLUSTER_GEN_IDENTIFY, ZCL_CMD_WRITE_NO_RSP,
-                      0u, ZCL_FRAME_CLIENT_SERVER_DIR, payload,
-                      5u * 50u, 1u));
-    assert(t_identify_time == 7u);
-    assert(af_count == 0u);
-    assert(pool_free_total() == 26u);
+    r26_write_leg(wpayload, 50u, 1u);
+    r26_write_leg(wpayload, 51u, 2u);
+    r26_write_leg(wpayload, 55u, 3u);
+    r26_write_leg(wpayload, 56u, 4u);
+    r26_report_leg(rpayload, 55u, 5u);
+    r26_report_leg(rpayload, 56u, 6u);
+    r26_report_leg(rpayload, 62u, 7u);
+    r26_report_leg(rpayload, 63u, 8u);
+    r26_cfg_leg(cpayload, 31u, 9u);
+    r26_cfg_leg(cpayload, 32u, 10u);
+    r26_cfg_leg(cpayload, 35u, 11u);
+    r26_cfg_leg(cpayload, 36u, 12u);
+    r26_readcfg_leg(qpayload, 31u, 13u);
+    r26_readcfg_leg(qpayload, 32u, 14u);
+    r26_readcfg_leg(qpayload, 33u, 15u);
+    r26_readcfg_leg(qpayload, 34u, 16u);
+}
 
-    /* N=51: 514 bytes, refused on the unpacked host. */
-    printf("R26_BOUNDARY n=51 expect=refuse-host\n");
-    fflush(stdout);
-    fixture_init(noop_hook);
-    boot_ready();
-    assert(root_frame(ZCL_CLUSTER_GEN_IDENTIFY, ZCL_CMD_WRITE_NO_RSP,
-                      0u, ZCL_FRAME_CLIENT_SERVER_DIR, payload,
-                      5u * 51u, 2u));
-    assert(t_identify_time == 0u);
-    assert(af_count == 1u);
-    assert(last_default_rsp(0u, &rsp_cmd, &status));
-    assert(status == ZCL_STA_INSUFFICIENT_SPACE);
-    assert(pool_free_total() == 26u);
+/*
+ * Q1 (M2, characterization — DEFER, no defect): Level admission
+ * applies upward ON before timer registration and discards the
+ * apply result. Hosted proof that neither ordering is reachable as
+ * a failure in production:
+ *
+ * (a) every start path cancels first (control.c), the apply path
+ * between cancel and start uses no timer API, admission is
+ * single-threaded, and ev_on_timer on a static event cannot fail
+ * (no allocation, irq-masked list insert) — so registration
+ * failure after ON is unreachable. Replacement commands issued
+ * mid-transition through production dispatch all succeed with
+ * zero registration faults.
+ *
+ * (b) the transport offer fails only on NULL (excluded here);
+ * UART-busy admission still succeeds with the frame queued, and
+ * the busy window emits it later — the "discarded" result is
+ * queued-not-lost. Not-ready/fault admission refusal (which would
+ * make apply fail) is excluded by the entry ready-check with
+ * nothing between that can unready; the remaining 0xFF-current
+ * corner latches fail-safe OFF (OFF dominant, existing fault
+ * tests). No production change: the failure branches stay as
+ * fail-safe defense-in-depth.
+ */
+static void test_q1_admission_ordering(void)
+{
+    const u8 to_16[] = {0x10u, 0x00u, 0x00u};
+    const u8 up40_tt20[] = {0x40u, 0x14u, 0x00u};
+    const u8 up60_tt30[] = {0x60u, 0x1Eu, 0x00u};
+    const u8 move_up[] = {0x00u, 0x20u};
+    const u8 move_down[] = {0x01u, 0x20u};
+    const u8 stop[] = {0x01u, 0x01u};
+    uint8_t f[6];
+    bool is_off;
+    uint32_t base;
 
-    /* N=55: refused on the unpacked host. */
-    printf("R26_BOUNDARY n=55 expect=refuse-host\n");
-    fflush(stdout);
-    fixture_init(noop_hook);
+    /* Replacement mid-transition through production dispatch. */
+    fixture_init(NULL);
     boot_ready();
-    assert(root_frame(ZCL_CLUSTER_GEN_IDENTIFY, ZCL_CMD_WRITE_NO_RSP,
-                      0u, ZCL_FRAME_CLIENT_SERVER_DIR, payload,
-                      5u * 55u, 3u));
-    assert(t_identify_time == 0u);
-    assert(af_count == 1u);
-    assert(last_default_rsp(0u, &rsp_cmd, &status));
-    assert(status == ZCL_STA_INSUFFICIENT_SPACE);
-    assert(pool_free_total() == 26u);
+    assert(glsd301p_timer_reg_faults() == 0u);
+    assert(dispatch_onoff(ZCL_CMD_ONOFF_ON, NULL, 0u) == ZCL_STA_SUCCESS);
+    assert(dispatch_level(ZCL_CMD_LEVEL_MOVE_TO_LEVEL_WITH_ON_OFF,
+                          to_16,
+                          (u16)sizeof(to_16)) == ZCL_STA_SUCCESS);
+    pump_ms(10u);
+    assert(dispatch_onoff(ZCL_CMD_ONOFF_OFF, NULL, 0u) ==
+           ZCL_STA_SUCCESS);
+    pump_ms(10u);
+    assert(!g_runtime.logical_output_enabled);
+    assert(g_level.current_level == 0x10u);
 
-    /* N=56: 505 packed bytes, refused on both layouts. */
-    printf("R26_BOUNDARY n=56 expect=refuse-both\n");
-    fflush(stdout);
-    fixture_init(noop_hook);
+    /* TARGET admitted, then replaced mid-flight by TARGET. */
+    assert(dispatch_level(ZCL_CMD_LEVEL_MOVE_TO_LEVEL_WITH_ON_OFF,
+                          up40_tt20,
+                          (u16)sizeof(up40_tt20)) == ZCL_STA_SUCCESS);
+    assert(g_runtime.logical_output_enabled);
+    assert(g_level.mode == GLSD301P_LEVEL_TARGET);
+    pump_ms(500u);
+    assert(g_level.mode == GLSD301P_LEVEL_TARGET);
+    assert(dispatch_level(ZCL_CMD_LEVEL_MOVE_TO_LEVEL_WITH_ON_OFF,
+                          up60_tt30,
+                          (u16)sizeof(up60_tt30)) == ZCL_STA_SUCCESS);
+    assert(g_level.mode == GLSD301P_LEVEL_TARGET);
+    assert(g_level.target == 0x60u);
+    assert(glsd301p_timer_reg_faults() == 0u);
+
+    /* TARGET replaced mid-flight by MOVE, then MOVE by TARGET. */
+    pump_ms(100u);
+    assert(dispatch_level(ZCL_CMD_LEVEL_MOVE_WITH_ON_OFF, move_up,
+                          (u16)sizeof(move_up)) == ZCL_STA_SUCCESS);
+    assert(g_level.mode == GLSD301P_LEVEL_MOVE);
+    pump_ms(100u);
+    assert(dispatch_level(ZCL_CMD_LEVEL_MOVE_TO_LEVEL_WITH_ON_OFF,
+                          up40_tt20,
+                          (u16)sizeof(up40_tt20)) == ZCL_STA_SUCCESS);
+    assert(g_level.mode == GLSD301P_LEVEL_TARGET);
+    assert(glsd301p_timer_reg_faults() == 0u);
+
+    /* MOVE replaced mid-flight by MOVE, then stopped. */
+    assert(dispatch_level(ZCL_CMD_LEVEL_MOVE_WITH_ON_OFF, move_up,
+                          (u16)sizeof(move_up)) == ZCL_STA_SUCCESS);
+    pump_ms(100u);
+    assert(dispatch_level(ZCL_CMD_LEVEL_MOVE_WITH_ON_OFF, move_down,
+                          (u16)sizeof(move_down)) == ZCL_STA_SUCCESS);
+    assert(g_level.mode == GLSD301P_LEVEL_MOVE);
+    assert(glsd301p_timer_reg_faults() == 0u);
+    assert(dispatch_level(ZCL_CMD_LEVEL_STOP_WITH_ON_OFF, stop,
+                          (u16)sizeof(stop)) == ZCL_STA_SUCCESS);
+    assert(g_level.mode == GLSD301P_LEVEL_IDLE);
+    assert(glsd301p_timer_reg_faults() == 0u);
+
+    /* UART-busy admission: success, queued, emitted after unbusy. */
+    fixture_init(NULL);
     boot_ready();
-    assert(root_frame(ZCL_CLUSTER_GEN_IDENTIFY, ZCL_CMD_WRITE_NO_RSP,
-                      0u, ZCL_FRAME_CLIENT_SERVER_DIR, payload,
-                      5u * 56u, 4u));
-    assert(t_identify_time == 0u);
-    assert(af_count == 1u);
-    assert(last_default_rsp(0u, &rsp_cmd, &status));
-    assert(status == ZCL_STA_INSUFFICIENT_SPACE);
+    assert(dispatch_onoff(ZCL_CMD_ONOFF_ON, NULL, 0u) == ZCL_STA_SUCCESS);
+    assert(dispatch_level(ZCL_CMD_LEVEL_MOVE_TO_LEVEL_WITH_ON_OFF,
+                          to_16,
+                          (u16)sizeof(to_16)) == ZCL_STA_SUCCESS);
+    pump_ms(10u);
+    assert(dispatch_onoff(ZCL_CMD_ONOFF_OFF, NULL, 0u) ==
+           ZCL_STA_SUCCESS);
+    pump_ms(10u);
+    assert(!g_runtime.logical_output_enabled);
+    host_uart_set_busy(true);
+    base = host_uart_accepted_count();
+    assert(dispatch_level(ZCL_CMD_LEVEL_MOVE_TO_LEVEL_WITH_ON_OFF,
+                          up40_tt20,
+                          (u16)sizeof(up40_tt20)) == ZCL_STA_SUCCESS);
+    assert(g_runtime.logical_output_enabled);
+    assert(g_onoff == 1u);
+    assert(glsd301p_uart_transport_has_pending(&g_transport));
+    assert(glsd301p_uart_transport_peek(&g_transport, f, &is_off));
+    assert(!is_off && f[3] != 0x00u);
+    assert(host_uart_accepted_count() == base);
+    host_uart_set_busy(false);
+    pump_ms(50u);
+    assert(host_uart_accepted_count() > base);
+    assert(glsd301p_timer_reg_faults() == 0u);
+    assert(g_level.mode == GLSD301P_LEVEL_TARGET);
+    pump_ms(2500u);
+    assert(g_level.mode == GLSD301P_LEVEL_IDLE);
+    assert(g_level.current_level == 0x40u);
+
     assert(pool_free_total() == 26u);
 }
 
@@ -4420,7 +4754,7 @@ static const r24_r26_case_t r24_r26_matrix[] = {
     {"r24_cfgrsp", test_r24_cfg_rsp_status_grammar},
     {"r24_readcfgrsp", test_r24_read_cfg_rsp_failure_direction},
     {"r24_undivided", test_r24_undivided_refused_failure_only},
-    {"r26_boundary", test_r26_write_alloc_boundary},
+    {"r26_boundary", test_r26_alloc_boundaries},
     {NULL, NULL},
 };
 
@@ -4585,6 +4919,62 @@ static void test_r23_host_foundation_layout(void)
     _Static_assert(sizeof(zclWriteCmd_t) + sizeof(zclWriteRec_t) + 2u <=
                        BUFFER_GROUP_0,
                    "host alloc single small");
+#else
+    /*
+     * R26: the packed binary must reproduce the compiler-verified
+     * target layout exactly. Any packing loss (e.g. a TU built
+     * without -fpack-struct) fails this compile.
+     */
+    _Static_assert(sizeof(zclWriteRec_t) == GLSD301P_TARGET_WRITE_REC,
+                   "packed write rec");
+    _Static_assert(sizeof(zclWriteCmd_t) == GLSD301P_TARGET_WRITE_CMD,
+                   "packed write cmd");
+    _Static_assert(sizeof(zclReport_t) == GLSD301P_TARGET_REPORT_REC,
+                   "packed report rec");
+    _Static_assert(sizeof(zclReportCmd_t) == GLSD301P_TARGET_REPORT_CMD,
+                   "packed report cmd");
+    _Static_assert(sizeof(zclWriteRspStatus_t) ==
+                       GLSD301P_TARGET_WRITE_RSP_REC,
+                   "packed wrsp rec");
+    _Static_assert(sizeof(zclWriteRspCmd_t) ==
+                       GLSD301P_TARGET_WRITE_RSP_CMD,
+                   "packed wrsp cmd");
+    _Static_assert(sizeof(zclReadRspStatus_t) ==
+                       GLSD301P_TARGET_READ_RSP_REC,
+                   "packed rrsp rec");
+    _Static_assert(sizeof(zclReadRspCmd_t) == GLSD301P_TARGET_READ_RSP_CMD,
+                   "packed rrsp cmd");
+    _Static_assert(sizeof(zclCfgReportRec_t) == GLSD301P_TARGET_CFG_REC,
+                   "packed cfg rec");
+    _Static_assert(sizeof(zclCfgReportCmd_t) == GLSD301P_TARGET_CFG_CMD,
+                   "packed cfg cmd");
+    _Static_assert(sizeof(zclCfgReportStatus_t) ==
+                       GLSD301P_TARGET_CFG_RSP_REC,
+                   "packed crsp rec");
+    _Static_assert(sizeof(zclCfgReportRspCmd_t) ==
+                       GLSD301P_TARGET_CFG_RSP_CMD,
+                   "packed crsp cmd");
+    _Static_assert(sizeof(zclReadReportCfgRec_t) ==
+                       GLSD301P_TARGET_READCFG_REC,
+                   "packed rdcfg rec");
+    _Static_assert(sizeof(zclReadReportCfgCmd_t) ==
+                       GLSD301P_TARGET_READCFG_CMD,
+                   "packed rdcfg cmd");
+    _Static_assert(sizeof(zclReportCfgRspRec_t) ==
+                       GLSD301P_TARGET_READCFGRSP_REC,
+                   "packed rdcfgrsp rec");
+    _Static_assert(sizeof(zclReadReportCfgRspCmd_t) ==
+                       GLSD301P_TARGET_READCFGRSP_CMD,
+                   "packed rdcfgrsp cmd");
+    _Static_assert(sizeof(zclDefaultRspCmd_t) ==
+                       GLSD301P_TARGET_DEFAULT_RSP_CMD,
+                   "packed dflt cmd");
+    _Static_assert(BUFFER_GROUP_0 == GLSD301P_TARGET_POOL_G0 &&
+                       BUFFER_GROUP_1 == GLSD301P_TARGET_POOL_G1 &&
+                       BUFFER_GROUP_2 == GLSD301P_TARGET_POOL_G2 &&
+                       BUFFER_GROUP_3 == GLSD301P_TARGET_POOL_G3 &&
+                       LARGE_BUFFER == GLSD301P_TARGET_LARGE_BUFFER,
+                   "packed pool geometry");
 #endif
 
     /*
@@ -4662,6 +5052,7 @@ int main(int argc, char **argv)
     test_followup_ota_requests();
     test_cluster_via_root_dispatch();
     test_r23_host_foundation_layout();
+    test_q1_admission_ordering();
     printf("GLSD301P_ZCL_DISPATCH_SEQ=PASS\n");
     fflush(stdout);
     if (r9_r16_run_matrix(argv[0]) != 0) {

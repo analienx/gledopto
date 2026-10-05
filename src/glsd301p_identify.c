@@ -18,7 +18,6 @@ void glsd301p_identify_init(glsd301p_identify_t *st)
     st->countdown = 0u;
     st->second_mark_ms = 0u;
     st->second_mark_valid = false;
-    st->tick_steps_max = 0u;
 }
 
 static void glsd301p_identify_restart(glsd301p_identify_t *st,
@@ -88,10 +87,6 @@ void glsd301p_identify_tick(glsd301p_identify_t *st, uint16_t *store,
         st->countdown -= (uint16_t)whole;
     }
     *store = st->countdown;
-    /*
-     * tick_steps_max intentionally untouched: this path executes no
-     * per-second catch-up steps, so the diagnostic stays 0.
-     */
 }
 
 glsd301p_identify_cmd_result_t glsd301p_identify_cluster_command(

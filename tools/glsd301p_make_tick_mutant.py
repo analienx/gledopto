@@ -2,11 +2,11 @@
 """Generate the R25 slow-loop mutant of src/glsd301p_identify.c.
 
 The mutant preserves every end state of the O(1) production tick but
-reintroduces input-dependent per-second catch-up work WITHOUT writing
-tick_steps_max. A work oracle that only reads that counter passes on
-the mutant (SURVIVED); an oracle observing actual work fails it
-(KILLED). The mutant is written to an ephemeral hosted path only;
-production sources are never modified.
+reintroduces input-dependent per-second catch-up work. The gcov work
+oracle (tools/glsd301p_work_oracle.py) observes actual block
+execution, so it fails the mutant (KILLED) while passing the O(1)
+production tick. The mutant is written to an ephemeral hosted path
+only; production sources are never modified.
 
 Usage: glsd301p_make_tick_mutant.py --src <identify.c> --out <path>
 """

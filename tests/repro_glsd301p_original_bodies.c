@@ -597,6 +597,45 @@ static int run_cfgtrunc(void)
     return 1;
 }
 
+/*
+ * Mixed Undivided write (one unknown record, one valid IdentifyTime
+ * record): the pristine pre-validation stores one response entry per
+ * record, so the refused write answers six bytes carrying SUCCESS —
+ * the R24 outbound defect. Reproduced when the captured response
+ * has exactly that shape.
+ */
+static int run_undivmixed(void)
+{
+    static const u8 mixed[] = {0xFFu, 0xFFu, 0x20u, 0x00u,
+                               0x00u, 0x00u, 0x21u, 0x05u, 0x00u};
+    const u8 *b = r_af_asdu;
+    u16 off;
+
+    repro_init(repro_noop_hook);
+    if (!root_frame(ZCL_CLUSTER_GEN_IDENTIFY, ZCL_CMD_WRITE_UNDIVIDED,
+                    0u, ZCL_FRAME_CLIENT_SERVER_DIR, mixed,
+                    (u16)sizeof(mixed), 1u)) {
+        printf("REPRO-INFRA: undivmixed message alloc failed\n");
+        return 0;
+    }
+    if (r_af_count == 0u || r_af_len < 3u) {
+        printf("REPRO-NOT-REPRODUCED: undivmixed no response\n");
+        return 0;
+    }
+    off = (u8)(((b[0] & 0x04u) != 0u) ? 5u : 3u);
+    if (r_af_len != (u16)(off + 1u + 6u)) {
+        printf("REPRO-NOT-REPRODUCED: undivmixed response len %u\n",
+               r_af_len - off - 1u);
+        return 0;
+    }
+    if (b[off] != ZCL_CMD_WRITE_RSP || b[off + 4u] != ZCL_STA_SUCCESS) {
+        printf("REPRO-NOT-REPRODUCED: undivmixed_not mixed-success\n");
+        return 0;
+    }
+    printf("REPRO: undivmixed pristine 6-byte SUCCESS-carrying refusal\n");
+    return 1;
+}
+
 /* Ten ordinary reads with a NULL hook leak ten parsed-command buffers. */
 static int run_r8leak(void)
 {
@@ -830,6 +869,51 @@ int main(int argc, char **argv)
                                    ZCL_CMD_READ_REPORT_CFG_RSP,
                                    ZCL_FRAME_SERVER_CLIENT_DIR, rsp,
                                    (u16)sizeof(rsp));
+    }
+    /*
+     * R24 residual guards: the pristine foundation bodies accept these
+     * status-dependent response shapes (no MALFORMED default), while
+     * the P5v5 validators reject them. Root-path marker semantics.
+     */
+    if (strcmp(c, "writersplong") == 0) {
+        static const u8 rsp[] = {0x00u, 0x00u, 0x00u};
+        return run_root_repro_case(c, ZCL_CLUSTER_GEN_ON_OFF,
+                                   ZCL_CMD_WRITE_RSP,
+                                   ZCL_FRAME_SERVER_CLIENT_DIR, rsp,
+                                   (u16)sizeof(rsp));
+    }
+    if (strcmp(c, "writerspmixed") == 0) {
+        static const u8 rsp[] = {0x86u, 0x00u, 0x00u, 0x00u, 0x01u,
+                                 0x00u};
+        return run_root_repro_case(c, ZCL_CLUSTER_GEN_ON_OFF,
+                                   ZCL_CMD_WRITE_RSP,
+                                   ZCL_FRAME_SERVER_CLIENT_DIR, rsp,
+                                   (u16)sizeof(rsp));
+    }
+    if (strcmp(c, "cfgrsplong") == 0) {
+        static const u8 rsp[] = {0x00u, 0x00u, 0x00u, 0x00u};
+        return run_root_repro_case(c, ZCL_CLUSTER_GEN_ON_OFF,
+                                   ZCL_CMD_CONFIG_REPORT_RSP,
+                                   ZCL_FRAME_SERVER_CLIENT_DIR, rsp,
+                                   (u16)sizeof(rsp));
+    }
+    if (strcmp(c, "cfgrspmixed") == 0) {
+        static const u8 rsp[] = {0x86u, 0x00u, 0x00u, 0x00u, 0x00u,
+                                 0x00u, 0x01u, 0x00u};
+        return run_root_repro_case(c, ZCL_CLUSTER_GEN_ON_OFF,
+                                   ZCL_CMD_CONFIG_REPORT_RSP,
+                                   ZCL_FRAME_SERVER_CLIENT_DIR, rsp,
+                                   (u16)sizeof(rsp));
+    }
+    if (strcmp(c, "readcfgrspfaildir2") == 0) {
+        static const u8 rsp[] = {0x86u, 0x02u, 0x00u, 0x00u};
+        return run_root_repro_case(c, ZCL_CLUSTER_GEN_ON_OFF,
+                                   ZCL_CMD_READ_REPORT_CFG_RSP,
+                                   ZCL_FRAME_SERVER_CLIENT_DIR, rsp,
+                                   (u16)sizeof(rsp));
+    }
+    if (strcmp(c, "undivmixed") == 0) {
+        return run_undivmixed();
     }
     fprintf(stderr, "unknown case: %s\n", c);
     return 2;

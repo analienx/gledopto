@@ -20,7 +20,7 @@ APP_SLOT_SIZE=0x34000
 BANK_B_BASE=0x40000
 BANK_B_SLOT_END=0x74000
 MAC_REGION_START=0x76000
-FILE_VERSION=0x7F050001
+FILE_VERSION=0x7F060001
 
 [[ -f "$SDK/platform/boot/8258/boot_8258.link" ]] || { echo 'ERROR: pinned TLSR8258 SDK fixture incomplete' >&2; exit 2; }
 [[ -f "$SDK/zigbee/lib/tc32/libzb_ed.a" ]] || { echo 'ERROR: libzb_ed.a missing' >&2; exit 2; }
@@ -28,7 +28,7 @@ FILE_VERSION=0x7F050001
 [[ -f "$FINALIZER" ]] || { echo 'ERROR: Telink finalizer missing' >&2; exit 2; }
 
 roots=("$SDK/proj" "$SDK/platform" "$SDK/zigbee" "$SDK/apps/common")
-includes=(-I"$TARGET" -I"$CORE" -I"$SDK/proj")
+includes=(-I"$TARGET" -I"$CORE" -I"$SDK/proj" -I"$ROOT/tests/host")
 while IFS= read -r -d '' d; do includes+=("-I$d"); done < <(find "${roots[@]}" -type d -print0 | sort -zu)
 
 defs=(
@@ -209,7 +209,7 @@ grep -q 'glsd301p_rejoin_init' "$TARGET/glsd301p_telink_target.c" || {
 }
 
 # M5: RAM-only v2 health snapshot on Basic:0xFF10, read-only, refreshed by
-# the owned 1 s event; development identity GLSD-ED-004 / 0x7F050001.
+# the owned 1 s event; development identity GLSD-ED-005 / 0x7F060001.
 grep -q 'GLSD301P_HEALTH_ATTR_ID, ZCL_DATA_TYPE_OCTET_STR, ACCESS_CONTROL_READ, g_basic_health' \
   "$TARGET/glsd301p_telink_target.c" || {
   echo 'ERROR: Basic:0xFF10 health attribute entry missing or not read-only' >&2; exit 1;
@@ -226,13 +226,13 @@ grep -q 'glsd301p_health_note_bdb_status' "$TARGET/glsd301p_telink_target.c" || 
 if grep -q 'nv_\|zcl_nv\|reportAttr\|zcl_report' "$CORE/glsd301p_health.c"; then
   echo 'ERROR: health snapshot must not touch NVM or reporting' >&2; exit 1;
 fi
-grep -q '#define FILE_VERSION[[:space:]]*0x7F050001' "$TARGET/version_cfg.h" || {
-  echo 'ERROR: FILE_VERSION must be the allocated 0x7F050001' >&2; exit 1;
+grep -q '#define FILE_VERSION[[:space:]]*0x7F060001' "$TARGET/version_cfg.h" || {
+  echo 'ERROR: FILE_VERSION must be the allocated 0x7F060001' >&2; exit 1;
 }
-grep -q '#define APP_BUILD[[:space:]]*0x05' "$TARGET/version_cfg.h" || {
-  echo 'ERROR: APP_BUILD must be the allocated 05' >&2; exit 1;
+grep -q '#define APP_BUILD[[:space:]]*0x06' "$TARGET/version_cfg.h" || {
+  echo 'ERROR: APP_BUILD must be the allocated 06' >&2; exit 1;
 }
-[[ "$FILE_VERSION" == '0x7F050001' ]] || {
+[[ "$FILE_VERSION" == '0x7F060001' ]] || {
   echo 'ERROR: build FILE_VERSION drifted from allocated identity' >&2; exit 1;
 }
 
@@ -295,7 +295,28 @@ abi_probe_body='
 #include "zcl_include.h"
 #include "ev_timer.h"
 #include "ev_buffer.h"
+#include "glsd301p_target_abi.h"
 #define ABI_ASSERT(name, expr) typedef char name[(expr) ? 1 : -1]
+/* R26: the checked-in target metadata above must match this exact
+ * compiler-verified target layout; any drift fails the TC32 build. */
+ABI_ASSERT(glsd_target_hdr_write_rec, GLSD301P_TARGET_WRITE_REC == sizeof(zclWriteRec_t));
+ABI_ASSERT(glsd_target_hdr_write_cmd, GLSD301P_TARGET_WRITE_CMD == sizeof(zclWriteCmd_t));
+ABI_ASSERT(glsd_target_hdr_report_rec, GLSD301P_TARGET_REPORT_REC == sizeof(zclReport_t));
+ABI_ASSERT(glsd_target_hdr_report_cmd, GLSD301P_TARGET_REPORT_CMD == sizeof(zclReportCmd_t));
+ABI_ASSERT(glsd_target_hdr_write_rsp_rec, GLSD301P_TARGET_WRITE_RSP_REC == sizeof(zclWriteRspStatus_t));
+ABI_ASSERT(glsd_target_hdr_write_rsp_cmd, GLSD301P_TARGET_WRITE_RSP_CMD == sizeof(zclWriteRspCmd_t));
+ABI_ASSERT(glsd_target_hdr_read_rsp_rec, GLSD301P_TARGET_READ_RSP_REC == sizeof(zclReadRspStatus_t));
+ABI_ASSERT(glsd_target_hdr_read_rsp_cmd, GLSD301P_TARGET_READ_RSP_CMD == sizeof(zclReadRspCmd_t));
+ABI_ASSERT(glsd_target_hdr_cfg_rec, GLSD301P_TARGET_CFG_REC == sizeof(zclCfgReportRec_t));
+ABI_ASSERT(glsd_target_hdr_cfg_cmd, GLSD301P_TARGET_CFG_CMD == sizeof(zclCfgReportCmd_t));
+ABI_ASSERT(glsd_target_hdr_cfg_rsp_rec, GLSD301P_TARGET_CFG_RSP_REC == sizeof(zclCfgReportStatus_t));
+ABI_ASSERT(glsd_target_hdr_cfg_rsp_cmd, GLSD301P_TARGET_CFG_RSP_CMD == sizeof(zclCfgReportRspCmd_t));
+ABI_ASSERT(glsd_target_hdr_readcfg_rec, GLSD301P_TARGET_READCFG_REC == sizeof(zclReadReportCfgRec_t));
+ABI_ASSERT(glsd_target_hdr_readcfg_cmd, GLSD301P_TARGET_READCFG_CMD == sizeof(zclReadReportCfgCmd_t));
+ABI_ASSERT(glsd_target_hdr_readcfgrsp_rec, GLSD301P_TARGET_READCFGRSP_REC == sizeof(zclReportCfgRspRec_t));
+ABI_ASSERT(glsd_target_hdr_readcfgrsp_cmd, GLSD301P_TARGET_READCFGRSP_CMD == sizeof(zclReadReportCfgRspCmd_t));
+ABI_ASSERT(glsd_target_hdr_dflt_cmd, GLSD301P_TARGET_DEFAULT_RSP_CMD == sizeof(zclDefaultRspCmd_t));
+ABI_ASSERT(glsd_target_hdr_pool, GLSD301P_TARGET_POOL_G0 == BUFFER_GROUP_0 && GLSD301P_TARGET_POOL_G1 == BUFFER_GROUP_1 && GLSD301P_TARGET_POOL_G2 == BUFFER_GROUP_2 && GLSD301P_TARGET_POOL_G3 == BUFFER_GROUP_3 && GLSD301P_TARGET_LARGE_BUFFER == LARGE_BUFFER);
 ABI_ASSERT(glsd_zcl_spec_size, sizeof(zcl_specClusterInfo_t) == 18u);
 ABI_ASSERT(glsd_zcl_spec_attr, __builtin_offsetof(zcl_specClusterInfo_t, attrTbl) == 6u);
 ABI_ASSERT(glsd_zcl_spec_reg, __builtin_offsetof(zcl_specClusterInfo_t, clusterRegisterFunc) == 10u);
@@ -587,7 +608,7 @@ grep -q 'libzb_ed' "$map" || { echo 'ERROR: End Device stack archive absent from
   echo ZCL_COMMAND_POLICY=SHARED_DISPATCH_HARNESSED
   echo REJOIN=OWNED_SINGLE_ATTEMPT_ZDO_SUCCESS_MAPPED_ONESHOT_RETRY_5S
   echo HEALTH_SNAPSHOT=RAM_V2_48B_BASIC_0xFF10_READONLY_1S_OWNED
-  echo DEV_IDENTITY=GLSD-ED-004_APP_BUILD_05_FILE_VERSION_0x7F050001_DATE_20261005
+  echo DEV_IDENTITY=GLSD-ED-005_APP_BUILD_06_FILE_VERSION_0x7F060001_DATE_20261005
   python3 - "$DIR/sdk-patches.json" <<'PY'
 import json, sys
 report = json.load(open(sys.argv[1]))
