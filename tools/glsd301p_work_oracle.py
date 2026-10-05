@@ -61,11 +61,21 @@ def main() -> int:
     os.makedirs(work)
 
     # Absolute -o paths keep every .gcno/.gcda inside the work dir.
-    units = [(args.identify, "identify.o"),
+    # The identify object takes the source basename: gcov derives the
+    # notes/data names from it, and production (glsd301p_identify.c)
+    # and mutant (identify.c) sources differ.
+    def obj_of(src):
+        base = os.path.basename(src)
+        if base.endswith(".c"):
+            base = base[:-2]
+        return base + ".o"
+
+    units = [(args.identify, obj_of(args.identify)),
              (os.path.join(args.root, "src/glsd301p_timebase.c"),
               "timebase.o"),
              (os.path.join(args.root, "tests/test_glsd301p_tick_work.c"),
               "tick_work.o")]
+    identify_obj = obj_of(args.identify)
     for src, obj in units:
         rc, out = run(["cc", "-std=gnu11",
                        "-I" + os.path.join(args.root, "src"),
@@ -75,7 +85,7 @@ def main() -> int:
             print(out)
             print("R25_ORACLE=BUILD_FAIL %s" % src, file=sys.stderr)
             return 1
-    rc, out = run(["cc", "--coverage", "-O0", "identify.o", "timebase.o",
+    rc, out = run(["cc", "--coverage", "-O0", identify_obj, "timebase.o",
                    "tick_work.o", "-o", "tick_work"], work)
     if rc != 0:
         print(out)
@@ -103,8 +113,9 @@ def main() -> int:
             print(out)
             print("R25_ORACLE=GCOV_FAIL %s" % tag, file=sys.stderr)
             return 1
+        gcov_stem = os.path.basename(args.identify)
         gcov_files = [n for n in os.listdir(work)
-                      if n.startswith("identify.c") and n.endswith(".gcov")]
+                      if n.startswith(gcov_stem) and n.endswith(".gcov")]
         if len(gcov_files) != 1:
             print("R25_ORACLE=GCOV_AMBIGUOUS %s" % gcov_files,
                   file=sys.stderr)

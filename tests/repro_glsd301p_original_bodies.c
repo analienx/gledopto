@@ -622,7 +622,7 @@ static int run_undivmixed(void)
         printf("REPRO-NOT-REPRODUCED: undivmixed no response\n");
         return 0;
     }
-    off = (u8)(((b[0] & 0x04u) != 0u) ? 5u : 3u);
+    off = (u8)(((b[0] & 0x04u) != 0u) ? 4u : 2u);
     if (r_af_len != (u16)(off + 1u + 6u)) {
         printf("REPRO-NOT-REPRODUCED: undivmixed response len %u\n",
                r_af_len - off - 1u);

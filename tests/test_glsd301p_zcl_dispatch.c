@@ -4412,6 +4412,9 @@ static void r26_cfg_leg(const u8 *payload, unsigned n, u8 seq)
         assert(nv_save_calls == 0u);
         assert(af_count == 1u);
         assert(af_parse(0u, &cluster, &cmd, &pld, &len));
+        printf("R26_CFG_RSP n=%u cmd=0x%02X len=%u b0=0x%02X\n", n, cmd,
+               len, len > 0u ? pld[0] : 0xFFu);
+        fflush(stdout);
         assert(cmd == ZCL_CMD_CONFIG_REPORT_RSP && len == 4u * n);
         for (i = 0u; i < n; i++) {
             assert(pld[4u * i] == ZCL_STA_UNSUPPORTED_ATTRIBUTE);
@@ -4457,6 +4460,9 @@ static void r26_readcfg_leg(const u8 *payload, unsigned n, u8 seq)
     if (accept) {
         assert(af_count == 1u);
         assert(af_parse(0u, &cluster, &cmd, &pld, &len));
+        printf("R26_READCFG_RSP n=%u cmd=0x%02X len=%u b0=0x%02X\n", n,
+               cmd, len, len > 0u ? pld[0] : 0xFFu);
+        fflush(stdout);
         assert(cmd == ZCL_CMD_READ_REPORT_CFG_RSP && len == 4u * n);
         for (i = 0u; i < n; i++) {
             assert(pld[4u * i] == ZCL_STA_UNSUPPORTED_ATTRIBUTE);
