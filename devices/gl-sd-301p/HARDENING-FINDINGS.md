@@ -500,6 +500,11 @@ Step spans in `zcl_commands.c` and to below-min MoveToLevel spans in
 short-circuit as immediate.
 Validation: 3 R16 matrix cases green @ 5937ddf (boundary
 37221176908); AP suites green.
+R20 supersede (M3 @ 0102715): the same-class application to
+below-min MoveToLevel spans in start_target was the R20 defect;
+proportional timing now lives at Step dispatch only, and Move to
+Level keeps its requested finite duration (r20_duration green @
+0102715, boundary 37275401844). Step behavior unchanged.
 
 # Independent review R17-R23 (reviewed candidate 69831aa5c9c230bb8c3c8074abd9c618eb936ed5)
 
@@ -577,11 +582,12 @@ instead of the requested 100. Proportional reduction belongs to
 clipped Steps only.
 Original repro: M1 red at b28f454 (boundary 37273719102):
 r20_duration FAILs (remaining 80, expected 100).
+Fix commit: 0102715 (M3). Hosted proof: boundary 37275401844
+(r20_duration PASS, full matrix green), readiness 37275401809.
 Proposed fix: preserve the accepted/clamped Move to Level policy and
 requested finite duration; keep proportional timing at Step dispatch
 only with its bounded arithmetic/rounding; no acceptance-policy
 change to dodge the regression.
-Fix commit: TBD. Hosted proof: TBD.
 
 ## R21 — Upward TARGET ON delayed to the first 100 ms tick (P2, CONFIRMED)
 
@@ -595,11 +601,12 @@ at onset). The existing regression observes after 150 ms, proving
 early-in-transition behavior, not command-onset effect.
 Original repro: M1 red at b28f454 (boundary 37273719102):
 r21_onset FAILs (runtime OFF immediately after admission).
+Fix commit: 0102715 (M3). Hosted proof: boundary 37275401844
+(r21_onset PASS, full matrix green), readiness 37275401809.
 Proposed fix: apply a real accepted increase at admission, before
 dispatch returns; keep equality/downward/fault/readiness/OFF
 invariants; rejected/failed admissions change nothing; emit through
 the guarded transport without claiming instant physical output.
-Fix commit: TBD. Hosted proof: TBD.
 
 ## R22 — Prevalidators accept malformed typed records (P2, CONFIRMED)
 
@@ -614,13 +621,15 @@ Reporting Response long forms validated for length only.
 Accepted-malformed-input defects (no new overwrite claim).
 Original repro: M1 red at b28f454 (boundary 37273719102):
 r22_struct + r22_direction FAIL (malformed shapes accepted).
+Fix commit: 0102715 (M3, P5v4 grammar). Hosted proof:
+boundary 37275401844 (both PASS + 7 pristine REPRO-OK),
+readiness 37275401809.
 Proposed fix: explicit supported datatype grammar; full wire count
 width/sentinels; truthful rejection of unsupported compound forms
 before unsafe SDK size logic (no unbounded recursion); valid flat
 structures/strings stay compatible with bounded nesting/count policy;
 zero-length vs unknown types distinguished; defined reporting
 directions + status-dependent long records validated.
-Fix commit: TBD. Hosted proof: TBD.
 
 ## R23 — Target foundation ABI proof + current checkpoint missing (P2, CONFIRMED)
 

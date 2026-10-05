@@ -339,7 +339,30 @@ the intended asserts):
 - R23: no code repro (evidence/ledger gap; ABI probe still
   cluster/timer-only at this SHA — recorded, fixed in M4).
 - [x] M2 output-neutral Identify (R17–R19 + shared write adapter) + regressions green
-- [ ] M3 Level + typed protocol (R20–R22) + regressions green
+- [x] M3 Level + typed protocol (R20–R22) + regressions green
+
+## M3 Level + typed protocol (2026-10-05, run 37275401844 @ 0102715 + readiness 37275401809)
+
+- R20: `start_target` no longer scales Move to Level duration on
+  clipping — the accepted/clamped target keeps the requested finite
+  tenths; proportional timing lives at Step dispatch only (the R16
+  "same class" note is superseded for Move to Level).
+- R21: accepted upward TARGET With On/Off applies ON at admission,
+  before dispatch returns (guarded path, mirroring MOVE onset);
+  equality/downward/plain/fault/not-ready legs unchanged. The old
+  150 ms-only onset test now asserts at admission first (justified
+  replacement).
+- R22: P5v4 grammar (re-pinned `0c34d262…78cadf`) — explicit
+  supported datatype grammar (fixed scalars, short/long strings,
+  flat STRUCT count ≤255 with scalar elements, No Data as the only
+  zero-length type); full wire count width with high-byte rejection
+  (keeps validator/parser synchronized); nested/unknown/reserved
+  compounds rejected; reserved reporting directions rejected in
+  cfg + read-cfg-rsp validators and per-record in cfg-rsp long
+  forms. 7 new original-body cases prove pristine accepts each
+  shape (REPRO-OK in the same run).
+Result: SEQ PASS, R9–R16 failed=0, all 8 R17–R23 matrix cases PASS,
+`GLSD301P_ZCL_DISPATCH=PASS`, `ORIGINAL_BODY_REPRO=PASS`.
 
 ## M2 Identify fix (2026-10-05, run 37274769053 @ 99ca794 + readiness 37274769091)
 
