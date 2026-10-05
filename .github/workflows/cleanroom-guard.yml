@@ -346,6 +346,10 @@ jobs:
             src/glsd301p_control.c src/glsd301p_identify.c src/glsd301p_zcl_commands.c tests/host/hw_stub.c \
             tests/test_glsd301p_zcl_dispatch.c -o build/host-tests/test_glsd301p_zcl_dispatch
       - name: R25/R26 mutant controls (ephemeral copies, expect kill)
+        id: mutants
+        # Continue so the interop suite still reports in a red phase;
+        # the gate at the end of this job enforces the verdict.
+        continue-on-error: true
         shell: bash
         run: |
           set -euo pipefail
@@ -531,6 +535,10 @@ jobs:
           test "$fails" -eq 0
           echo 'ORIGINAL_BODY_REPRO=PASS all pristine defects reproduced'
       - name: Run host-side interoperability tests
+        id: interop
+        # Continue so later gates still report in a red phase; the
+        # gate at the end of this job enforces the verdict.
+        continue-on-error: true
         shell: bash
         run: |
           set -euo pipefail
@@ -556,6 +564,13 @@ jobs:
       - name: Adversarially verify End Device architecture firewall
         shell: bash
         run: bash tests/test_glsd301p_target_contract.sh
+      - name: Enforce mutant and interop verdicts
+        if: always()
+        shell: bash
+        run: |
+          echo "mutants=${{ steps.mutants.outcome }} interop=${{ steps.interop.outcome }}"
+          test "${{ steps.mutants.outcome }}" = success
+          test "${{ steps.interop.outcome }}" = success
 
   tc32-end-device-target:
     name: Pinned TC32 TLSR8258 RX-on-idle End Device target
