@@ -3675,6 +3675,7 @@ static void test_r20_movetolevel_keeps_duration(void)
     fixture_init(NULL);
     boot_ready();
     assert(dispatch_onoff(ZCL_CMD_ONOFF_ON, NULL, 0u) == ZCL_STA_SUCCESS);
+    t_onoff = 1u; /* plain Level frames are SDK-gated on the ZCL attr */
     assert(dispatch_level(ZCL_CMD_LEVEL_MOVE_TO_LEVEL, to_10,
                           (u16)sizeof(to_10)) == ZCL_STA_SUCCESS);
     pump_ms(10u);
@@ -3714,6 +3715,7 @@ static void test_r20_movetolevel_keeps_duration(void)
     fixture_init(NULL);
     boot_ready();
     assert(dispatch_onoff(ZCL_CMD_ONOFF_ON, NULL, 0u) == ZCL_STA_SUCCESS);
+    t_onoff = 1u; /* plain Level frames are SDK-gated on the ZCL attr */
     assert(dispatch_level(ZCL_CMD_LEVEL_MOVE_TO_LEVEL, to_40,
                           (u16)sizeof(to_40)) == ZCL_STA_SUCCESS);
     assert(g_level.mode == GLSD301P_LEVEL_IDLE);
@@ -3731,6 +3733,7 @@ static void test_r20_movetolevel_keeps_duration(void)
     fixture_init(NULL);
     boot_ready();
     assert(dispatch_onoff(ZCL_CMD_ONOFF_ON, NULL, 0u) == ZCL_STA_SUCCESS);
+    t_onoff = 1u; /* plain Level frames are SDK-gated on the ZCL attr */
     assert(dispatch_level(ZCL_CMD_LEVEL_MOVE_TO_LEVEL, to_250,
                           (u16)sizeof(to_250)) == ZCL_STA_SUCCESS);
     pump_ms(10u);
@@ -3747,6 +3750,7 @@ static void test_r20_movetolevel_keeps_duration(void)
     fixture_init(NULL);
     boot_ready();
     assert(dispatch_onoff(ZCL_CMD_ONOFF_ON, NULL, 0u) == ZCL_STA_SUCCESS);
+    t_onoff = 1u; /* plain Level frames are SDK-gated on the ZCL attr */
     assert(dispatch_level(ZCL_CMD_LEVEL_MOVE_TO_LEVEL, to_10,
                           (u16)sizeof(to_10)) == ZCL_STA_SUCCESS);
     pump_ms(10u);
@@ -3843,7 +3847,11 @@ static void test_r21_upward_onset_immediate(void)
     assert(g_runtime.logical_output_enabled);
     assert(g_level.mode == GLSD301P_LEVEL_MOVE);
 
-    /* Plain upward move from OFF stays OFF (control). */
+    /*
+     * Plain upward move from OFF stays OFF (control). The ZCL attr is
+     * held ON so the SDK execute gate delivers the frame and the app
+     * preservation itself is exercised (not the SDK gate).
+     */
     fixture_init(NULL);
     boot_ready();
     assert(dispatch_onoff(ZCL_CMD_ONOFF_ON, NULL, 0u) == ZCL_STA_SUCCESS);
@@ -3852,8 +3860,10 @@ static void test_r21_upward_onset_immediate(void)
     pump_ms(10u);
     assert(dispatch_onoff(ZCL_CMD_ONOFF_OFF, NULL, 0u) == ZCL_STA_SUCCESS);
     pump_ms(10u);
+    t_onoff = 1u;
     assert(dispatch_level(ZCL_CMD_LEVEL_MOVE_TO_LEVEL, up40_tt20,
                           (u16)sizeof(up40_tt20)) == ZCL_STA_SUCCESS);
+    assert(g_level.mode == GLSD301P_LEVEL_TARGET);
     assert(!g_runtime.logical_output_enabled);
     assert(g_onoff == 0u);
     pump_ms(2500u);
