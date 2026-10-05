@@ -390,7 +390,7 @@ jobs:
             tests/repro_glsd301p_original_bodies.c \
             -o build/host-tests/repro_original_bodies
           fails=0
-          for c in identify0 identify1 triggereffect1 queryrsp0 groupadd1 groupview1 groupmember1 write1 cfgwrap40 cfgtrunc discrsp0 dfltrsp1 dflt0 readrsp4 writersp2 cfgrsp3 report4 disc1 disc2 disc4 readodd otaqueryrsp2 otablockshort r8leak; do
+          for c in identify0 identify1 triggereffect1 queryrsp0 groupadd1 groupview1 groupmember1 write1 cfgwrap40 cfgtrunc discrsp0 dfltrsp1 dflt0 readrsp4 writersp2 cfgrsp3 report4 disc1 disc2 disc4 readodd otaqueryrsp2 otablockshort r8leak reportstruct reportnested reportrestype reportarray cfgdir2 cfgrspdir2 readcfgrspdir2; do
             set +e
             build/host-tests/repro_original_bodies "$c" > "build/repro-$c.log" 2>&1
             rc=$?

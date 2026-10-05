@@ -1,7 +1,7 @@
 /*
  * Pristine-body reproductions for G4 hardening (R6/R7/R8/follow-ups).
  *
- * One argv-selected case per known record-loop defect (24 cases).  Each
+ * One argv-selected case per known record-loop defect (31 cases).  Each
  * case drives the ORIGINAL SDK cluster/foundation body (no guards).
  * Cluster-direct cases use exact-size heap payloads, so overreads trip
  * AddressSanitizer deterministically.  Root-path cases pool-allocate the
@@ -775,6 +775,61 @@ int main(int argc, char **argv)
     }
     if (strcmp(c, "r8leak") == 0) {
         return run_r8leak();
+    }
+    /*
+     * R22 residual guards: the pristine foundation bodies accept these
+     * malformed typed records (no MALFORMED default), while the P5v4
+     * validators reject them. Root-path marker semantics (acceptance,
+     * not a crash).
+     */
+    if (strcmp(c, "reportstruct") == 0) {
+        static const u8 rep[] = {0x00u, 0x00u, 0x4Cu, 0x00u, 0x01u};
+        return run_root_repro_case(c, ZCL_CLUSTER_GEN_ON_OFF,
+                                   ZCL_CMD_REPORT,
+                                   ZCL_FRAME_CLIENT_SERVER_DIR, rep,
+                                   (u16)sizeof(rep));
+    }
+    if (strcmp(c, "reportnested") == 0) {
+        static const u8 rep[] = {0x00u, 0x00u, 0x4Cu, 0x01u, 0x00u, 0x4Cu};
+        return run_root_repro_case(c, ZCL_CLUSTER_GEN_ON_OFF,
+                                   ZCL_CMD_REPORT,
+                                   ZCL_FRAME_CLIENT_SERVER_DIR, rep,
+                                   (u16)sizeof(rep));
+    }
+    if (strcmp(c, "reportrestype") == 0) {
+        static const u8 rep[] = {0x00u, 0x00u, 0xFFu};
+        return run_root_repro_case(c, ZCL_CLUSTER_GEN_ON_OFF,
+                                   ZCL_CMD_REPORT,
+                                   ZCL_FRAME_CLIENT_SERVER_DIR, rep,
+                                   (u16)sizeof(rep));
+    }
+    if (strcmp(c, "reportarray") == 0) {
+        static const u8 rep[] = {0x00u, 0x00u, 0x48u};
+        return run_root_repro_case(c, ZCL_CLUSTER_GEN_ON_OFF,
+                                   ZCL_CMD_REPORT,
+                                   ZCL_FRAME_CLIENT_SERVER_DIR, rep,
+                                   (u16)sizeof(rep));
+    }
+    if (strcmp(c, "cfgdir2") == 0) {
+        static const u8 cfg[] = {0x02u, 0x00u, 0x00u, 0x10u, 0x00u};
+        return run_root_repro_case(c, ZCL_CLUSTER_GEN_ON_OFF,
+                                   ZCL_CMD_CONFIG_REPORT,
+                                   ZCL_FRAME_CLIENT_SERVER_DIR, cfg,
+                                   (u16)sizeof(cfg));
+    }
+    if (strcmp(c, "cfgrspdir2") == 0) {
+        static const u8 rsp[] = {0x00u, 0x02u, 0x00u, 0x00u};
+        return run_root_repro_case(c, ZCL_CLUSTER_GEN_ON_OFF,
+                                   ZCL_CMD_CONFIG_REPORT_RSP,
+                                   ZCL_FRAME_SERVER_CLIENT_DIR, rsp,
+                                   (u16)sizeof(rsp));
+    }
+    if (strcmp(c, "readcfgrspdir2") == 0) {
+        static const u8 rsp[] = {0x00u, 0x02u, 0x00u, 0x00u, 0x10u, 0x00u};
+        return run_root_repro_case(c, ZCL_CLUSTER_GEN_ON_OFF,
+                                   ZCL_CMD_READ_REPORT_CFG_RSP,
+                                   ZCL_FRAME_SERVER_CLIENT_DIR, rsp,
+                                   (u16)sizeof(rsp));
     }
     fprintf(stderr, "unknown case: %s\n", c);
     return 2;

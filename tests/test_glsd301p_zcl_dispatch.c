@@ -2242,7 +2242,12 @@ static void test_r9_upward_onset_applies_on(void)
     uint8_t f[6];
     uint32_t base;
 
-    /* PASS-NOW control: a real increase applies ON at onset, not at end. */
+    /*
+     * R21 REPLACEMENT (justification: the old test observed ON only
+     * after 150 ms, proving early-in-transition behavior but not
+     * command-onset effect. The authorized contract applies a real
+     * accepted increase at admission, before dispatch returns.)
+     */
     fixture_init(NULL);
     boot_ready();
     assert(dispatch_onoff(ZCL_CMD_ONOFF_ON, NULL, 0u) == ZCL_STA_SUCCESS);
@@ -2254,9 +2259,13 @@ static void test_r9_upward_onset_applies_on(void)
     assert(!g_runtime.logical_output_enabled);
     assert(g_level.current_level == 0x10u);
 
+    base = host_uart_accepted_count();
     assert(dispatch_level(ZCL_CMD_LEVEL_MOVE_TO_LEVEL_WITH_ON_OFF, up,
                           (u16)sizeof(up)) == ZCL_STA_SUCCESS);
-    base = host_uart_accepted_count();
+    /* Onset: ON the moment dispatch returns, before any timer advance. */
+    assert(g_runtime.logical_output_enabled);
+    assert(g_onoff == 1u);
+    assert(g_level.mode == GLSD301P_LEVEL_TARGET);
     pump_ms(150u);
     assert(g_runtime.logical_output_enabled);
     assert(host_uart_accepted_count() > base);

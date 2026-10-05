@@ -294,21 +294,18 @@ bool glsd301p_control_level_start_target(glsd301p_control_ctx_t *ctx,
 
     glsd301p_control_level_cancel(ctx);
     {
+        /*
+         * R20: below-min requests still clip here, but an accepted Move
+         * to Level keeps its requested finite duration. Proportional
+         * timing belongs to clipped Steps only (applied at Step
+         * dispatch in zcl_commands.c, not here).
+         */
         uint8_t current = ctx->level->current_level;
-        uint16_t requested_span = target > current
-                                      ? (uint16_t)(target - current)
-                                      : (uint16_t)(current - target);
-        uint16_t moved_span;
 
         target = glsd301p_control_clamp_level(ctx, target);
         /* R9: retained actual direction; equality is 0, never up. */
         ctx->level->target_dir = (target > current) ? 1
                                  : ((target < current) ? -1 : 0);
-        /* R16: below-min requests clip here; shrink their time. */
-        moved_span = target > current ? (uint16_t)(target - current)
-                                      : (uint16_t)(current - target);
-        transition_time = glsd301p_control_proportional_time(
-            requested_span, moved_span, transition_time);
     }
 
     /*
@@ -330,6 +327,18 @@ bool glsd301p_control_level_start_target(glsd301p_control_ctx_t *ctx,
     ctx->level->trans_origin = ctx->level->current_level;
     ctx->level->trans_start_ms = glsd301p_timebase_now_ms();
     ctx->level->trans_dur_ms = (uint32_t)transition_time * 100u;
+    if (with_onoff && (ctx->level->target_dir > 0) &&
+        !ctx->runtime->logical_output_enabled) {
+        /*
+         * R21: a real accepted increase takes effect at admission,
+         * before dispatch returns — not at the first 100 ms timer
+         * callback. Best-effort through the guarded path, mirroring
+         * MOVE onset; equality/downward/plain commands never onset.
+         */
+        (void)glsd301p_control_apply_level(ctx, ctx->level->current_level,
+                                           1u, 1,
+                                           glsd301p_timebase_now_ms());
+    }
     if (!glsd301p_timer_level_start(glsd301p_control_level_cb, ctx)) {
         glsd301p_control_level_cancel(ctx);
         return false;
