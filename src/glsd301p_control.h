@@ -77,12 +77,15 @@ typedef struct {
     uint32_t io_last_ms;
     uint32_t io_max_gap_ms;
     /*
-     * R13: the control plane hosts the Identify adapter. identify_store
-     * binds the ZCL IdentifyTime attribute (NULL until bound); the
-     * household IO tick polls the countdown through it.
+     * R17/R18: the control plane hosts the Identify adapter.
+     * identify_store binds the ZCL IdentifyTime attribute (NULL until
+     * bound) and identify_ep its endpoint; the household IO tick polls
+     * the countdown through the store, and accepted writes on that
+     * endpoint restart it through the shared observer.
      */
     glsd301p_identify_t identify;
     uint16_t *identify_store;
+    uint8_t identify_ep;
 } glsd301p_control_ctx_t;
 
 void glsd301p_control_init(glsd301p_control_ctx_t *ctx,
@@ -166,23 +169,13 @@ uint16_t glsd301p_control_proportional_time(uint16_t requested_span,
                                             uint16_t duration);
 
 /*
- * R13 Identify wiring. The store binds the ZCL IdentifyTime attribute;
- * effect_start validates readiness and the effect id, cancels any
- * running transition, and renders on the owned Level timer; it returns
- * false without touching effect state when refused. effect_abort ends
- * the program without emitting (the aborting cause always emits, except
- * the emit-less Stop path, which restores explicitly) and reports
- * whether a program was active. effect_restore re-emits the saved
- * pre-effect output through the guarded path.
+ * R17/R18 Identify wiring. The store binds the ZCL IdentifyTime
+ * attribute on the given endpoint and arms the shared accepted-write
+ * observer for it. Identify stays RAM commissioning state: no effect
+ * programs, restore, or preemption exist anywhere in this plane.
  */
 void glsd301p_control_identify_bind_store(glsd301p_control_ctx_t *ctx,
-                                          uint16_t *store);
-bool glsd301p_control_identify_effect_start(glsd301p_control_ctx_t *ctx,
-                                            uint8_t effect_id,
-                                            uint32_t now_ms);
-bool glsd301p_control_identify_effect_abort(glsd301p_control_ctx_t *ctx);
-void glsd301p_control_identify_effect_restore(glsd301p_control_ctx_t *ctx,
-                                              uint32_t now_ms);
+                                          uint16_t *store, uint8_t endpoint);
 
 #ifdef __cplusplus
 }

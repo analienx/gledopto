@@ -59,6 +59,7 @@ void glsd301p_control_init(glsd301p_control_ctx_t *ctx,
     ctx->io_max_gap_ms = 0u;
     glsd301p_identify_init(&ctx->identify);
     ctx->identify_store = NULL;
+    ctx->identify_ep = 0u;
 
     if (level != NULL) {
         level->mode = GLSD301P_LEVEL_IDLE;
@@ -205,12 +206,6 @@ void glsd301p_control_level_cancel(glsd301p_control_ctx_t *ctx)
         return;
     }
 
-    /*
-     * R13: preempting the transition preempts the effect too. Every
-     * cancel caller emits right after (the emit-less Stop restores
-     * explicitly), so no stale override survives.
-     */
-    glsd301p_identify_effect_clear(&ctx->identify);
     ctx->level->mode = GLSD301P_LEVEL_IDLE;
     ctx->level->rate_accum_milli = 0u;
     ctx->level->target_dir = 0;
@@ -221,87 +216,14 @@ void glsd301p_control_level_cancel(glsd301p_control_ctx_t *ctx)
 }
 
 void glsd301p_control_identify_bind_store(glsd301p_control_ctx_t *ctx,
-                                          uint16_t *store)
+                                          uint16_t *store, uint8_t endpoint)
 {
     if (ctx == NULL) {
         return;
     }
     ctx->identify_store = store;
-}
-
-bool glsd301p_control_identify_effect_start(glsd301p_control_ctx_t *ctx,
-                                            uint8_t effect_id,
-                                            uint32_t now_ms)
-{
-    bool restart;
-    bool save_onoff;
-    uint8_t save_level;
-
-    if (ctx == NULL || ctx->runtime == NULL || ctx->level == NULL) {
-        return false;
-    }
-    if (effect_id != GLSD301P_IDENTIFY_EFFECT_BLINK &&
-        effect_id != GLSD301P_IDENTIFY_EFFECT_BREATHE) {
-        return false;
-    }
-    /* Refusal leaves any running transition and effect untouched. */
-    if (!glsd301p_control_ready(ctx)) {
-        return false;
-    }
-
-    /*
-     * Capture before cancel: cancel clears the effect flag, so a
-     * re-trigger must keep the original saved output explicitly.
-     */
-    restart = glsd301p_identify_effect_active(&ctx->identify);
-    save_onoff = restart ? glsd301p_identify_effect_saved_onoff(
-                               &ctx->identify)
-                         : ctx->runtime->logical_output_enabled;
-    save_level = restart ? glsd301p_identify_effect_saved_level(&ctx->identify)
-                         : ctx->runtime->current_level;
-    glsd301p_control_level_cancel(ctx);
-    glsd301p_identify_effect_begin(&ctx->identify, effect_id, now_ms,
-                                   save_onoff, save_level);
-    if (!glsd301p_timer_level_start(glsd301p_control_level_cb, ctx)) {
-        glsd301p_identify_effect_clear(&ctx->identify);
-        glsd301p_control_identify_effect_restore(ctx, now_ms);
-        return false;
-    }
-    return true;
-}
-
-bool glsd301p_control_identify_effect_abort(glsd301p_control_ctx_t *ctx)
-{
-    bool was_active;
-
-    if (ctx == NULL) {
-        return false;
-    }
-    was_active = glsd301p_identify_effect_active(&ctx->identify);
-    glsd301p_identify_effect_clear(&ctx->identify);
-    if (was_active && ctx->level != NULL &&
-        ctx->level->mode == GLSD301P_LEVEL_IDLE) {
-        glsd301p_timer_level_stop();
-    }
-    return was_active;
-}
-
-void glsd301p_control_identify_effect_restore(glsd301p_control_ctx_t *ctx,
-                                              uint32_t now_ms)
-{
-    uint8_t frame[GLSD301P_CONTROL_FRAME_SIZE];
-
-    if (ctx == NULL || ctx->runtime == NULL) {
-        return;
-    }
-    (void)glsd301p_control_emit(
-        ctx,
-        glsd301p_runtime_core_apply_state(
-            ctx->runtime,
-            glsd301p_identify_effect_saved_onoff(&ctx->identify),
-            glsd301p_identify_effect_saved_level(&ctx->identify),
-            ctx->min_level, false, frame),
-        frame, now_ms);
+    ctx->identify_ep = endpoint;
+    glsd301p_identify_write_observer_bind(&ctx->identify, store, endpoint);
 }
 
 static uint8_t glsd301p_control_apply_level(glsd301p_control_ctx_t *ctx,
@@ -362,8 +284,6 @@ bool glsd301p_control_level_start_target(glsd301p_control_ctx_t *ctx,
                                          uint16_t transition_time,
                                          uint8_t with_onoff)
 {
-    bool fx_preempted = false;
-
     if (ctx == NULL || ctx->level == NULL) {
         return false;
     }
@@ -372,7 +292,6 @@ bool glsd301p_control_level_start_target(glsd301p_control_ctx_t *ctx,
         return false;
     }
 
-    fx_preempted = glsd301p_identify_effect_active(&ctx->identify);
     glsd301p_control_level_cancel(ctx);
     {
         uint8_t current = ctx->level->current_level;
@@ -413,10 +332,6 @@ bool glsd301p_control_level_start_target(glsd301p_control_ctx_t *ctx,
     ctx->level->trans_dur_ms = (uint32_t)transition_time * 100u;
     if (!glsd301p_timer_level_start(glsd301p_control_level_cb, ctx)) {
         glsd301p_control_level_cancel(ctx);
-        if (fx_preempted) {
-            glsd301p_control_identify_effect_restore(
-                ctx, glsd301p_timebase_now_ms());
-        }
         return false;
     }
     return true;
@@ -427,8 +342,6 @@ bool glsd301p_control_level_start_move(glsd301p_control_ctx_t *ctx,
                                        uint8_t rate,
                                        uint8_t with_onoff)
 {
-    bool fx_preempted = false;
-
     if (ctx == NULL || ctx->level == NULL) {
         return false;
     }
@@ -436,14 +349,8 @@ bool glsd301p_control_level_start_move(glsd301p_control_ctx_t *ctx,
         return false;
     }
 
-    fx_preempted = glsd301p_identify_effect_active(&ctx->identify);
     glsd301p_control_level_cancel(ctx);
     if (rate == 0u) {
-        /* Stop-shaped: nothing emits after, so restore explicitly. */
-        if (fx_preempted) {
-            glsd301p_control_identify_effect_restore(
-                ctx, glsd301p_timebase_now_ms());
-        }
         return true;
     }
 
@@ -463,10 +370,6 @@ bool glsd301p_control_level_start_move(glsd301p_control_ctx_t *ctx,
 
     if (!glsd301p_timer_level_start(glsd301p_control_level_cb, ctx)) {
         glsd301p_control_level_cancel(ctx);
-        if (fx_preempted) {
-            glsd301p_control_identify_effect_restore(
-                ctx, glsd301p_timebase_now_ms());
-        }
         return false;
     }
     return true;
@@ -485,44 +388,8 @@ int glsd301p_control_level_cb(void *data)
 
     /* No stale transition may survive: every stop resets the mode. */
     if (!glsd301p_runtime_core_is_ready(ctx->runtime)) {
-        glsd301p_control_identify_effect_abort(ctx);
         glsd301p_control_level_cancel(ctx);
         return -1;
-    }
-    if (glsd301p_identify_effect_active(&ctx->identify)) {
-        /*
-         * R13: the effect owns output while active. No transition can
-         * coincide (effect start cancels, commands abort), so render
-         * the override through the guarded path; at program end
-         * restore the saved pre-effect output and park the timer.
-         */
-        bool fx_onoff;
-        uint8_t fx_level;
-        uint8_t fx_frame[GLSD301P_CONTROL_FRAME_SIZE];
-
-        if (glsd301p_identify_effect_step(
-                &ctx->identify, now_ms, ctx->min_level, ctx->max_level,
-                &fx_onoff, &fx_level)) {
-            if (!glsd301p_control_emit(
-                    ctx,
-                    glsd301p_runtime_core_apply_state(ctx->runtime, fx_onoff,
-                                                      fx_level,
-                                                      ctx->min_level, false,
-                                                      fx_frame),
-                    fx_frame, now_ms)) {
-                glsd301p_control_identify_effect_abort(ctx);
-                glsd301p_control_level_cancel(ctx);
-                return -1;
-            }
-            return 0;
-        }
-        glsd301p_control_identify_effect_restore(ctx, now_ms);
-        glsd301p_control_identify_effect_abort(ctx);
-        if (ctx->level->mode == GLSD301P_LEVEL_IDLE) {
-            glsd301p_control_level_cancel(ctx);
-            return -1;
-        }
-        return 0;
     }
     if (ctx->level->mode == GLSD301P_LEVEL_IDLE) {
         glsd301p_control_level_cancel(ctx);
@@ -652,8 +519,9 @@ void glsd301p_control_io_step(glsd301p_control_ctx_t *ctx,
     ctx->io_last_ms = now_ms;
 
     /*
-     * R13: the always-on household tick polls the Identify countdown. A
-     * NULL store (never bound) skips; the countdown itself never emits.
+     * R17/R18: the always-on household tick polls the Identify
+     * countdown. A NULL store (never bound) skips; the countdown
+     * itself never emits.
      */
     if (ctx->identify_store != NULL) {
         glsd301p_identify_tick(&ctx->identify, ctx->identify_store, now_ms);

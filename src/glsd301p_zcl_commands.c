@@ -166,14 +166,7 @@ uint8_t glsd301p_zcl_level_command(glsd301p_zcl_ctx_t *ctx,
     }
     case ZCL_CMD_LEVEL_STOP:
     case ZCL_CMD_LEVEL_STOP_WITH_ON_OFF:
-        /*
-         * R13: Stop emits nothing itself, so a preempted effect is
-         * restored explicitly; without an effect this is a no-op.
-         */
-        if (glsd301p_control_identify_effect_abort(ctx->control)) {
-            glsd301p_control_identify_effect_restore(
-                ctx->control, glsd301p_timebase_now_ms());
-        }
+        /* R17: Stop emits nothing itself; no effect exists to abort. */
         glsd301p_control_level_cancel(ctx->control);
         return ZCL_STA_SUCCESS;
     default:

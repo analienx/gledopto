@@ -400,7 +400,7 @@ PATCHES = [
         "original_sha256": (
             "5f11eb33626af3821fc830b64bcbce79fb48633ea1ca00890b722144c17b2f2d"
         ),
-        "patched_sha256": "6f22053d58be3130cb28c721d2ab1861d92e41d6cacc7d0ec488f7769bb961b8",
+        "patched_sha256": "9adccdcf63740fdbbc755d4e82cfd48b7e7dbc2ec383f9c44f091872facaa64b",
         "marker": "glsd301p_attrRecValid",
         "edits": [
             {
@@ -950,6 +950,59 @@ PATCHES = [
                     "         * must not leak into a later record's success. */\n"
                     "        status = ZCL_STA_SUCCESS;\n"
                     "        zclAttrInfo_t *pAttrEntry = zcl_findAttribute(endpoint, clusterId, pReadReportCfgCmd->attrList[i].attrID);\n"
+                ),
+            },
+            {
+                "anchor": (
+                    "/***************************************************************************\n"
+                    " **************************** Write ****************************************\n"
+                    " ***************************************************************************/\n"
+                    "#ifdef ZCL_WRITE\n"
+                ),
+                "replacement": (
+                    "/***************************************************************************\n"
+                    " **************************** Write ****************************************\n"
+                    " ***************************************************************************/\n"
+                    "#ifdef ZCL_WRITE\n"
+                    "/* R18 (P5v3): app-owned accepted-write observer. Called after a\n"
+                    " * successful zcl_attrWrite so IdentifyTime restarts at receipt\n"
+                    " * time; rejected records never notify. Defined by the app. */\n"
+                    "extern void glsd301p_sdk_write_observer(u8 endpoint, u16 clusterId, u16 attrID, u8 dataType, u8 *attrData);\n"
+                ),
+            },
+            {
+                "anchor": (
+                    "        status = zcl_attrWrite(endpoint, clusterId, pWriteRec, TRUE);\n"
+                ),
+                "replacement": (
+                    "        status = zcl_attrWrite(endpoint, clusterId, pWriteRec, TRUE);\n"
+                    "\n"
+                    "        /* R18 (P5v3): report accepted writes (covers Write and\n"
+                    "         * Write-No-Response; rejected records never notify). */\n"
+                    "        if (status == ZCL_STA_SUCCESS) {\n"
+                    "            glsd301p_sdk_write_observer(endpoint, clusterId, pWriteRec->attrID, pWriteRec->dataType, pWriteRec->attrData);\n"
+                    "        }\n"
+                ),
+            },
+            {
+                "anchor": (
+                    "    if (needWrite) {\n"
+                    "        for (u8 i = 0; i < pWriteCmd->numAttr; i++) {\n"
+                    "            pWriteRec = &(pWriteCmd->attrList[i]);\n"
+                    "\n"
+                    "            zcl_attrWrite(endpoint, clusterId, pWriteRec, TRUE);\n"
+                    "        }\n"
+                ),
+                "replacement": (
+                    "    if (needWrite) {\n"
+                    "        for (u8 i = 0; i < pWriteCmd->numAttr; i++) {\n"
+                    "            pWriteRec = &(pWriteCmd->attrList[i]);\n"
+                    "\n"
+                    "            zcl_attrWrite(endpoint, clusterId, pWriteRec, TRUE);\n"
+                    "            /* R18 (P5v3): the pre-validated apply pass; every\n"
+                    "             * record here was accepted, so all notify. */\n"
+                    "            glsd301p_sdk_write_observer(endpoint, clusterId, pWriteRec->attrID, pWriteRec->dataType, pWriteRec->attrData);\n"
+                    "        }\n"
                 ),
             },
         ],

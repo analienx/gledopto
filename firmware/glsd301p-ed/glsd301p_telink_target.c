@@ -241,11 +241,12 @@ static status_t glsd_level_cb(zclIncomingAddrInfo_t *addr, u8 cmd_id, void *payl
 }
 
 /*
- * R13 Identify adapter. Identify lands on the shared IdentifyTime store
- * and arms the countdown (0 stops); Trigger Effect accepts only
- * Blink/Breathe with variant 0 and runs the bounded program; anything
- * else answers INVALID_FIELD before any state change. Query is answered
- * by the SDK from the same store, so no frame code is needed here.
+ * R17/R18 Identify adapter. All decisions and state changes run in the
+ * shared glsd301p_identify_cluster_command() (the same code the hosted
+ * fixture drives): Identify lands on the shared IdentifyTime store and
+ * arms the countdown (0 stops); every Trigger Effect is rejected before
+ * any state change. Query is answered by the SDK from the same store,
+ * so no frame code is needed here.
  */
 static status_t glsd_identify_cb(zclIncomingAddrInfo_t *addr, u8 cmd_id, void *payload)
 {
@@ -254,31 +255,15 @@ static status_t glsd_identify_cb(zclIncomingAddrInfo_t *addr, u8 cmd_id, void *p
     if (addr == NULL || payload == NULL) {
         return ZCL_STA_INVALID_FIELD;
     }
-    if (addr->dstEp != GLSD301P_ENDPOINT) {
-        return ZCL_STA_INVALID_FIELD;
-    }
     cmd = (zcl_identify_cmdPayload_t *)payload;
-    if (cmd_id == ZCL_CMD_IDENTIFY) {
-        glsd301p_identify_on_identify(&g_control.identify,
-                                      cmd->identify.identifyTime,
-                                      &g_identify_time,
-                                      glsd301p_timebase_now_ms());
+    if (glsd301p_identify_cluster_command(
+            &g_control.identify, &g_identify_time, addr->dstEp,
+            GLSD301P_ENDPOINT, cmd_id, cmd->identify.identifyTime,
+            cmd->triggerEffect.effectId, cmd->triggerEffect.effectVariant,
+            glsd301p_timebase_now_ms()) == GLSD301P_IDENTIFY_CMD_OK) {
         return ZCL_STA_SUCCESS;
     }
-    if (cmd_id == ZCL_CMD_TRIGGER_EFFECT) {
-        if (!glsd301p_identify_effect_supported(
-                cmd->triggerEffect.effectId,
-                cmd->triggerEffect.effectVariant)) {
-            return ZCL_STA_INVALID_FIELD;
-        }
-        if (!glsd301p_control_identify_effect_start(
-                &g_control, cmd->triggerEffect.effectId,
-                glsd301p_timebase_now_ms())) {
-            return ZCL_STA_FAILURE;
-        }
-        return ZCL_STA_SUCCESS;
-    }
-    return ZCL_STA_SUCCESS;
+    return ZCL_STA_INVALID_FIELD;
 }
 
 static void glsd_ota_event(u8 evt, u8 status)
@@ -538,7 +523,8 @@ static u8 glsd_init_power_stage_io(void)
                           GLSD301P_MIN_LEVEL, GLSD301P_MAX_LEVEL,
                           GLSD301P_MAX_LEVEL, GLSD301P_MIN_LEVEL);
     /* R13: the household tick polls the Identify countdown here. */
-    glsd301p_control_identify_bind_store(&g_control, &g_identify_time);
+    glsd301p_control_identify_bind_store(&g_control, &g_identify_time,
+                                         GLSD301P_ENDPOINT);
 
     drv_uart_pin_set(UART_TX_PB1, UART_RX_PA0);
     g_uart_online = (drv_uart_init(GLSD301P_TARGET_UART_BAUD,

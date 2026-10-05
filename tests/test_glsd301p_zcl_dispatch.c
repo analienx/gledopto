@@ -167,6 +167,18 @@ static status_t thunk_onoff(zclIncomingAddrInfo_t *addr, u8 cmd_id,
 
 /* Mirrors glsd_identify_cb: the production R13 adapter. */
 static unsigned int identify_calls;
+/* The shared adapter's ZCL codes must match the pinned SDK exactly. */
+_Static_assert(GLSD301P_ZCL_CLUSTER_IDENTIFY == ZCL_CLUSTER_GEN_IDENTIFY,
+               "identify cluster id");
+_Static_assert(GLSD301P_ZCL_ATTR_IDENTIFY_TIME == ZCL_ATTRID_IDENTIFY_TIME,
+               "identify time attr id");
+_Static_assert(GLSD301P_ZCL_TYPE_UINT16 == ZCL_DATA_TYPE_UINT16,
+               "identify time type");
+_Static_assert(GLSD301P_ZCL_CMD_IDENTIFY == ZCL_CMD_IDENTIFY,
+               "identify cmd id");
+_Static_assert(GLSD301P_ZCL_CMD_TRIGGER_EFFECT == ZCL_CMD_TRIGGER_EFFECT,
+               "trigger effect cmd id");
+
 static status_t thunk_identify(zclIncomingAddrInfo_t *addr, u8 cmd_id,
                                void *payload)
 {
@@ -176,31 +188,19 @@ static status_t thunk_identify(zclIncomingAddrInfo_t *addr, u8 cmd_id,
     if (addr == NULL || payload == NULL) {
         return ZCL_STA_INVALID_FIELD;
     }
-    if (addr->dstEp != DISPATCH_EP) {
-        return ZCL_STA_INVALID_FIELD;
-    }
     cmd = (zcl_identify_cmdPayload_t *)payload;
-    if (cmd_id == ZCL_CMD_IDENTIFY) {
-        glsd301p_identify_on_identify(&g_ctx.identify,
-                                      cmd->identify.identifyTime,
-                                      &t_identify_time,
-                                      glsd301p_timebase_now_ms());
+    /*
+     * R17/R18: the SAME shared adapter the target callback drives — the
+     * tested decision/state path is the production path, not a mirror.
+     */
+    if (glsd301p_identify_cluster_command(
+            &g_ctx.identify, &t_identify_time, addr->dstEp, DISPATCH_EP,
+            cmd_id, cmd->identify.identifyTime, cmd->triggerEffect.effectId,
+            cmd->triggerEffect.effectVariant,
+            glsd301p_timebase_now_ms()) == GLSD301P_IDENTIFY_CMD_OK) {
         return ZCL_STA_SUCCESS;
     }
-    if (cmd_id == ZCL_CMD_TRIGGER_EFFECT) {
-        if (!glsd301p_identify_effect_supported(
-                cmd->triggerEffect.effectId,
-                cmd->triggerEffect.effectVariant)) {
-            return ZCL_STA_INVALID_FIELD;
-        }
-        if (!glsd301p_control_identify_effect_start(
-                &g_ctx, cmd->triggerEffect.effectId,
-                glsd301p_timebase_now_ms())) {
-            return ZCL_STA_FAILURE;
-        }
-        return ZCL_STA_SUCCESS;
-    }
-    return ZCL_STA_SUCCESS;
+    return ZCL_STA_INVALID_FIELD;
 }
 
 static unsigned int ota_calls;
@@ -445,7 +445,8 @@ static void fixture_init(zcl_hookFn_t hook)
                           &g_level, &g_onoff,
                           DISPATCH_MIN_LEVEL, DISPATCH_MAX_LEVEL,
                           DISPATCH_MAX_LEVEL, DISPATCH_MIN_LEVEL);
-    glsd301p_control_identify_bind_store(&g_ctx, &t_identify_time);
+    glsd301p_control_identify_bind_store(&g_ctx, &t_identify_time,
+                                         DISPATCH_EP);
     g_on_time = 0u;
     g_off_wait_time = 0u;
     g_zctx.endpoint = DISPATCH_EP;
@@ -3048,20 +3049,25 @@ static void test_r13_trigger_effect_truthful(void)
     const u8 reserved_variant[] = {0x00u, 0x01u};
     const u8 blink[] = {0x00u, 0x00u};
     const u8 breathe[] = {0x01u, 0x00u};
+    const u8 identify5[] = {0x05u, 0x00u};
     uint32_t uart_base;
 
     /*
-     * M3 correction: the "accepted-without-blink" SUCCESS was the R13
-     * defect (a dimmer can modulate its output; SUCCESS with no
-     * visible program lies to the commissioner). Defined effects now
-     * run bounded visible programs through the guarded emit path and
-     * restore the pre-effect output; anything else is rejected
-     * truthfully before any state change.
+     * R17 REPLACEMENT (justification: the old test blessed the R17
+     * defect — Trigger Effect Blink/Breathe energizing the load with
+     * saved-output restore and preemption. The authorized contract is
+     * output-neutral Identify: every Trigger Effect is unsupported in
+     * this scope and is rejected before any state, timer, transition
+     * or UART mutation. Kept name so the AP suite still pins Trigger
+     * Effect truthfulness; the R17 matrix case carries the full legs.)
      */
     fixture_init(NULL);
     boot_ready();
+    pump_ms(1u);
+    assert(!g_runtime.logical_output_enabled);
+    uart_base = host_uart_accepted_count();
 
-    /* Unsupported ids and variants: rejected, nothing starts. */
+    /* Every Trigger Effect is rejected, silently and statelessly. */
     assert(dispatch_identify(ZCL_CMD_TRIGGER_EFFECT,
                              ZCL_FRAME_CLIENT_SERVER_DIR, reserved_id,
                              (u16)sizeof(reserved_id)) ==
@@ -3070,102 +3076,36 @@ static void test_r13_trigger_effect_truthful(void)
                              ZCL_FRAME_CLIENT_SERVER_DIR, reserved_variant,
                              (u16)sizeof(reserved_variant)) ==
            ZCL_STA_INVALID_FIELD);
-    assert(t_identify_time == 0u);
-    assert(g_level.mode == GLSD301P_LEVEL_IDLE);
-    assert(!glsd301p_timer_level_registered());
-
-    /* Blink from OFF: ON-phase, OFF-phase, restore, timer parked. */
-    uart_base = host_uart_accepted_count();
     assert(dispatch_identify(ZCL_CMD_TRIGGER_EFFECT,
                              ZCL_FRAME_CLIENT_SERVER_DIR, blink,
-                             (u16)sizeof(blink)) == ZCL_STA_SUCCESS);
-    assert(glsd301p_timer_level_registered());
-    pump_ms(150u);
-    assert(g_runtime.logical_output_enabled);
-    assert(g_level.current_level == DISPATCH_MAX_LEVEL);
-    pump_ms(150u);
-    assert(!g_runtime.logical_output_enabled);
-    pump_ms(1200u);
-    assert(!g_runtime.logical_output_enabled);
-    assert(g_onoff == 0u);
-    assert(g_level.current_level == DISPATCH_MAX_LEVEL);
-    assert(g_level.mode == GLSD301P_LEVEL_IDLE);
-    assert(!glsd301p_timer_level_registered());
-    assert(host_uart_accepted_count() > uart_base);
-    assert(t_identify_time == 0u);
-
-    /* Breathe from OFF: forced ON with an exact ramp, then restore. */
+                             (u16)sizeof(blink)) == ZCL_STA_INVALID_FIELD);
     assert(dispatch_identify(ZCL_CMD_TRIGGER_EFFECT,
                              ZCL_FRAME_CLIENT_SERVER_DIR, breathe,
-                             (u16)sizeof(breathe)) == ZCL_STA_SUCCESS);
-    pump_ms(150u);
-    assert(g_runtime.logical_output_enabled);
-    assert(g_level.current_level == 0xE5u);
-    pump_ms(350u);
-    assert(g_runtime.logical_output_enabled);
-    assert(g_level.current_level == 0x80u);
-    pump_ms(1500u);
-    assert(!g_runtime.logical_output_enabled);
-    assert(g_onoff == 0u);
-    assert(g_level.current_level == DISPATCH_MAX_LEVEL);
-    assert(!glsd301p_timer_level_registered());
-
-    /*
-     * Re-trigger mid-effect keeps the original restore point: the
-     * ON-phase output must not become the restored state.
-     */
-    assert(dispatch_identify(ZCL_CMD_TRIGGER_EFFECT,
-                             ZCL_FRAME_CLIENT_SERVER_DIR, blink,
-                             (u16)sizeof(blink)) == ZCL_STA_SUCCESS);
-    pump_ms(150u);
-    assert(g_runtime.logical_output_enabled);
-    assert(dispatch_identify(ZCL_CMD_TRIGGER_EFFECT,
-                             ZCL_FRAME_CLIENT_SERVER_DIR, blink,
-                             (u16)sizeof(blink)) == ZCL_STA_SUCCESS);
-    pump_ms(1500u);
-    assert(!g_runtime.logical_output_enabled);
-    assert(g_onoff == 0u);
-    assert(g_level.current_level == DISPATCH_MAX_LEVEL);
-    assert(!glsd301p_timer_level_registered());
-
-    /* A remote command aborts the program; the new state wins. */
-    assert(dispatch_onoff(ZCL_CMD_ONOFF_ON, NULL, 0u) == ZCL_STA_SUCCESS);
-    assert(g_runtime.logical_output_enabled);
-    assert(dispatch_identify(ZCL_CMD_TRIGGER_EFFECT,
-                             ZCL_FRAME_CLIENT_SERVER_DIR, blink,
-                             (u16)sizeof(blink)) == ZCL_STA_SUCCESS);
-    pump_ms(300u);
-    assert(!g_runtime.logical_output_enabled);
-    assert(dispatch_onoff(ZCL_CMD_ONOFF_ON, NULL, 0u) == ZCL_STA_SUCCESS);
-    assert(g_runtime.logical_output_enabled);
-    pump_ms(1500u);
-    assert(g_runtime.logical_output_enabled);
-    assert(g_level.current_level == DISPATCH_MAX_LEVEL);
-    assert(g_onoff == 1u);
-    assert(!glsd301p_timer_level_registered());
-
-    /*
-     * The emit-less Stop restores the pre-effect output explicitly.
-     * Plain Stop is gated by execute-if-off (the mirror reads OFF in
-     * the blink OFF-phase, so the SDK answers SUCCESS without
-     * reaching the callback); Stop With On/Off always executes.
-     */
-    assert(dispatch_identify(ZCL_CMD_TRIGGER_EFFECT,
-                             ZCL_FRAME_CLIENT_SERVER_DIR, blink,
-                             (u16)sizeof(blink)) == ZCL_STA_SUCCESS);
-    pump_ms(300u);
-    assert(!g_runtime.logical_output_enabled);
-    assert(dispatch_level(ZCL_CMD_LEVEL_STOP, NULL, 0u) == ZCL_STA_SUCCESS);
-    assert(!g_runtime.logical_output_enabled);
-    assert(dispatch_level(ZCL_CMD_LEVEL_STOP_WITH_ON_OFF, NULL, 0u) ==
-           ZCL_STA_SUCCESS);
-    assert(g_runtime.logical_output_enabled);
-    assert(g_level.current_level == DISPATCH_MAX_LEVEL);
-    pump_ms(1500u);
-    assert(g_runtime.logical_output_enabled);
-    assert(!glsd301p_timer_level_registered());
-
+                             (u16)sizeof(breathe)) == ZCL_STA_INVALID_FIELD);
+    assert(identify_calls == 4u);
     assert(t_identify_time == 0u);
+    assert(g_level.mode == GLSD301P_LEVEL_IDLE);
+    assert(!glsd301p_timer_level_registered());
+    assert(!g_runtime.logical_output_enabled);
+    assert(g_level.current_level == DISPATCH_MAX_LEVEL);
+    assert(g_onoff == 0u);
+    assert(host_uart_accepted_count() == uart_base);
+    pump_ms(2000u);
+    assert(!g_runtime.logical_output_enabled);
+    assert(host_uart_accepted_count() == uart_base);
+
+    /* A running countdown is untouched by the rejection. */
+    assert(dispatch_identify(ZCL_CMD_IDENTIFY,
+                             ZCL_FRAME_CLIENT_SERVER_DIR, identify5,
+                             (u16)sizeof(identify5)) == ZCL_STA_SUCCESS);
+    assert(t_identify_time == 5u);
+    assert(dispatch_identify(ZCL_CMD_TRIGGER_EFFECT,
+                             ZCL_FRAME_CLIENT_SERVER_DIR, blink,
+                             (u16)sizeof(blink)) == ZCL_STA_INVALID_FIELD);
+    assert(t_identify_time == 5u);
+    pump_ms(1000u);
+    assert(t_identify_time == 4u);
+
     assert(pool_free_total() == 26u);
 }
 
