@@ -153,11 +153,17 @@ hosted. Execution style: direct (parent-held edits).
 - [x] M1 hosted adverse-behavior repros (R9–R13/R16, negative controls @ bc7196f)
 - [x] M2 output + Level semantics (R9/R16) + regressions green
 - [x] M3 protocol + commissioning (R10–R13) + audit questions + regressions green
-- [ ] M4 fresh identity (R14) + seal + two matching TC32+OTA builds (R15)
-- [ ] M5 reconcile matrix + PR #8 body + issue #1 + stop (**independent acceptance review pending**)
+- [x] M4 fresh identity (R14) + seal + two matching TC32+OTA builds (R15)
+  (completed at `69831aa`: boundary 37224141144, readiness
+  37224141202, rebuild 37224256709; hashes in PR #8 body)
+- [x] M5 reconcile matrix + PR #8 body + issue #1 + stop (**independent acceptance review pending**)
+  (PR #8 body updated 2026-10-05; issue #1 comment 5983066778)
 
-Next action: M4 — seal the final SHA; run two matching clean TC32 +
-quarantine-OTA builds with full provenance (R15).
+Next action: none in this phase — R9–R16 implementation complete at
+`69831aa`; review R17–R23 assigned to the next phase below. (R23
+reconciliation 2026-10-05: the two stale pending rows and the
+obsolete "run builds" next action above contradicted the completed
+PR/issue record and are superseded here; history preserved.)
 
 ## M1 negative controls (2026-10-04, run 37220219614 @ b9a1025)
 
@@ -242,5 +248,71 @@ a stated behavioral assertion, not infra:
 - CI @ `cac2a6c`: boundary 37224045386 + readiness 37224045402,
   both green.
 
-Next action: M4 seal + R15 — two matching clean TC32 +
-quarantine-OTA builds at the final SHA with full provenance.
+Next action (superseded — completed at `69831aa`, see reconciled status
+above): M4 seal + R15 builds ran as boundary 37224141144, readiness
+37224141202, rebuild 37224256709, all green with matching hashes.
+
+---
+
+# Remediation of independent review R17-R23 (goal goal-01a10ab5-f772-7040-86d0-fe26a9b6e024, brief sha256 `9ea0407c…5894a1` verified)
+
+Reviewed candidate `69831aa5c9c230bb8c3c8074abd9c618eb936ed5` (PR #8
+draft, quarantined); frozen baseline `760c1419` / PR #6 untouched.
+Forward commits on the same branch; no force push. Owner authorization:
+supervisor R17–R23 scope comment (issue #1, 2026-10-05, comment
+5989160044) + PR #8 review comment 5989158919 + user goal dispatch
+`eee095b4-6cde-4a45-b26a-47d50144a56e`; authorized scope is candidate
+implementation + GitHub-hosted validation + bounded PR/issue evidence.
+No deployment, merge, release, OTA publication, or live-device actions.
+PUBLIC EDIT-ONLY: local inspection/authoring only; all validation
+hosted. Execution style: direct (parent-held edits); profile EXPERT,
+scope WORKSPACE_IMPLEMENTATION.
+
+OUTPUT AUTHORITY: Identify and Trigger Effect stay output-neutral (RAM
+commissioning state only). The Blink/Breathe power overlay and its
+restore/preemption paths are removed, not reinterpreted.
+
+## M0 bootstrap record (2026-10-05)
+
+- Native goal `goal-01a10ab5-f772-7040-86d0-fe26a9b6e024`, session
+  `01a10ab5-b6cb-75d2-8bd2-9c3deb8f1f52`; sole-writer transfer from
+  completed predecessor session `01a1017d-681f-7303-af97-8caf85983806`
+  (goal complete/100%, receipts preserved, transcript not replayed).
+- Canonical `analienx/config` main `b0a91d01383ab663bc5e83d95a728fe9f7ab744c`
+  re-verified authenticated via `git ls-remote` (unchanged from packet);
+  skill 2.2, capability, mutation-safety, project-context, registry
+  loaded from EXTERNAL_GITHUB.
+- Worktree `codex/glsd301p-client-hardening` at `69831aa`, clean and
+  equal to remote branch head; PR #8 draft OPEN at same SHA; PR #6 head
+  still `760c1419`; issue #1 newest is the supervisor R17–R23 scope
+  comment; no outstanding/in-progress branch runs (newest: 37224256709
+  success). No other owner holds the candidate.
+- Review copied verbatim to `HARDENING-INDEPENDENT-REVIEW-20261005.md`
+  (sha256 `4785e2ef…03a2`); task packet to
+  `HARDENING-MUSE-REMEDIATION-TASKS-20261005.md` (sha256 `b91400f0…f952`);
+  R17–R23 added to `HARDENING-FINDINGS.md` as CONFIRMED with repro/fix/proof TBD.
+- Stale R9–R16 pending M4/M5 rows reconciled above (R23); no conflicting
+  current next action remains.
+
+## Scope: A17–A24 acceptance (oracles in the 20261005 task packet)
+
+- A17/R17: output-neutral Identify/Trigger Effect (remove power overlay).
+- A18/R18: accepted IdentifyTime writes restart at receipt time.
+- A19/R19: O(1) bounded Identify catch-up with residual phase.
+- A20/R20: Move to Level keeps finite duration (Step-only scaling).
+- A21/R21: upward TARGET onset ON applied at admission.
+- A22/R22: typed/count/status/direction grammar truthfulness.
+- A23/R23: target foundation ABI proof + coherent ledger.
+- A24: fresh identity + exact-head validation + dual matching builds.
+
+## Status
+
+- [x] M0 reconcile + review docs + R17–R23 ledger + checkpoint
+- [ ] M1 hosted adverse-behavior repros (R17–R23, negative controls @ reviewed SHA)
+- [ ] M2 output-neutral Identify (R17–R19 + shared write adapter) + regressions green
+- [ ] M3 Level + typed protocol (R20–R22) + regressions green
+- [ ] M4 target ABI + fresh identity + seal + two matching TC32+OTA builds (A23/A24)
+- [ ] M5 reconcile matrix + PR #8 body + issue #1 + stop (**independent acceptance review pending**)
+
+Next action: M1 — author production-entry negative controls that FAIL
+on the reviewed behavior; no source fixes in M1.

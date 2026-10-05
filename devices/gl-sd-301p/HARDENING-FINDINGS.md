@@ -500,3 +500,147 @@ Step spans in `zcl_commands.c` and to below-min MoveToLevel spans in
 short-circuit as immediate.
 Validation: 3 R16 matrix cases green @ 5937ddf (boundary
 37221176908); AP suites green.
+
+# Independent review R17-R23 (reviewed candidate 69831aa5c9c230bb8c3c8074abd9c618eb936ed5)
+
+Full text: `HARDENING-INDEPENDENT-REVIEW-20261005.md`.
+Acceptance oracle per row is A17–A24 in
+`HARDENING-MUSE-REMEDIATION-TASKS-20261005.md`; no row passes on
+compilation, grep, or prior-suite expectations alone. OUTPUT AUTHORITY:
+Identify/Trigger Effect stay output-neutral (RAM commissioning state
+only); no load-identification mechanism replaces the removed overlay.
+
+## R17 — Trigger Effect energizes/modulates the load (P1, CONFIRMED)
+
+Source: `src/glsd301p_identify.c:78`–`:160`,
+`src/glsd301p_control.c:233`–`:305`, `:493`–`:525`,
+`firmware/glsd301p-ed/glsd301p_telink_target.c:270`,
+`tests/test_glsd301p_zcl_dispatch.c:3045` at 69831aa.
+Trigger: Trigger Effect Blink/Breathe from OFF through real SDK
+dispatch. Blink emits ON at maximum, Breathe forces ON; the
+saved-output restore can re-energize later; control preemption paths
+entangle effects with transitions. The authorized contract requires
+RAM IdentifyTime/countdown with power output unchanged.
+Original repro: TBD (M1 SDK dispatch with OFF/ON output, running
+transition, takeover, fault, delayed UART; output/level/timer
+observations + unsupported-effect status).
+Proposed fix: delete the power-effect overlay, saved-state restore
+and effect preemption; reject unsupported optional effects with a
+truthful status before any state/timer/transition/UART mutation; keep
+bounded RAM commissioning semantics; document the lack of physical
+identification.
+Fix commit: TBD. Hosted proof: TBD.
+
+## R18 — IdentifyTime writes inherit the old timer phase (P2, CONFIRMED)
+
+Source: `src/glsd301p_identify.c:49`–`:70` at 69831aa; target keeps
+`zcl_init(NULL)`.
+Trigger: second mark 0, write IdentifyTime=1 at 999 ms → adopted at
+1000 ms and immediately decremented (≈1 ms of identification). Equal
+writes never restart; post-gap writes are charged pre-write elapsed
+time. Detection is a store-vs-shadow comparison at an old boundary,
+not a receipt-time event.
+Original repro: TBD (M1 foundation write dispatch at 1/999/1000 ms,
+equal-value repeats, stop/restart, delayed service, mixed records,
+wrap; Query/AddIf-immediate + first-decrement observations).
+Proposed fix: bounded production observer/shared adapter for accepted
+IdentifyTime writes (receipt time + value incl. same-value writes);
+start/restart at the write's time; failed/wrong-type/wrong-endpoint
+writes never restart; NULL-hook cleanup and per-record semantics
+preserved.
+Fix commit: TBD. Hosted proof: TBD.
+
+## R19 — Identify catch-up loops per elapsed second (P2, CONFIRMED)
+
+Source: `src/glsd301p_identify.c:49`,
+`src/glsd301p_control.c:659` at 69831aa.
+Trigger: a 24 h service gap iterates 86400 times (near-wrap gaps up
+to ~4.29M) before PUSH sampling/UART service, even with the countdown
+at zero. Operation count is source-apparent; no on-target duration
+claimed.
+Original repro: TBD (M1 deterministic work-bound oracle on hosted
+runners, not a CI hang: large gaps/zero/max/wrap through the real
+shared tick + IO sequence).
+Proposed fix: O(1) elapsed whole-second arithmetic with residual
+phase and saturating decrement; no catch-up work for a disabled
+countdown; unsigned wrap conventions preserved; no silent-loss caps
+or timebase-unit changes.
+Fix commit: TBD. Hosted proof: TBD.
+
+## R20 — Move to Level shortened by Step clipping policy (P2, CONFIRMED)
+
+Source: `src/glsd301p_control.c:376`–`:393` at 69831aa (Step
+counterpart `src/glsd301p_zcl_commands.c:123`–`:141`).
+Trigger: CurrentLevel=10, MinLevel=2, accepted Move to Level(0,
+transitionTime=100) schedules the 8-unit clamped move for 80 tenths
+instead of the requested 100. Proportional reduction belongs to
+clipped Steps only.
+Original repro: TBD (M1 SDK Move to Level/WithOnOff below minimum
+with finite/zero/reserved times, gaps/wrap, RemainingTime +
+clipped/unclipped Step controls).
+Proposed fix: preserve the accepted/clamped Move to Level policy and
+requested finite duration; keep proportional timing at Step dispatch
+only with its bounded arithmetic/rounding; no acceptance-policy
+change to dodge the regression.
+Fix commit: TBD. Hosted proof: TBD.
+
+## R21 — Upward TARGET ON delayed to the first 100 ms tick (P2, CONFIRMED)
+
+Source: `src/glsd301p_control.c:401`–`:420`, `:570`–`:574`,
+`src/glsd301p_timer_events.h:37`,
+`tests/test_glsd301p_zcl_dispatch.c:2228` at 69831aa.
+Trigger: OFF at level 16, upward Move to Level With On/Off with
+nonzero duration returns SUCCESS but leaves mirror/runtime OFF until
+the first 100 ms callback (STEP shares the path; MOVE already applies
+at onset). The existing regression observes after 150 ms, proving
+early-in-transition behavior, not command-onset effect.
+Original repro: TBD (M1 mirror/runtime/frame inspection immediately
+after SDK dispatch, before any timer advance; zero-progress/delay/
+replacement/failure/fault/OFF-priority legs).
+Proposed fix: apply a real accepted increase at admission, before
+dispatch returns; keep equality/downward/fault/readiness/OFF
+invariants; rejected/failed admissions change nothing; emit through
+the guarded transport without claiming instant physical output.
+Fix commit: TBD. Hosted proof: TBD.
+
+## R22 — Prevalidators accept malformed typed records (P2, CONFIRMED)
+
+Source: `tools/apply_glsd301p_sdk_patches.py:420`–`:475`, `:542`–`:579`,
+`:585`–`:631`, `:928` + pinned `zcl.c` parsers at 69831aa.
+Trigger (each accepted today): Report `00 00 4c 00 01` (STRUCT count
+high byte ignored); Report `00 00 4c 01 00 4c` (missing nested body
+read as zero-length scalar); Report `00 00 ff` (reserved datatype,
+zero size); Configure Reporting / read-cfg-response with reserved
+direction 2 (any nonzero treated as receive form); Configure
+Reporting Response long forms validated for length only.
+Accepted-malformed-input defects (no new overwrite claim).
+Original repro: TBD (M1 real root/foundation dispatch for the review
+examples + complete/truncated controls; return/wire status, hook,
+allocations, table/NV, cleanup observations).
+Proposed fix: explicit supported datatype grammar; full wire count
+width/sentinels; truthful rejection of unsupported compound forms
+before unsafe SDK size logic (no unbounded recursion); valid flat
+structures/strings stay compatible with bounded nesting/count policy;
+zero-length vs unknown types distinguished; defined reporting
+directions + status-dependent long records validated.
+Fix commit: TBD. Hosted proof: TBD.
+
+## R23 — Target foundation ABI proof + current checkpoint missing (P2, CONFIRMED)
+
+Source: `tools/build_glsd301p_ed_tc32.sh:276`–`:308`,
+`devices/gl-sd-301p/HARDENING-CHECKPOINT.md:156`, `:245`,
+Identify target callback vs
+`tests/test_glsd301p_zcl_dispatch.c:168` at 69831aa.
+Trigger: the ABI probe covers cluster-registration/timer structures
+only; foundation record sizes/allocation thresholds are a residual
+limit, not executed target evidence; the harness Identify callback
+is a mirror, not proof of production write-observer wiring; the
+checkpoint keeps pending M4/M5 rows + a stale build next action
+against a declared-complete PR/issue.
+Original repro: N/A (evidence/ledger comparison; M1 records the gap).
+Proposed fix: target-compiled probes for foundation layouts/pool
+thresholds in both flag contexts; tested Identify command/write
+adapter tied to production code; host-harness layout comparison with
+explicit difference guards; one current matrix with labeled history;
+coherent checkpoint/ingress/PR/issue records.
+Fix commit: TBD. Hosted proof: TBD.
