@@ -217,3 +217,30 @@ claim above (see `HARDENING-FINDINGS.md` R6/R7/R8 for fix commits):
   -m32 deltas with explicit guards.
 - A24 identity: GLSD-ED-004 / APP_BUILD 05 / FILE_VERSION 0x7F050001 /
   DATE 20261005 (fresh, verified unused).
+
+## R24–R26 atoms (M2 @ cb9726a; seal commit for runs)
+
+- R24 completes the status-dependent response ingress (P5v5):
+  long Write/CfgRsp records must be failures (any SUCCESS record
+  is MALFORMED); ReadCfgRsp directions are validated before the
+  status branch, so failure records with reserved directions are
+  rejected too. No new ingress: the same three response commands,
+  narrower acceptance.
+- R24 changes one egress shape: a refused Undivided write answers
+  failures only (all-success stays the one-byte response). No new
+  surface; accepted-write observation and refused-write no-restart
+  preserved.
+- R25 removes the dead `tick_steps_max` self-report; the O(1)
+  countdown ingress is unchanged and its work bound is proven
+  externally by the gcov oracle (no new code path, no timer).
+- R26 adds no ingress: same four flows (Write/Report/Configure/
+  ReadCfg) executed at exact allocation edges in unpacked and
+  packed binaries, with recorded-request asserts. The target ABI
+  header is compiler-verified metadata, not a runtime surface.
+- Q1 defers with evidence: admission ordering (ON before timer
+  registration, discarded emission result) is unreachable-as-failure
+  per the cancel-first + fail-only-on-NULL + ready-excludes-fault
+  chain; no ingress or behavior change.
+- G27 identity: GLSD-ED-005 / APP_BUILD 06 / FILE_VERSION 0x7F060001 /
+  DATE 20261005 (fresh, verified unused across repo, history,
+  issues, PRs).

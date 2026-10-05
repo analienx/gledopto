@@ -4819,11 +4819,15 @@ static int r24_r26_run_matrix(const char *self)
  * parsed commands are allocated, filled, consumed and freed inside
  * SDK-compiled code in both binaries; they cross to app code only as
  * opaque incoming-message slots (enforced by the build-script gate
- * that forbids app/harness dereference of parsed internals). Pool geometry
- * and the 255-cap u16/fail-closed allocation thresholds hold
- * identically on both layouts; the target half is asserted by the
- * TC32 ABI probe in tools/build_glsd301p_ed_tc32.sh, which must be
- * reviewed together with this function.
+ * that forbids app/harness dereference of parsed internals). Pool
+ * geometry constants and the u16/fail-closed allocation policy are
+ * shared, but byte edges differ per layout (see the deltas above);
+ * R26 supersedes the old "identical thresholds" wording. The
+ * target half is asserted by the TC32 ABI probe in
+ * tools/build_glsd301p_ed_tc32.sh (which also verifies
+ * tests/host/glsd301p_target_abi.h), and both layouts execute
+ * their exact edges in test_r26_alloc_boundaries; review all
+ * three together.
  */
 static void test_r23_host_foundation_layout(void)
 {

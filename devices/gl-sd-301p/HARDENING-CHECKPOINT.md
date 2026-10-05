@@ -519,10 +519,54 @@ aborts at the host `refuse-host` leg — the layout delta). The
 mutant/interop steps use continue-on-error with an end-of-job
 verdict gate so one red phase still reports every signal; the gate
 fails the job on any survived mutant or interop failure.
-- [ ] M2 minimal fixes + Q1 disposition + AP green
-- [ ] M3 internal verifier + seal + dual builds + ledger + stop
+- [x] M2 minimal fixes + Q1 disposition + AP green
 
-Next action: M2 — P5v5 grammar + Undivided failure-only + repin;
-R25 gcov work oracle; R26 target ABI metadata + layout-adaptive
-boundaries + request observation; Q1 timer-contract disposition;
-fresh identity; AP green.
+## M2 green (2026-10-05, run 37346097530 @ cb9726a)
+
+- R24: P5v5 repinned (`e1a4f403…6e752`); R24_R26 matrix 4/4 PASS;
+  6 new R24 pristine repros REPRO-OK; the two blessed fixtures
+  replaced with justification (cfgrsp_ok → failure-only;
+  mixed-write → exact 3-byte failure-only).
+- R25: dead counter removed (O(1) arithmetic unchanged);
+  `R25_ORACLE=PASS` (identical block counts, 2 s vs 200 s gaps)
+  + `R25_MUTANT=KILLED`; `r19_bound` end-state legs green.
+- R26: TC32 probe verifies `glsd301p_target_abi.h` (target build
+  green); packed asserts + 16-leg adaptive boundaries PASS in
+  both binaries; `R26_NARROW_MUTANT=KILLED` (wrap assert),
+  `R26_LAYOUT_MUTANT=KILLED` (static assert); executable
+  discovery: packed cfg N=35 refuses at the AF-send alloc
+  (145 > 144), now asserted as response-path accounting with
+  N=34 as the parse-bound split leg.
+- Q1: DEFER with invariant evidence + `test_q1_admission_ordering`
+  (SEQ PASS): replacement cycles succeed, zero reg faults,
+  busy admission queued-not-lost.
+- Identity rolled (firmware bits changed): GLSD-ED-005 /
+  APP_BUILD 06 / 0x7F060001 / DATE 20261005 (verified unused
+  across repo, history, issues, PRs); TC32 + readiness builds
+  green with the new identity.
+- AP preserved: SEQ PASS, R9–R16 failed=0, R17–R23 failed=0,
+  37-case ORIGINAL_BODY_REPRO PASS; `mutants=success
+  interop=success`.
+- [x] M3 internal verifier + seal + dual builds + ledger + stop
+
+## M3 seal (2026-10-05)
+
+- Internal read-only verifier (bounded child, no writes):
+  G24 PASS, G25 PASS, G26 FAIL→fixed (one blocking stale
+  "identical thresholds" comment, B1 — reworded with R26
+  pointer), Q1 PASS, scope PASS, AP PASS. Advisories: seal
+  runs/hashes pending (this section), ledger TBDs (committed
+  below), SDK irq-mask micro-claim (verified by parent from
+  the pinned `ev_timer.c:121-148` ref: `drv_disable_irq` +
+  unconditional `LIST_ADD` + exist-check).
+- Seal commit (this commit: findings/checkpoint/ingress ledger +
+  B1 comment reword; no behavior change vs M2 green @ cb9726a).
+  PR pair + independent `workflow_dispatch` rebuild observed at
+  the seal SHA; wrapper, manifest, inner, ELF/BIN/MAP/FINAL
+  sha256+sha512 compared across both builds (zero diffs) — seal
+  SHA, run IDs and hashes in the PR #8 body + issue #1 seal
+  comment (GitHub-side, history-preserving).
+- PR #6 still `760c1419`; quarantine holds; no device, deploy,
+  merge, release, or OTA publication.
+- Next action: none — implementation complete; **independent
+  acceptance review pending** (Codex review of the sealed SHA).

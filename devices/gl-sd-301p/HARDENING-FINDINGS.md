@@ -674,9 +674,21 @@ Outbound: refused Undivided write emits SUCCESS entries for records
 not applied (mixed-write test expects six bytes + SUCCESS at byte
 3). Success is a single status byte; long records describe
 failures only. Grammar/status correctness; no new overwrite claim.
-Original repro: TBD (M1 hosted negatives at 7975ff0 behavior).
-Fix commit: TBD (M2, grammar + Undivided response + repin).
-Hosted proof: TBD.
+Original repro: M1 run 37343108327 @ 4b008f3 (7975ff0 behavior):
+R24_R26 matrix 4 FAIL at the intended asserts (`00 00 00`
+accepted, `00 00 00 00` accepted, `86 02 00 00` accepted,
+6-byte mixed refusal); all valid-shape controls PASS.
+Fix: P5v5 (`e1a4f403…6e752`, repinned) — whole-stream SUCCESS
+rejection in the Write/CfgRsp guards, direction-first
+`glsd301p_readCfgRspValid`, failure-only Undivided compaction
+(all-success stays one byte); the two blessed fixtures replaced
+with justification (cfgrsp_ok → failure-only long control;
+mixed-write 6-byte → exact 3-byte failure-only).
+Hosted proof: run 37346097530 @ cb9726a — R24 4/4 PASS,
+ORIGINAL_BODY_REPRO PASS incl 6 new R24 pristine cases
+(writersplong/writerspmixed/cfgrsplong/cfgrspmixed/
+readcfgrspfaildir2/undivmixed); accepted-write observation and
+refused-write no-restart preserved (r18/r24_undivided legs).
 Proposed fix: whole-stream status inspection in Write/CfgRsp
 guards; direction validation before the status branch, per record;
 failure-only Undivided response (all-success stays one byte);
@@ -693,10 +705,18 @@ tests assert it stays ≤2, so a reintroduced elapsed-second loop
 that does not voluntarily write the counter still passes. The O(1)
 arithmetic itself is correct by inspection — this is an
 acceptance-evidence defect, not a looping claim.
-Original repro: TBD (M1 slow-loop mutant survives the oracle in an
-ephemeral hosted source copy).
-Fix commit: TBD (M2, actual-work observation; remove the dead field
-if unneeded). Hosted proof: TBD.
+Original repro: M1 run 37343108327 — `R25_MUTANT=SURVIVED`
+(slow-loop mutant passes `r19_bound`; `R25_MUTANT_LOOP_ACTIVE`
+proves the loop ran).
+Fix: dead field removed (`glsd301p_identify_t` shrinks; O(1)
+arithmetic byte-identical); new gcov oracle
+(`tools/glsd301p_work_oracle.py` over
+`tests/test_glsd301p_tick_work.c`) proves the shared production
+tick executes identical per-line block counts for 2 s and 200 s
+gaps — deterministic, bounded, no wall-clock threshold;
+`r19_bound` keeps its end-state legs without the counter asserts.
+Hosted proof: run 37346097530 — `R25_ORACLE=PASS` on production
+plus `R25_MUTANT=KILLED` (count diffs on the loop lines).
 Proposed fix: deterministic bounded observation of real tick work
 in the shared production tick (no CI-hang/elapsed-time threshold);
 same oracle rejects a deliberate slow-loop mutant without
@@ -718,11 +738,27 @@ cover empty pools, not count/size edges. P5 u16 allocation widening
 (`apply_glsd301p_sdk_patches.py:761`–`:769`) is present and
 preserved; pristine u8 source is NOT an open overflow. No present
 overflow claimed.
-Original repro: TBD (M1 length/layout mutants survive in ephemeral
-hosted source copies).
-Fix commit: TBD (M2, target-compatible behavioral coverage +
-generated ABI/threshold metadata + mutant controls). Hosted proof:
-TBD.
+Original repro: M1 run 37343108327 — `R26_NARROW_MUTANT=SURVIVED`
+(u16→u8; pool slack hides it) and `R26_PACKED_RUN=DIVERGED`
+(packed binary accepts N=51 write, aborting at the host
+`refuse-host` leg).
+Fix: checked-in `tests/host/glsd301p_target_abi.h`, compiler-
+verified by the TC32 probe (`_Static_assert` per value in both
+TU contexts — drift fails the target build); packed host binary
+asserts its structs against it; 16-leg layout-adaptive
+`test_r26_alloc_boundaries` (Write/Report/Configure/ReadCfg
+edges; expectations computed from the binary's own sizeof);
+`--wrap=ev_buf_allocate` seam asserts exact recorded requests
+(message, parse, response struct, serial, send) on accept and
+refuse paths. Executable discovery during M2: a 35-record packed
+configure refuses at the AF-send allocation (140+5=145 > 144
+group-2 usable) even though its parse fits — response-path
+accounting is now asserted, and the leg set keeps parse edges
+binding (cfg N=34 replaces N=35).
+Hosted proof: run 37346097530 — packed run PASS,
+`R26_NARROW_MUTANT=KILLED` (recorded-request assert),
+`R26_LAYOUT_MUTANT=KILLED` (packed static assert on a corrupted
+ABI value); pool returns to 26 on every leg.
 Proposed fix: compiler-verified TC32 facts + compatible executable
 harness with exact allocation requests, success/refusal/cleanup at
 actual size/pool boundaries (normal + depleted pools, Write/Report/
@@ -739,7 +775,21 @@ failure after ON was mirrored/queued (cancellation does not undo
 output); an apply failure can be hidden by later timer success.
 Normal readiness/fault cases pass; transport offers normally
 succeed; no live occurrence or ordinary trigger claimed.
-Disposition: TBD (M2: inspect the owned timer's actual failure
-contract; scoped hosted failure seam if warranted; transactional
-admission fix within scope, or explicit defer with
-invariant/reachability evidence; OFF dominant; no invented exploit).
+Disposition: DEFER — no defect, no production change (M2).
+Registration failure after ON is unreachable: both start paths
+cancel first (`glsd301p_control.c:295/:361`), the apply path
+between cancel and start uses no timer API (verified by search),
+admission is single-threaded with no ISR registration, the cb is
+a non-NULL constant, and `ev_on_timer` on a static event cannot
+fail (no allocation, irq-masked list insert, followed by an
+exist-check). The discarded apply result is benign: `offer`
+fails only on NULL (excluded); not-ready/fault admission states
+are excluded by the entry `ready()` check (ready implies
+!fault) with nothing between that can unready; the remaining
+0xFF-current corner latches fail-safe OFF (OFF dominant). The
+`!start` branches stay as fail-safe defense-in-depth.
+Hosted proof: `test_q1_admission_ordering` (SEQ, run 37346097530)
+— mid-transition replacement cycles through production dispatch
+all succeed with zero `glsd301p_timer_reg_faults()`; UART-busy
+admission succeeds with the frame queued and emitted after
+unbusy (queued-not-lost); no fault latched.
