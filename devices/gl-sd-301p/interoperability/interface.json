@@ -1,0 +1,205 @@
+{
+  "schema": 8,
+  "device": "GL-SD-301P",
+  "purpose": "EU/Czech interoperability; independently written Zigbee End Device client",
+  "architecture": {
+    "zigbee_mcu": "TLSR8258/B85 512K class",
+    "exact_candidate": "TLSR8258F512ET32",
+    "power_stage_control": "SECOND_MCU_UART",
+    "power_stage_control_confidence": "high",
+    "physical_uart_destination_confirmed": false,
+    "variable_level_is_uart_path": true
+  },
+  "uart": {
+    "baud": 9600,
+    "data_bits": 8,
+    "parity": "none",
+    "stop_bits": 1,
+    "tx_pin": "PB1",
+    "rx_pin": "PA0",
+    "payload_bytes": 6,
+    "sdk_dma_length_prefix_is_on_wire": false,
+    "stock_rx_callback": "NO_OP",
+    "rx_required_for_core_onoff_level": false
+  },
+  "control_frame": {
+    "length": 6,
+    "template_hex": "A55A000004AA",
+    "fields": [
+      {"offset": 0, "value": 165, "state": "CONFIRMED", "meaning": "fixed_prefix_0"},
+      {"offset": 1, "value": 90, "state": "CONFIRMED", "meaning": "fixed_prefix_1"},
+      {"offset": 2, "state": "CONFIRMED", "meaning": "command_family"},
+      {"offset": 3, "state": "CONFIRMED", "meaning": "family_specific_value"},
+      {"offset": 4, "value": 4, "state": "CONFIRMED", "meaning": "fixed_control_field_semantics_unknown"},
+      {"offset": 5, "value": 170, "state": "CONFIRMED", "meaning": "fixed_suffix"}
+    ],
+    "families": {
+      "0x01": {
+        "context": "normal lamp output plus PB4 auxiliary half-scale refresh",
+        "wire": "A5 5A 01 LL 04 AA",
+        "off_frame_hex": "A55A010004AA",
+        "off_mapping_state": "CONFIRMED",
+        "normal_on_mapping": "LL=currentLevel after configured minimum-output handling",
+        "normal_on_mapping_state": "CONFIRMED/HIGH",
+        "default_observed_minimum_output": 2,
+        "below_minimum_bypass_state_exists": true,
+        "below_minimum_bypass_semantics": "UNKNOWN",
+        "special_path": "PB4 qualified-high auxiliary refresh uses currentLevel >> 1",
+        "special_path_trigger_state": "CONFIRMED",
+        "special_path_business_role": "UNKNOWN",
+        "special_path_is_normal_zigbee_level_path": false
+      },
+      "0x02": {
+        "context": "auxiliary timed operation/pattern/configuration control",
+        "wire": "A5 5A 02 MM 04 AA",
+        "observed_values": [0, 1, 2, 3, 4, 15],
+        "used_by_normal_zigbee_onoff_level": false,
+        "individual_value_mapping": "UNKNOWN"
+      }
+    }
+  },
+  "local_keyboard": {
+    "implementation": "Telink kb_scan_key(0,1) compatible scanner",
+    "scan_pins": [
+      {"gpio": "PC4", "gpio_encoded": "0x0210", "keycode": 1, "role": "RESET", "role_confidence": "high"},
+      {"gpio": "PC3", "gpio_encoded": "0x0208", "keycode": 2, "role": "LEVEL", "role_confidence": "high"}
+    ],
+    "pb4_is_keyboard_scan_pin": false
+  },
+  "push_input": {
+    "gpio": "PC2",
+    "gpio_encoded": "0x0204",
+    "poll_interval_ms": 1,
+    "classification": "external PUSH sense path",
+    "classification_confidence": "high",
+    "simple_dc_button_semantics": false,
+    "pulse_decoder": {
+      "first_low_qualify_ticks": 3,
+      "inter_pulse_high_qualify_ticks": 6,
+      "high_gap_timeout_ticks": 51,
+      "second_low_qualify_ticks": 3,
+      "first_long_step_accumulated_low_ticks": 1001,
+      "repeat_long_step_accumulated_low_ticks": 301
+    },
+    "short_activation": "toggle standard Zigbee OnOff state",
+    "long_activation": "step standard Zigbee currentLevel while logically on",
+    "long_direction_initial": "down",
+    "long_direction_reverses_on_release": true,
+    "level_step": {
+      "when_current_level_lte_150": 10,
+      "when_current_level_gt_150": 25,
+      "up": "min(254,currentLevel+step)",
+      "down": "currentLevel<=step ? 2 : currentLevel-step"
+    },
+    "independent_decoder_ready": true
+  },
+  "pb4_aux_input": {
+    "gpio": "PB4",
+    "gpio_encoded": "0x0110",
+    "direction": "input",
+    "stock_internal_bias": "PM_PIN_PULLDOWN_100K",
+    "poll_interval_ms": 1,
+    "active_level": "high",
+    "consecutive_high_polls_before_action": 11,
+    "low_resets_qualification": true,
+    "action_while_qualified_high": "request family-0x01 output with value currentLevel >> 1 on every poll",
+    "logical_currentLevel_is_modified": false,
+    "business_or_physical_role": "UNKNOWN",
+    "possible_role_hypotheses_not_relied_upon": [
+      "protection/derating request",
+      "power-stage status/fault input"
+    ],
+    "independent_compatibility_module_ready": true
+  },
+  "startup": {
+    "uart_init_emits_mandatory_special_frame": false,
+    "stock_state_resync_uses_normal_family_0x01_refresh": true,
+    "special_startup_handshake_established": false
+  },
+  "additional_message_forms": {
+    "six_byte_configuration_state": {
+      "exists": true,
+      "observed_in_command_handler": true,
+      "semantics": "UNKNOWN",
+      "required_for_basic_onoff_level": false
+    }
+  },
+  "safety": {
+    "independent_policy": true,
+    "boot_output_state": "LOCKED_OFF_UNTIL_VALIDATED_STATE_ARM",
+    "first_power_stage_command_required": "A55A010004AA",
+    "logical_off_dominates_auxiliary_paths": true,
+    "pb4_never_energizes_from_logical_off": true,
+    "zcl_current_level_0xff_policy": "REJECT_ON_AND_FORCE_OFF",
+    "invalid_minimum_policy": "REJECT_WHEN_CLAMPING_ACTIVE",
+    "off_remains_available_with_invalid_state": true,
+    "runtime_fault_policy": "LATCH_OFF_AND_REQUIRE_CLEAR_PLUS_REARM",
+    "fault_clear_auto_resumes_output": false,
+    "family_0x02_allowed_in_core_runtime": false,
+    "watchdog_reset_effect": "RETURNS_TO_BOOT_LOCKED_OFF",
+    "canonical_document": "devices/gl-sd-301p/SAFETY.md",
+    "host_guard_implementation_ready": true
+  },
+  "runtime_core": {
+    "implementation": "src/glsd301p_runtime_core.[ch]",
+    "host_integration_ready": true,
+    "application_state_restored_is_independent_gate": true,
+    "normal_zigbee_output_uses_guard": true,
+    "physical_push_uses_guard": true,
+    "pb4_aux_uses_guard": true,
+    "direct_uart_bypass_exposed_to_application": false,
+    "fault_invalidates_restored_state": true,
+    "fault_clear_requires_fresh_restore": true,
+    "state_commit_occurs_only_after_guarded_encode_success": true,
+    "telink_target_glue_ready": false
+  },
+  "target_compile_contract": {
+    "implementation": "firmware/glsd301p-ed/glsd301p_target_contract.h",
+    "architecture_firewall_ready": true,
+    "requires_mcu_core_8258": true,
+    "requires_end_device": true,
+    "rejects_router": true,
+    "rejects_coordinator": true,
+    "requires_pm_disabled": true,
+    "requires_rx_on_when_idle": true,
+    "requires_endpoint_11": true,
+    "requires_onoff": true,
+    "requires_level_control": true,
+    "requires_group_support": true,
+    "requires_nonempty_group_table": true,
+    "adversarial_compile_matrix": "tests/test_glsd301p_target_contract.sh",
+    "real_telink_target_link_ready": false
+  },
+  "core_capabilities": {
+    "raw_control_encoder_ready": true,
+    "normal_off_encoder_ready": true,
+    "normal_on_level_encoder_ready": true,
+    "ordinary_zcl_level_progression_can_use_family_0x01": true,
+    "startup_state_resync_strategy_ready": true,
+    "tx_only_core_implementation_supported_by_current_evidence": true,
+    "physical_push_decoder_ready": true,
+    "pb4_aux_compatibility_ready": true,
+    "output_guard_ready": true,
+    "host_runtime_core_ready": true,
+    "target_architecture_firewall_ready": true
+  },
+  "full_stock_parity_unknowns": [
+    "0x02 auxiliary operation/pattern value names",
+    "PB4 auxiliary input physical/business role",
+    "vendor configuration-state message field semantics",
+    "exact meaning of the below-minimum bypass state",
+    "optional controller telemetry semantics",
+    "physical PCB traces if corroboration is desired"
+  ],
+  "core_onoff_level_encoder_ready": true,
+  "physical_push_behavior_ready": true,
+  "pb4_aux_behavior_ready": true,
+  "runtime_safety_guard_ready": true,
+  "host_runtime_core_ready": true,
+  "target_architecture_firewall_ready": true,
+  "telink_target_glue_ready": false,
+  "real_telink_target_link_ready": false,
+  "full_feature_parity_ready": false,
+  "production_encoder_ready": false,
+  "first_flashable_canary_allowed": false
+}

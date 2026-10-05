@@ -1,0 +1,572 @@
+# GL-SD-301P client hardening — durable checkpoint
+
+Branch: `codex/glsd301p-client-hardening` (from frozen `760c141925f29e517831c92afd61bd9c15e1b7b5`).
+Control: `analienx/gledopto#1`. Goal dispatch brief sha256
+`8cd622afbade2f42d7f4da9a14eeb1b96986258da60b53b6967ff17dabf0f33b` (verified).
+
+## Authority (user, via managed goal dispatch 2026-10-03)
+
+Authorized: bounded hardening implementation on the separate branch, hosted CI
+runs at explicit candidate SHAs, one draft PR targeting main, concise issue-ledger
+updates. Local work is inspection/authoring only (PUBLIC EDIT-ONLY).
+
+NOT authorized: deployment, merge, release, live-device actions, OTA
+transfer/publication, override index, HA mutation, factory reset/re-pair, binding
+mutation, coordinator-wide change, unknown manufacturer writes. Green CI is not
+live-device success. Frozen PR #6 branch/SHA must be preserved untouched.
+
+## Bootstrap record (M1)
+
+- Canonical `analienx/config` main at bootstrap: `b0a91d01383a` (2026-10-03).
+  Skill 2.2 + capability profiles + mutation-safety + project-context artifact +
+  registry all loaded authenticated.
+- Registry `project_id`: `gledopto-gl-sd-301p`; execution `host_specialist`
+  default / `foundry_isolated` optional; executor env `windows_notebook`.
+- Repo visibility: public → GitHub-hosted Actions only for
+  build/test/lint/verify/package/benchmark/evidence.
+- Stale-metadata note: neither `supervisor/projects.yaml` (gledopto entry) nor
+  local `.supervisor/project.yaml` declares `repository_visibility: public` /
+  `executor.runtime: github_actions`. Execution follows the public rule
+  regardless; host-specialist device lane preserved for separately authorized
+  live work only. No registry edit attempted (separate canonical repo).
+- Frozen baseline confirmed: PR #6 OPEN draft,
+  `cleanroom/glsd301p-interoperability-20260907` at exactly
+  `760c141925f29e517831c92afd61bd9c15e1b7b5`; checks green
+  (runs 34276666901, 34276666846).
+- Frozen artifacts: final 130436 `d6f41fb7…6551`; OTA 130502 `43e6996f…899b`;
+  vendor recovery 208946 `16595a38…dd72`.
+- Candidate branch did not exist; created from the exact frozen SHA in isolated
+  worktree `C:\Workspace\repos\gledopto-hardening`. Main checkout untouched
+  (one pre-existing untracked handoff doc left in place).
+- Tuya `tuya-zigbee-switch#61` (merged) learnings reconciled: owned static
+  events, accumulated elapsed ms across wrap/sleep, 5 s rejected-start pacing
+  with SDK-owned backoff, read-only 0xFF10 health v1. Socket 60 s poll policy
+  explicitly NOT imported (no evidence for this device); GLSD health is v2
+  with the GLSD-specific layout from the brief.
+- Dev identity pre-check: `GLSD-ED-002` / `APP_BUILD` 03 / `0x7F030001` /
+  date 20261003 unallocated at baseline (current: `0x7F020001`). Formal
+  allocation in M5.
+
+## Source map (baseline tree)
+
+- App/runtime: `src/` (runtime_core, output_guard, power_stage_policy,
+  push_input, pb4_compat, uart_frame, uart_transport).
+- Target: `firmware/glsd301p-ed/` (telink_target, inert glue, link sentinels,
+  app/stack/version cfg, contracts).
+- Host tests: `tests/test_glsd301p_*.c` (+ target-contract sh).
+- Build/finalize: `tools/build_glsd301p_ed_tc32.sh`, `telink_app_finalize.py`,
+  `make_glsd301p_ed_ota.py`, preflight/release-plan, cleanroom guard.
+- Workflows: `cleanroom-guard.yml`, `glsd301p-final-readiness.yml`,
+  `migrate-glsd301p-vendor-reference.yml`.
+- Recovery: `devices/gl-sd-301p/vendor-firmware/` (OTA original + manifest).
+
+## Status
+
+- [x] M1 bootstrap + isolation + ledger mirror (this file + issue #1 comment)
+- [ ] M1 source inventory read-through (in progress)
+- [ ] M2 review + findings register + hosted reproductions
+- [ ] M3 timer ownership / elapsed time / output safety
+- [ ] M4 network recovery / protocol validation
+- [ ] M5 health snapshot / decoder / dev identity
+- [ ] M6 hosted validation + two clean rebuilds
+- [ ] M7 draft PR + evidence + stop (**independent acceptance review pending**)
+
+Next action: read baseline sources and build/CI lanes; open findings register.
+
+---
+
+# Remediation of independent review R1-R8 (goal d71ed0a9, brief sha256 `716420ff…560bb64` verified)
+
+Reviewed candidate `7184eec40d8141ccd92a005d2d6d5ef0c2bcb853` (PR #8 draft,
+quarantined) + old identity GLSD-ED-002/0x7F030001 preserved in the ledger;
+frozen baseline `760c1419` / PR #6 untouched. Forward commits on the same
+branch; no force push. Direct user authorization: "do full code review and
+for the findings set new goals for muse" (bounded remediation + hosted
+validation + PR/issue evidence; minimal mirror to issue #1 at M7).
+PUBLIC EDIT-ONLY: local inspection/authoring only; all validation hosted.
+
+## M0 bootstrap record (2026-10-03)
+
+- Canonical `analienx/config` main `b0a91d01383a` (2026-10-03); skill 2.2,
+  capability, mutation-safety, project-context, registry loaded authenticated.
+- Main checkout `629a2c5` + user-authorized AGENTS.md standing-authorization
+  edit + 4 untracked handoff/review artifacts (all preserved in place).
+- Worktree `codex/glsd301p-client-hardening` at `7184eec`, clean except the
+  same user-authorized AGENTS.md edit (committed with M0b, not unexplained).
+- Review copied verbatim to `HARDENING-INDEPENDENT-REVIEW-20261003.md`
+  (sha256 `7b783b25…bbe8b1`); R1–R8 added to `HARDENING-FINDINGS.md` as
+  CONFIRMED with repro/fix/proof TBD; ingress/ownership map in
+  `HARDENING-INGRESS-MAP.md` (public C vs opaque archives; audit limits).
+
+## Status
+
+- [x] M0/M0b bootstrap + evidence map
+- [x] G1 UART fault boundary (R1,R2) — red 37142138291, fix green @ 6eb2bef (boundary 37142423473)
+- [x] G2 joined reconciliation (R3) — red 37142619613, fix green @ 8bde993 (boundary 37142816643)
+- [x] G3 elapsed-time transitions (R4) — red 37142931607, fix green @ dd85a37 (boundary 37143088126)
+- [x] G4-A dispatch harness + 24-case pristine repro — red 37147368621
+- [x] G4-B SDK guards P2a/P2b/P3/P4/P5/P6 + harness fixes — green @ 20208cc (boundary 37149493049)
+- [x] G5 exact-head R5 + claims — green @ 384ebb2 (boundary 37149777232)
+- [x] M6 seal bc7196f — boundary 37150021744, dispatch re-run 37150235095, readiness 37150021753; two matching TC32 builds (elf 7f250345…)
+- [x] M7 PR #8 + issue #1 + stop (**independent acceptance review pending**)
+
+(R15 reconciliation 2026-10-04: removed stale duplicate pending G2/G3
+rows that contradicted the completed rows above; appended the missing
+G4–M7 completion rows with evidence.)
+
+---
+
+# Remediation of independent review R9-R16 (goal a75b22cd, brief sha256 `e34b3404…ec5fac76` verified)
+
+Reviewed candidate `bc7196f028d466a12ea992c2f2c3aa9cc2f6c764` (PR #8
+draft, quarantined); frozen baseline `760c1419` / PR #6 untouched.
+Forward commits on the same branch; no force push. Owner authorization
+in PR #8 comments (2026-10-04): next deep review assigned R9–R16;
+authorized scope is candidate implementation + GitHub-hosted
+validation; frozen/quarantine/acceptance boundary in force. No
+deployment, merge, release, OTA publication, or live-device actions.
+PUBLIC EDIT-ONLY: local inspection/authoring only; all validation
+hosted. Execution style: direct (parent-held edits).
+
+## M0 bootstrap record (2026-10-04)
+
+- Native goal `goal-01a107db-b370-7662-96eb-d4eeb5a02035`, session
+  `01a1017d-681f-7303-af97-8caf85983806` preserved.
+- Canonical `analienx/config` main `b0a91d01383a` reloaded
+  authenticated (skill 2.2, capability, mutation-safety,
+  project-context, registry); local config checkout is dirty/stale
+  and NOT used as authority.
+- Worktree `codex/glsd301p-client-hardening` at `bc7196f`, clean; no
+  other owner changed the candidate (newest PR/issue activity is the
+  owner authorization + my M7 checkpoint).
+- Review copied verbatim to `HARDENING-INDEPENDENT-REVIEW-20261004.md`
+  (sha256 `1b3fe96f…871212`); R9–R16 added to `HARDENING-FINDINGS.md`
+  as CONFIRMED with repro/fix/proof TBD.
+- Note: brief references `tools/muse/GOAL_BRIEFS.md` for work design;
+  absent from this checkout — proceeding on the brief's own milestone
+  structure (M0–M5) instead.
+- tools/muse skill note: using installed tool schemas as-is.
+
+## Status
+
+- [x] M0 reconcile + review docs + R9–R16 ledger + checkpoint
+- [x] M1 hosted adverse-behavior repros (R9–R13/R16, negative controls @ bc7196f)
+- [x] M2 output + Level semantics (R9/R16) + regressions green
+- [x] M3 protocol + commissioning (R10–R13) + audit questions + regressions green
+- [x] M4 fresh identity (R14) + seal + two matching TC32+OTA builds (R15)
+  (completed at `69831aa`: boundary 37224141144, readiness
+  37224141202, rebuild 37224256709; hashes in PR #8 body)
+- [x] M5 reconcile matrix + PR #8 body + issue #1 + stop (**independent acceptance review pending**)
+  (PR #8 body updated 2026-10-05; issue #1 comment 5983066778)
+
+Next action: none in this phase — R9–R16 implementation complete at
+`69831aa`; review R17–R23 assigned to the next phase below. (R23
+reconciliation 2026-10-05: the two stale pending rows and the
+obsolete "run builds" next action above contradicted the completed
+PR/issue record and are superseded here; history preserved.)
+
+## M1 negative controls (2026-10-04, run 37220219614 @ b9a1025)
+
+Code under test is bc7196f + tests only (docs + 21 M1 cases). Old
+suites all pass first (`GLSD301P_ZCL_DISPATCH_SEQ=PASS`, AP intact);
+the isolation matrix then reports 17 FAIL / 4 PASS-NOW. Each FAIL is
+a stated behavioral assertion, not infra:
+
+- R9 `r9_repeat_min`: repeat minimum WithOnOff → `logical ON`
+  (expected OFF). `r9_equal`: equal target from OFF → ON.
+  `r9_zero_step`: zero-size WithOnOff steps → ON. `r9_down_off`:
+  2 s descent from OFF → ON mid-transition. `r9_replace_fault`:
+  retargeted downward leg → ON. Control `r9_up_onset` PASS.
+- R16 `r16_clipped`: clipped 4/40 Step keeps remaining 100
+  (expected ≤15). `r16_gap`: still TARGET after 2.4 s elapsed
+  (expected IDLE). Control `r16_controls` PASS.
+- R10 `r10_add_names` / `r10_addif_member`: 2-byte Add/AddIf
+  accepted (expected MALFORMED).
+- R11 `r11_readcfg` / `r11_discrsp` / `r11_shortforms` /
+  `r11_empty`: suffixes, 1-byte failures, empty frames accepted
+  (expected MALFORMED default responses). Control `r11_compound`
+  PASS.
+- R12 `r12_status`: mixed [unknown, configured] read answers 8
+  bytes, not 13 — the leaked UNSUPPORTED also shortens the
+  configured record on the wire (serializer emits fields only on
+  SUCCESS). Control `r12_alloc` PASS.
+- R13 `r13_chain`: Identify(5) leaves time 0 (expected 5).
+  `r13_endpoint`: misdirected Identify SUCCESS (expected
+  INVALID_FIELD). `r13_trigger`: reserved id/variant SUCCESS
+  (expected INVALID_FIELD).
+
+## M2 output + Level semantics (2026-10-04 @ 5937ddf)
+
+- R9: TARGET commands retain their actual direction (`target_dir`
+  +1/-1/0) through interpolation; With On/Off follows it only (up:
+  ON at onset; down: ON preserved to min then OFF; equal: preserved,
+  never invented). MOVE-down sibling fixed via the same policy
+  (`f0a2845`, unit correction `afbf7db`, boot-level fix `5937ddf`).
+- R16: shared `glsd301p_control_proportional_time` (ceil,
+  bounded-u32): clipped Step time scales with the moved span;
+  below-min MoveToLevel scales with the admissible span.
+- State @ `5937ddf`: R9 7/7 + R16 3/3 green, AP suites green
+  (boundary 37221176908 reports failed=10 = the unimplemented
+  R10–R13 cases; readiness 37221176882 green).
+
+## M3 protocol + commissioning (2026-10-04 @ 7c0cf10)
+
+- R13 (`264c7cb` + fixes `dd027e8`/`083e917`/`9b25107`): new
+  `glsd301p_identify` adapter — shared-store countdown on the
+  household tick (command + attribute-write paths, ceiling adopt,
+  Query honest via store, Groups AddIf gated by the same store);
+  Blink/Breathe one-shots through the guarded emit path with
+  restore; abort on any remote/local/fault preemption (emit-less
+  Stop restores explicitly); reserved ids/variants INVALID_FIELD.
+  M3 corrections with justification: the M1
+  "accepted-without-blink" contract was the defect (real bounded
+  programs now); the no-op-locking followup updated; UART-silence
+  legs drain the queued boot-restore frame first; the Stop-restore
+  leg uses StopWithOnOff (plain Stop is correctly execute-if-off
+  gated while the mirror reads OFF).
+- R10 (`9ac2c85`): P4v2 exact group grammar (Add/AddIf uint16 +
+  counted string, namelen <= 15, exact length; membership exact
+  1+2*count); re-pinned `6272e38b…530c1`. R6 valid-shape tests moved
+  to the serializer shape.
+- R11/R12 (`7c0cf10`): P5v2 read-cfg request validator + whole
+  discover records + success-only 1-byte short forms + empty-frame
+  rejection + per-record cfg-response status init; re-pinned
+  `6f22053d…b961b8`.
+- State @ `7c0cf10`: full matrix failed=0 (22/22), AP suites green,
+  original-body repros PASS (boundary 37223816991); readiness
+  37223816970 green. Ingress map M3 reconciliation closes the
+  membership-policy question (EXACT) and the R10–R13 gaps.
+
+## M4 fresh identity (2026-10-04 @ cac2a6c)
+
+- R14: allocated GLSD-ED-003 / APP_BUILD 0x04 / FILE_VERSION
+  0x7F040001 / date 20261004 — confirmed unused across repo,
+  history, issues, PRs (001 → 002 → 003). Updated `version_cfg.h`,
+  build gates + manifest stamp, finalizer default, recovery
+  contract, wrapper test. Downgrade-safety preserved (0x7F04… >
+  vendor 0x2801…).
+- CI @ `cac2a6c`: boundary 37224045386 + readiness 37224045402,
+  both green.
+
+Next action (superseded — completed at `69831aa`, see reconciled status
+above): M4 seal + R15 builds ran as boundary 37224141144, readiness
+37224141202, rebuild 37224256709, all green with matching hashes.
+
+---
+
+# Remediation of independent review R17-R23 (goal goal-01a10ab5-f772-7040-86d0-fe26a9b6e024, brief sha256 `9ea0407c…5894a1` verified)
+
+Reviewed candidate `69831aa5c9c230bb8c3c8074abd9c618eb936ed5` (PR #8
+draft, quarantined); frozen baseline `760c1419` / PR #6 untouched.
+Forward commits on the same branch; no force push. Owner authorization:
+supervisor R17–R23 scope comment (issue #1, 2026-10-05, comment
+5989160044) + PR #8 review comment 5989158919 + user goal dispatch
+`eee095b4-6cde-4a45-b26a-47d50144a56e`; authorized scope is candidate
+implementation + GitHub-hosted validation + bounded PR/issue evidence.
+No deployment, merge, release, OTA publication, or live-device actions.
+PUBLIC EDIT-ONLY: local inspection/authoring only; all validation
+hosted. Execution style: direct (parent-held edits); profile EXPERT,
+scope WORKSPACE_IMPLEMENTATION.
+
+OUTPUT AUTHORITY: Identify and Trigger Effect stay output-neutral (RAM
+commissioning state only). The Blink/Breathe power overlay and its
+restore/preemption paths are removed, not reinterpreted.
+
+## M0 bootstrap record (2026-10-05)
+
+- Native goal `goal-01a10ab5-f772-7040-86d0-fe26a9b6e024`, session
+  `01a10ab5-b6cb-75d2-8bd2-9c3deb8f1f52`; sole-writer transfer from
+  completed predecessor session `01a1017d-681f-7303-af97-8caf85983806`
+  (goal complete/100%, receipts preserved, transcript not replayed).
+- Canonical `analienx/config` main `b0a91d01383ab663bc5e83d95a728fe9f7ab744c`
+  re-verified authenticated via `git ls-remote` (unchanged from packet);
+  skill 2.2, capability, mutation-safety, project-context, registry
+  loaded from EXTERNAL_GITHUB.
+- Worktree `codex/glsd301p-client-hardening` at `69831aa`, clean and
+  equal to remote branch head; PR #8 draft OPEN at same SHA; PR #6 head
+  still `760c1419`; issue #1 newest is the supervisor R17–R23 scope
+  comment; no outstanding/in-progress branch runs (newest: 37224256709
+  success). No other owner holds the candidate.
+- Review copied verbatim to `HARDENING-INDEPENDENT-REVIEW-20261005.md`
+  (sha256 `4785e2ef…03a2`); task packet to
+  `HARDENING-MUSE-REMEDIATION-TASKS-20261005.md` (sha256 `b91400f0…f952`);
+  R17–R23 added to `HARDENING-FINDINGS.md` as CONFIRMED with repro/fix/proof TBD.
+- Stale R9–R16 pending M4/M5 rows reconciled above (R23); no conflicting
+  current next action remains.
+
+## Scope: A17–A24 acceptance (oracles in the 20261005 task packet)
+
+- A17/R17: output-neutral Identify/Trigger Effect (remove power overlay).
+- A18/R18: accepted IdentifyTime writes restart at receipt time.
+- A19/R19: O(1) bounded Identify catch-up with residual phase.
+- A20/R20: Move to Level keeps finite duration (Step-only scaling).
+- A21/R21: upward TARGET onset ON applied at admission.
+- A22/R22: typed/count/status/direction grammar truthfulness.
+- A23/R23: target foundation ABI proof + coherent ledger.
+- A24: fresh identity + exact-head validation + dual matching builds.
+
+## Status
+
+- [x] M0 reconcile + review docs + R17–R23 ledger + checkpoint
+- [x] M1 hosted adverse-behavior repros (R17–R22, negative controls @ reviewed behavior)
+
+## M1 negative controls (2026-10-05, run 37273719102 @ b28f454)
+
+Code under test is 69831aa behavior + M0 docs + tests-only M1 cases
+(except one non-behavioral R19 diagnostic counter in
+`src/glsd301p_identify.c`). Old suites all pass first
+(`GLSD301P_ZCL_DISPATCH_SEQ=PASS`, R9–R16 matrix failed=0); the new
+R17–R23 isolation matrix then reports 7 FAIL / 1 PASS-NOW. Each FAIL
+is a stated behavioral assertion at the intended contract, not infra
+(first red run 37273474269 had an r20 setup bug — plain Level legs
+missing the SDK execute-gate attr — corrected in b28f454 with the
+established `t_onoff` pattern; all other cases were already red at
+the intended asserts):
+
+- R17 `r17_trigger`: TriggerEffect Blink answers SUCCESS (expected
+  INVALID_FIELD). Control `r17_cmd` PASS (Identify command path).
+- R18 `r18_write`: write-1 at t=999 reads 0 at t=1500 (expected 1:
+  only 501 ms elapsed since receipt).
+- R19 `r19_bound`: one 200 s IO step executes 200 catch-up iterations
+  with the countdown at zero (expected ≤2 per-tick steps).
+- R20 `r20_duration`: below-minimum Move to Level(0, 100) reports
+  remaining 80 (expected the requested 100).
+- R21 `r21_onset`: upward With On/Off leaves runtime OFF at admission
+  (expected ON before dispatch returns).
+- R22 `r22_struct`: Report `00 00 4c 00 01` accepted (expected
+  MALFORMED). `r22_direction`: direction-2 Configure Reporting
+  accepted as receive form (expected MALFORMED).
+- R23: no code repro (evidence/ledger gap; ABI probe still
+  cluster/timer-only at this SHA — recorded, fixed in M4).
+- [x] M2 output-neutral Identify (R17–R19 + shared write adapter) + regressions green
+- [x] M3 Level + typed protocol (R20–R22) + regressions green
+
+## M3 Level + typed protocol (2026-10-05, run 37275401844 @ 0102715 + readiness 37275401809)
+
+- R20: `start_target` no longer scales Move to Level duration on
+  clipping — the accepted/clamped target keeps the requested finite
+  tenths; proportional timing lives at Step dispatch only (the R16
+  "same class" note is superseded for Move to Level).
+- R21: accepted upward TARGET With On/Off applies ON at admission,
+  before dispatch returns (guarded path, mirroring MOVE onset);
+  equality/downward/plain/fault/not-ready legs unchanged. The old
+  150 ms-only onset test now asserts at admission first (justified
+  replacement).
+- R22: P5v4 grammar (re-pinned `0c34d262…78cadf`) — explicit
+  supported datatype grammar (fixed scalars, short/long strings,
+  flat STRUCT count ≤255 with scalar elements, No Data as the only
+  zero-length type); full wire count width with high-byte rejection
+  (keeps validator/parser synchronized); nested/unknown/reserved
+  compounds rejected; reserved reporting directions rejected in
+  cfg + read-cfg-rsp validators and per-record in cfg-rsp long
+  forms. 7 new original-body cases prove pristine accepts each
+  shape (REPRO-OK in the same run).
+Result: SEQ PASS, R9–R16 failed=0, all 8 R17–R23 matrix cases PASS,
+`GLSD301P_ZCL_DISPATCH=PASS`, `ORIGINAL_BODY_REPRO=PASS`.
+
+## M2 Identify fix (2026-10-05, run 37274769053 @ 99ca794 + readiness 37274769091)
+
+ Deletes the Blink/Breathe power overlay, saved-output restore and
+ effect preemption (`src/glsd301p_identify.*`,
+ `src/glsd301p_control.*`, Stop path); Trigger Effect is rejected for
+ every id/variant before any state change. Accepted IdentifyTime
+ writes restart at receipt time through a shared production observer
+ (P5v3 SDK call sites after successful `zcl_attrWrite`, re-pinned
+ `9adccdcf…aa64b`; same-value/wrong-type/mixed/no-rsp/undivided
+ semantics covered). Catch-up is O(1) whole-second arithmetic with
+ residual phase and saturation (`tick_steps_max` tripwire stays 0).
+ The target callback and the hosted fixture drive the same
+ `glsd301p_identify_cluster_command()` (SDK-code equality statically
+ asserted); production write wiring is the real SDK→observer path,
+ not a mirrored callback. Replaced tests (justified, defect-blessing):
+ `test_r13_trigger_effect_truthful` (R17 contract),
+ `test_r6_identify_valid` TriggerEffect verdict; kept
+ `r13_chain`/follow-up wiring (write/command legs still hold).
+ Result: SEQ PASS, R9–R16 failed=0, R17–R19 matrix cases PASS;
+ r20/r21/r22_* still FAIL at the intended asserts (M3).
+- [x] M4 target ABI + fresh identity + seal + two matching TC32+OTA builds (A23/A24)
+
+## M4 ABI + identity (2026-10-05, run 37276335690 @ 9688233 + readiness 37276335707)
+
+- R23 target proof: the TC32 ABI probe now covers all P5
+  foundation record sizes/offsets in both TU contexts plus pool
+  geometry and the 255-cap u16/fail-closed allocation thresholds
+  (`FOUNDATION_RECORD_ABI`, `POOL_ALLOC_ABI` in the build log);
+  a build-script gate forbids app/harness dereference of parsed
+  internals (opaque crossing — the documented host/target layout
+  delta is harmless); the hosted `test_r23_host_foundation_layout`
+  asserts the -m32 unpacked sizes with explicit per-field deltas.
+  (First M4 push tripped the gate on its own comment and the flex
+  wrappers' host padding — both corrected in 9688233 with the
+  established pattern, no source-behavior change.)
+- A24 identity: fresh GLSD-ED-004 / APP_BUILD 05 / FILE_VERSION
+  0x7F050001 / DATE 20261005 (verified unused across repo+history),
+  stamped `DEV_IDENTITY=…` by the build; gates, finalizer,
+  recovery contract and wrapper test rolled with it.
+- Seal + dual builds: see M5 (seal commit below, then PR pair +
+  dispatched rebuild at one SHA with compared hashes).
+- [x] M5 reconcile matrix + PR #8 body + issue #1 + stop (**independent acceptance review pending**)
+
+## M5 seal + reconciliation (2026-10-05)
+
+Seal: this commit is the R17–R23 seal candidate — no source changes
+beyond it in this goal. Exact-head validation runs on this SHA (PR
+boundary + readiness pair, then a dispatched readiness rebuild from
+a fresh checkout); the live run IDs, manifest/wrapper hashes and the
+pairwise compares are recorded GitHub-side in the PR #8 body and the
+issue #1 seal comment (a repo file cannot cite its own future runs).
+Acceptance mapping: A17–A19 by run 37274769053 (+ M1 red 37273719102),
+A20–A22 by run 37275401844 (+ the same M1 red), A23 by the TC32 probe
+(`FOUNDATION_RECORD_ABI`/`POOL_ALLOC_ABI`) + host layout test +
+opaque-crossing gate in run 37276335690/37276335707, A24 by the fresh
+GLSD-ED-004 identity and the seal-SHA dual builds (GitHub-side).
+Ledger coherence (R23): the stale R9–R16 pending rows were reconciled
+in M0 above; this phase keeps one current matrix (M0–M5) with all
+history labeled; findings R17–R23 carry repro/fix/proof refs;
+ingress rows below carry the M2–M4 atom mapping. PR #6
+(`760c1419`) and the quarantine posture are untouched; no device,
+deploy, merge, or release action was taken or authorized.
+
+Next action: none — implementation complete; **independent acceptance
+review pending** (Codex review of the sealed SHA).
+
+---
+
+# Remediation of independent review R24–R26 + Q1 (goal fc122532, brief sha256 `52c12675…70bcd5` verified)
+
+Reviewed candidate `7975ff05a929b64d026268097a182f5877325536` (PR #8 draft,
+sealed R17–R23). Prior seal evidence (runs 37276712682/37276712594/
+37276898596, GLSD-ED-004 identity, matching hashes) preserved as history
+in the PR #8 body + issue #1 seal comment; superseded only where the
+20261005-B review corrects a current claim (see below). R17/R18/R20 and
+the initial survey are not reopened.
+
+## M0 reconcile (2026-10-05)
+
+- Native goal `goal-01a10ce5-ec1c-73d0-aa4a-5a0ce94c6050`, same session
+  `01a10ab5-b6cb-75d2-8bd2-9c3deb8f1f52` retained at its completed
+  handoff (predecessor goal complete/100%, receipts intact); sole
+  writer, no competing writers/children, no pending branch runs.
+- Canonical `analienx/config` main `cac418e9e8611a79c0acd7b5095b389e58946176`
+  re-verified via `git ls-remote` (unchanged from packet); canonical
+  supervisor/capability/mutation-safety/project-context/registry +
+  local project/device instructions loaded.
+- Worktree `codex/glsd301p-client-hardening` at `7975ff0`, clean and
+  equal to remote branch head; PR #8 draft OPEN at same SHA; PR #6
+  head still `760c1419`; issue #1 newest is the supervisor 20261005-B
+  scope comment (2026-10-05T16:28:58Z).
+- Review copied verbatim to `HARDENING-INDEPENDENT-REVIEW-20261005-B.md`
+  (sha256 `a82c7f8e…b734ee`); task packet to
+  `HARDENING-MUSE-REMEDIATION-TASKS-20261005-B.md` (sha256
+  `c5d79619…7650cb`); R24–R26 added to `HARDENING-FINDINGS.md` as
+  CONFIRMED plus Q1 as a bounded QUESTION (repro/fix/proof TBD).
+- Superseded current claims (history above kept): (a) `tick_steps_max`
+  as a live tripwire ("stays 0") — the field is never updated, so it
+  cannot detect a work regression (R25); (b) pool thresholds holding
+  "identically" across host/target layouts — real deltas are
+  `1+7*N` vs `4+8*N` (write) and `1+14*N` vs `4+16*N` (reporting
+  config) (R26); (c) the `cfgrsp_ok` 4-byte success fixture and the
+  6-byte mixed-write SUCCESS expectation — both bless invalid shapes
+  (R24). O(1) arithmetic, P5 u16 widening and all other R17–R23
+  behavior stand.
+
+## Scope: G24–G27 acceptance (+ Q1 disposition)
+
+- G24/R24: reject illegal long SUCCESS records + reserved directions
+  in status-dependent responses; refused Undivided emits failures only.
+- G25/R25: bounded-work oracle observes actual tick work; slow-loop
+  mutant fails the same assertion (O(1) code preserved).
+- G26/R26: executable hosted coverage of target layout/allocation
+  boundaries; narrowing/layout mutants fail (u16 fix preserved).
+- Q1: timer failure contract inspected; transactional admission fix or
+  explicit defer with invariant evidence.
+- G27: AP/R1–R23 preserved; fresh identity iff firmware bits change;
+  one sealed SHA; full hosted checks + two matching clean builds;
+  internal read-only verifier; coherent ledger.
+
+## Status
+
+- [x] M0 reconcile + B review docs + R24–R26/Q1 ledger + checkpoint
+- [x] M1 focused hosted controls (R24 negatives + oracle/mutant survival demos)
+
+## M1 red (2026-10-05, run 37343108327 @ 4b008f3; first red 37342581044 @ 72e84cf)
+
+Code under test is 7975ff0 behavior + M0 docs + tests/workflow-only M1
+(no src/ or patcher change). SEQ PASS, R9–R16 failed=0, R17–R23
+failed=0, ORIGINAL_BODY_REPRO PASS; new R24_R26 matrix reports 4
+FAIL / 1 PASS, each FAIL at its intended assert (stderr lines in the
+run log):
+
+- R24 `r24_writeresp`: long `00 00 00` accepted (expected MALFORMED).
+- R24 `r24_cfgrsp`: long `00 00 00 00` accepted (expected MALFORMED).
+- R24 `r24_readcfgrsp`: failure `86 02 00 00` accepted (expected
+  MALFORMED). First M1 push had a success_rec setup bug (u8 is an
+  analog type per `zcl_analogDataType`, so the control missed its
+  reportableChange byte) — corrected in 4b008f3 with the
+  established pattern; all other cases were already red at the
+  intended asserts.
+- R24 `r24_undivided`: refused mixed write answers 6 bytes with
+  SUCCESS at byte 3 (expected failure-only 3 bytes).
+- R26 `r26_boundary` PASS-NOW on the unpacked host (N=50 accept;
+  N=51/55/56 refuse at the exact computed edges).
+
+Oracle-survival demos (same run, `GLSD301P_MUTANTS=RED`):
+`R25_MUTANT=SURVIVED` (slow-loop mutant passes `r19_bound`;
+marker `R25_MUTANT_LOOP_ACTIVE` proves the loop ran);
+`R26_NARROW_MUTANT=SURVIVED` (u16→u8 mutant passes; pool slack
+hides it); `R26_PACKED_RUN=DIVERGED` (packed binary accepts N=51,
+aborts at the host `refuse-host` leg — the layout delta). The
+mutant/interop steps use continue-on-error with an end-of-job
+verdict gate so one red phase still reports every signal; the gate
+fails the job on any survived mutant or interop failure.
+- [x] M2 minimal fixes + Q1 disposition + AP green
+
+## M2 green (2026-10-05, run 37346097530 @ cb9726a)
+
+- R24: P5v5 repinned (`e1a4f403…6e752`); R24_R26 matrix 4/4 PASS;
+  6 new R24 pristine repros REPRO-OK; the two blessed fixtures
+  replaced with justification (cfgrsp_ok → failure-only;
+  mixed-write → exact 3-byte failure-only).
+- R25: dead counter removed (O(1) arithmetic unchanged);
+  `R25_ORACLE=PASS` (identical block counts, 2 s vs 200 s gaps)
+  + `R25_MUTANT=KILLED`; `r19_bound` end-state legs green.
+- R26: TC32 probe verifies `glsd301p_target_abi.h` (target build
+  green); packed asserts + 16-leg adaptive boundaries PASS in
+  both binaries; `R26_NARROW_MUTANT=KILLED` (wrap assert),
+  `R26_LAYOUT_MUTANT=KILLED` (static assert); executable
+  discovery: packed cfg N=35 refuses at the AF-send alloc
+  (145 > 144), now asserted as response-path accounting with
+  N=34 as the parse-bound split leg.
+- Q1: DEFER with invariant evidence + `test_q1_admission_ordering`
+  (SEQ PASS): replacement cycles succeed, zero reg faults,
+  busy admission queued-not-lost.
+- Identity rolled (firmware bits changed): GLSD-ED-005 /
+  APP_BUILD 06 / 0x7F060001 / DATE 20261005 (verified unused
+  across repo, history, issues, PRs); TC32 + readiness builds
+  green with the new identity.
+- AP preserved: SEQ PASS, R9–R16 failed=0, R17–R23 failed=0,
+  37-case ORIGINAL_BODY_REPRO PASS; `mutants=success
+  interop=success`.
+- [x] M3 internal verifier + seal + dual builds + ledger + stop
+
+## M3 seal (2026-10-05)
+
+- Internal read-only verifier (bounded child, no writes):
+  G24 PASS, G25 PASS, G26 FAIL→fixed (one blocking stale
+  "identical thresholds" comment, B1 — reworded with R26
+  pointer), Q1 PASS, scope PASS, AP PASS. Advisories: seal
+  runs/hashes pending (this section), ledger TBDs (committed
+  below), SDK irq-mask micro-claim (verified by parent from
+  the pinned `ev_timer.c:121-148` ref: `drv_disable_irq` +
+  unconditional `LIST_ADD` + exist-check).
+- Seal commit (this commit: findings/checkpoint/ingress ledger +
+  B1 comment reword; no behavior change vs M2 green @ cb9726a).
+  PR pair + independent `workflow_dispatch` rebuild observed at
+  the seal SHA; wrapper, manifest, inner, ELF/BIN/MAP/FINAL
+  sha256+sha512 compared across both builds (zero diffs) — seal
+  SHA, run IDs and hashes in the PR #8 body + issue #1 seal
+  comment (GitHub-side, history-preserving).
+- PR #6 still `760c1419`; quarantine holds; no device, deploy,
+  merge, release, or OTA publication.
+- Next action: none — implementation complete; **independent
+  acceptance review pending** (Codex review of the sealed SHA).

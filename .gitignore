@@ -2,3 +2,28 @@
 .local/
 .work/
 *.log
+
+# Vendor/reference firmware is permitted ONLY inside the dedicated third-party
+# firmware zone.  Global patterns below prevent accidental copies elsewhere;
+# the negations allow canonical originals in that zone.
+*.ota
+*.bin
+*.hex
+*.elf
+*.dump
+*.disasm
+*.ota.xz
+*.ota.b64*
+
+!devices/*/vendor-firmware/originals/
+!devices/*/vendor-firmware/originals/*.ota
+!devices/*/vendor-firmware/originals/*.bin
+
+# Encoded/chunked transport is not canonical storage.  Keep it local while
+# migrating an original into vendor-firmware/originals/.
+**/.incoming/
+
+# Private scratch may contain temporary analysis output.  Curated RE evidence
+# belongs under the vendor-firmware/reference-analysis zone instead.
+re-private/
+analysis-private/
