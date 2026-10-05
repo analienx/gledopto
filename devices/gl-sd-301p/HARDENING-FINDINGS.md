@@ -523,12 +523,13 @@ entangle effects with transitions. The authorized contract requires
 RAM IdentifyTime/countdown with power output unchanged.
 Original repro: M1 red at b28f454 (boundary 37273719102):
 r17_trigger FAILs on SUCCESS-vs-INVALID_FIELD; r17_cmd PASS-NOW.
+Fix commit: 6df9c21/99ca794 (M2). Hosted proof: boundary 37274769053
+(r17_trigger/r17_cmd PASS, SEQ + R9-R16 green), readiness 37274769091.
 Proposed fix: delete the power-effect overlay, saved-state restore
 and effect preemption; reject unsupported optional effects with a
 truthful status before any state/timer/transition/UART mutation; keep
 bounded RAM commissioning semantics; document the lack of physical
 identification.
-Fix commit: TBD. Hosted proof: TBD.
 
 ## R18 — IdentifyTime writes inherit the old timer phase (P2, CONFIRMED)
 
@@ -541,12 +542,13 @@ time. Detection is a store-vs-shadow comparison at an old boundary,
 not a receipt-time event.
 Original repro: M1 red at b28f454 (boundary 37273719102):
 r18_write FAILs (write-1 at t=999 already 0 at t=1500).
+Fix commit: 6df9c21/99ca794 (M2, P5v3 observer). Hosted proof:
+boundary 37274769053 (r18_write PASS), readiness 37274769091.
 Proposed fix: bounded production observer/shared adapter for accepted
 IdentifyTime writes (receipt time + value incl. same-value writes);
 start/restart at the write's time; failed/wrong-type/wrong-endpoint
 writes never restart; NULL-hook cleanup and per-record semantics
 preserved.
-Fix commit: TBD. Hosted proof: TBD.
 
 ## R19 — Identify catch-up loops per elapsed second (P2, CONFIRMED)
 
@@ -558,11 +560,12 @@ at zero. Operation count is source-apparent; no on-target duration
 claimed.
 Original repro: M1 red at b28f454 (boundary 37273719102):
 r19_bound FAILs (200 catch-up steps in one 200 s IO step).
+Fix commit: 6df9c21/99ca794 (M2, O(1) tick). Hosted proof:
+boundary 37274769053 (r19_bound PASS), readiness 37274769091.
 Proposed fix: O(1) elapsed whole-second arithmetic with residual
 phase and saturating decrement; no catch-up work for a disabled
 countdown; unsigned wrap conventions preserved; no silent-loss caps
 or timebase-unit changes.
-Fix commit: TBD. Hosted proof: TBD.
 
 ## R20 — Move to Level shortened by Step clipping policy (P2, CONFIRMED)
 

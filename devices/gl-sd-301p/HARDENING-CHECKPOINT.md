@@ -338,8 +338,29 @@ the intended asserts):
   accepted as receive form (expected MALFORMED).
 - R23: no code repro (evidence/ledger gap; ABI probe still
   cluster/timer-only at this SHA — recorded, fixed in M4).
-- [ ] M2 output-neutral Identify (R17–R19 + shared write adapter) + regressions green
+- [x] M2 output-neutral Identify (R17–R19 + shared write adapter) + regressions green
 - [ ] M3 Level + typed protocol (R20–R22) + regressions green
+
+## M2 Identify fix (2026-10-05, run 37274769053 @ 99ca794 + readiness 37274769091)
+
+ Deletes the Blink/Breathe power overlay, saved-output restore and
+ effect preemption (`src/glsd301p_identify.*`,
+ `src/glsd301p_control.*`, Stop path); Trigger Effect is rejected for
+ every id/variant before any state change. Accepted IdentifyTime
+ writes restart at receipt time through a shared production observer
+ (P5v3 SDK call sites after successful `zcl_attrWrite`, re-pinned
+ `9adccdcf…aa64b`; same-value/wrong-type/mixed/no-rsp/undivided
+ semantics covered). Catch-up is O(1) whole-second arithmetic with
+ residual phase and saturation (`tick_steps_max` tripwire stays 0).
+ The target callback and the hosted fixture drive the same
+ `glsd301p_identify_cluster_command()` (SDK-code equality statically
+ asserted); production write wiring is the real SDK→observer path,
+ not a mirrored callback. Replaced tests (justified, defect-blessing):
+ `test_r13_trigger_effect_truthful` (R17 contract),
+ `test_r6_identify_valid` TriggerEffect verdict; kept
+ `r13_chain`/follow-up wiring (write/command legs still hold).
+ Result: SEQ PASS, R9–R16 failed=0, R17–R19 matrix cases PASS;
+ r20/r21/r22_* still FAIL at the intended asserts (M3).
 - [ ] M4 target ABI + fresh identity + seal + two matching TC32+OTA builds (A23/A24)
 - [ ] M5 reconcile matrix + PR #8 body + issue #1 + stop (**independent acceptance review pending**)
 
