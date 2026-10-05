@@ -656,3 +656,90 @@ Identify wiring is the real SDK→observer path with statically
 asserted ZCL codes; M0 reconciled the stale M4/M5 rows (history
 preserved); seal-SHA dual-build hashes GitHub-side (PR #8 body +
 issue #1 seal comment).
+
+## R24 — Foundation status-dependent response grammar incomplete (P2, CONFIRMED)
+
+Source: `tools/apply_glsd301p_sdk_patches.py:967` and `:989`,
+`tests/test_glsd301p_zcl_dispatch.c:3941` and `:3519`; pinned SDK
+`zigbee/zcl/zcl.c`, `zcl_writeUndividedHandler`, `zcl_writeRsp` at
+7975ff0.
+Trigger (each accepted today): Write Response `00 00 00` (3-byte
+multiple guard never inspects statuses); Configure Reporting
+Response `00 00 00 00` (directions checked, statuses explicitly
+unrestricted — blessed by the `cfgrsp_ok` fixture); mixed long
+streams containing a SUCCESS record; Read Reporting Configuration
+Response failure record `86 02 00 00` (reserved direction passes
+the failure path — direction checked only in the success branch).
+Outbound: refused Undivided write emits SUCCESS entries for records
+not applied (mixed-write test expects six bytes + SUCCESS at byte
+3). Success is a single status byte; long records describe
+failures only. Grammar/status correctness; no new overwrite claim.
+Original repro: TBD (M1 hosted negatives at 7975ff0 behavior).
+Fix commit: TBD (M2, grammar + Undivided response + repin).
+Hosted proof: TBD.
+Proposed fix: whole-stream status inspection in Write/CfgRsp
+guards; direction validation before the status branch, per record;
+failure-only Undivided response (all-success stays one byte);
+preserve accepted-write observation; refused atomic write never
+restarts Identify; replace the two defective fixture expectations.
+
+## R25 — Bounded-work oracle disconnected from fixed code (P2, CONFIRMED)
+
+Source: `src/glsd301p_identify.c:21`, `:83`, `:92`,
+`src/glsd301p_identify.h` tick_steps_max contract,
+`tests/test_glsd301p_zcl_dispatch.c:3546` at 7975ff0.
+Trigger: `tick_steps_max` is initialized to zero and never updated;
+tests assert it stays ≤2, so a reintroduced elapsed-second loop
+that does not voluntarily write the counter still passes. The O(1)
+arithmetic itself is correct by inspection — this is an
+acceptance-evidence defect, not a looping claim.
+Original repro: TBD (M1 slow-loop mutant survives the oracle in an
+ephemeral hosted source copy).
+Fix commit: TBD (M2, actual-work observation; remove the dead field
+if unneeded). Hosted proof: TBD.
+Proposed fix: deterministic bounded observation of real tick work
+in the shared production tick (no CI-hang/elapsed-time threshold);
+same oracle rejects a deliberate slow-loop mutant without
+voluntary counter writes; preserve zero/max/gaps/residual/wrap/
+saturation/UART/input/output-neutral behavior.
+
+## R26 — Host allocation evidence misses target boundaries (P2, CONFIRMED)
+
+Source: `tools/build_glsd301p_ed_tc32.sh:334`–pool assertions,
+`tests/test_glsd301p_zcl_dispatch.c:4130`/`:4147`,
+`.github/workflows/cleanroom-guard.yml:295`–dispatch compilation at
+7975ff0.
+Trigger: 255<65536 + 255>LARGE_BUFFER + total-free-buffer checks do
+not exercise record allocation boundaries; write storage is
+`1+7*N` target vs `4+8*N` host (N=63: 442 vs 508 > 504-byte
+largest buffer; target N=71→498, N=72→505); reporting config
+`1+14*N` vs `4+16*N` (target N=32→449, host 516). Exhaustion tests
+cover empty pools, not count/size edges. P5 u16 allocation widening
+(`apply_glsd301p_sdk_patches.py:761`–`:769`) is present and
+preserved; pristine u8 source is NOT an open overflow. No present
+overflow claimed.
+Original repro: TBD (M1 length/layout mutants survive in ephemeral
+hosted source copies).
+Fix commit: TBD (M2, target-compatible behavioral coverage +
+generated ABI/threshold metadata + mutant controls). Hosted proof:
+TBD.
+Proposed fix: compiler-verified TC32 facts + compatible executable
+harness with exact allocation requests, success/refusal/cleanup at
+actual size/pool boundaries (normal + depleted pools, Write/Report/
+Configure/ReadCfg flows); record real host/target deltas (never
+"identical"); negative controls detect narrowing/layout mismatch.
+
+## Q1 — Level admission failure ordering (QUESTION, bounded)
+
+Source: `src/glsd301p_control.c:338`/`:342`, `:375`/`:380` at
+7975ff0.
+Trigger (unconfirmed): upward ON applied before timer registration
+with the apply result discarded; a registration failure returns
+failure after ON was mirrored/queued (cancellation does not undo
+output); an apply failure can be hidden by later timer success.
+Normal readiness/fault cases pass; transport offers normally
+succeed; no live occurrence or ordinary trigger claimed.
+Disposition: TBD (M2: inspect the owned timer's actual failure
+contract; scoped hosted failure seam if warranted; transactional
+admission fix within scope, or explicit defer with
+invariant/reachability evidence; OFF dominant; no invented exploit).

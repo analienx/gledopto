@@ -429,3 +429,67 @@ deploy, merge, or release action was taken or authorized.
 
 Next action: none — implementation complete; **independent acceptance
 review pending** (Codex review of the sealed SHA).
+
+---
+
+# Remediation of independent review R24–R26 + Q1 (goal fc122532, brief sha256 `52c12675…70bcd5` verified)
+
+Reviewed candidate `7975ff05a929b64d026268097a182f5877325536` (PR #8 draft,
+sealed R17–R23). Prior seal evidence (runs 37276712682/37276712594/
+37276898596, GLSD-ED-004 identity, matching hashes) preserved as history
+in the PR #8 body + issue #1 seal comment; superseded only where the
+20261005-B review corrects a current claim (see below). R17/R18/R20 and
+the initial survey are not reopened.
+
+## M0 reconcile (2026-10-05)
+
+- Native goal `goal-01a10ce5-ec1c-73d0-aa4a-5a0ce94c6050`, same session
+  `01a10ab5-b6cb-75d2-8bd2-9c3deb8f1f52` retained at its completed
+  handoff (predecessor goal complete/100%, receipts intact); sole
+  writer, no competing writers/children, no pending branch runs.
+- Canonical `analienx/config` main `cac418e9e8611a79c0acd7b5095b389e58946176`
+  re-verified via `git ls-remote` (unchanged from packet); canonical
+  supervisor/capability/mutation-safety/project-context/registry +
+  local project/device instructions loaded.
+- Worktree `codex/glsd301p-client-hardening` at `7975ff0`, clean and
+  equal to remote branch head; PR #8 draft OPEN at same SHA; PR #6
+  head still `760c1419`; issue #1 newest is the supervisor 20261005-B
+  scope comment (2026-10-05T16:28:58Z).
+- Review copied verbatim to `HARDENING-INDEPENDENT-REVIEW-20261005-B.md`
+  (sha256 `a82c7f8e…b734ee`); task packet to
+  `HARDENING-MUSE-REMEDIATION-TASKS-20261005-B.md` (sha256
+  `c5d79619…7650cb`); R24–R26 added to `HARDENING-FINDINGS.md` as
+  CONFIRMED plus Q1 as a bounded QUESTION (repro/fix/proof TBD).
+- Superseded current claims (history above kept): (a) `tick_steps_max`
+  as a live tripwire ("stays 0") — the field is never updated, so it
+  cannot detect a work regression (R25); (b) pool thresholds holding
+  "identically" across host/target layouts — real deltas are
+  `1+7*N` vs `4+8*N` (write) and `1+14*N` vs `4+16*N` (reporting
+  config) (R26); (c) the `cfgrsp_ok` 4-byte success fixture and the
+  6-byte mixed-write SUCCESS expectation — both bless invalid shapes
+  (R24). O(1) arithmetic, P5 u16 widening and all other R17–R23
+  behavior stand.
+
+## Scope: G24–G27 acceptance (+ Q1 disposition)
+
+- G24/R24: reject illegal long SUCCESS records + reserved directions
+  in status-dependent responses; refused Undivided emits failures only.
+- G25/R25: bounded-work oracle observes actual tick work; slow-loop
+  mutant fails the same assertion (O(1) code preserved).
+- G26/R26: executable hosted coverage of target layout/allocation
+  boundaries; narrowing/layout mutants fail (u16 fix preserved).
+- Q1: timer failure contract inspected; transactional admission fix or
+  explicit defer with invariant evidence.
+- G27: AP/R1–R23 preserved; fresh identity iff firmware bits change;
+  one sealed SHA; full hosted checks + two matching clean builds;
+  internal read-only verifier; coherent ledger.
+
+## Status
+
+- [x] M0 reconcile + B review docs + R24–R26/Q1 ledger + checkpoint
+- [ ] M1 focused hosted controls (R24 negatives + oracle/mutant survival demos)
+- [ ] M2 minimal fixes + Q1 disposition + AP green
+- [ ] M3 internal verifier + seal + dual builds + ledger + stop
+
+Next action: author M1 cases against production entry points; commit
+tests-only; observe hosted red at 7975ff0 behavior.
