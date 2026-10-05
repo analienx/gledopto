@@ -184,3 +184,36 @@ claim above (see `HARDENING-FINDINGS.md` R6/R7/R8 for fix commits):
   change; no new SDK surface beyond validated commands. Opaque
   archives, physical proof, and compound-type nesting beyond the
   harnessed flat struct/string stay documented limits (see M5).
+
+## R17–R23 atoms (M2–M4 @ 0102715/9688233; seal commit for runs)
+
+- R17 replaces the R13 effect ingress: Trigger Effect (any id/variant)
+  is rejected with INVALID_FIELD by the shared
+  `glsd301p_identify_cluster_command()` before any state change; no
+  effect program, restore, or preemption exists. The old
+  Blink/Breathe/restore ingress description above is superseded
+  history. No physical identification exists (single load, no
+  separate identify output); commissioners observe IdentifyTime.
+- R18 adds the accepted-write ingress: the P5v3 SDK call sites report
+  every successful `zcl_attrWrite` to `glsd301p_sdk_write_observer()`,
+  which restarts IdentifyTime writes (incl. same-value) at receipt
+  time; rejected/wrong-type/wrong-endpoint writes never notify.
+- R19 keeps the countdown ingress O(1): whole-second arithmetic with
+  residual phase and saturation; no catch-up work when disabled.
+- R20 keeps the Move to Level ingress duration: accepted/clamped
+  finite tenths run whole; proportional timing is Step-dispatch-only.
+- R21 adds TARGET admission onset: accepted upward With On/Off applies
+  ON before dispatch returns (guarded path, like MOVE).
+- R22 hardens the typed ingress (P5v4): full-width STRUCT counts
+  (high byte rejected), flat scalar elements only, nested/unknown/
+  reserved compounds rejected, No Data as the sole zero-length type,
+  reserved reporting directions rejected incl. per-record cfg-rsp
+  long forms. Validator and SDK parser stay synchronized on every
+  accepted shape.
+- R23/A23 adds the target ABI ingress proof: TC32-compiled foundation
+  record sizes/offsets in both TU contexts, pool geometry, and the
+  255-cap u16/fail-closed allocation thresholds, plus a gate keeping
+  parsed commands opaque to app code; the hosted layout test pins the
+  -m32 deltas with explicit guards.
+- A24 identity: GLSD-ED-004 / APP_BUILD 05 / FILE_VERSION 0x7F050001 /
+  DATE 20261005 (fresh, verified unused).

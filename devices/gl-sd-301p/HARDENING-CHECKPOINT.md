@@ -384,9 +384,48 @@ Result: SEQ PASS, R9–R16 failed=0, all 8 R17–R23 matrix cases PASS,
  `r13_chain`/follow-up wiring (write/command legs still hold).
  Result: SEQ PASS, R9–R16 failed=0, R17–R19 matrix cases PASS;
  r20/r21/r22_* still FAIL at the intended asserts (M3).
-- [ ] M4 target ABI + fresh identity + seal + two matching TC32+OTA builds (A23/A24)
-- [ ] M5 reconcile matrix + PR #8 body + issue #1 + stop (**independent acceptance review pending**)
+- [x] M4 target ABI + fresh identity + seal + two matching TC32+OTA builds (A23/A24)
 
-Next action: M2 — minimal output-neutral Identify (R17–R19 + shared
-write adapter); replace the Blink/Breathe-blessing tests with the
-authorized contract.
+## M4 ABI + identity (2026-10-05, run 37276335690 @ 9688233 + readiness 37276335707)
+
+- R23 target proof: the TC32 ABI probe now covers all P5
+  foundation record sizes/offsets in both TU contexts plus pool
+  geometry and the 255-cap u16/fail-closed allocation thresholds
+  (`FOUNDATION_RECORD_ABI`, `POOL_ALLOC_ABI` in the build log);
+  a build-script gate forbids app/harness dereference of parsed
+  internals (opaque crossing — the documented host/target layout
+  delta is harmless); the hosted `test_r23_host_foundation_layout`
+  asserts the -m32 unpacked sizes with explicit per-field deltas.
+  (First M4 push tripped the gate on its own comment and the flex
+  wrappers' host padding — both corrected in 9688233 with the
+  established pattern, no source-behavior change.)
+- A24 identity: fresh GLSD-ED-004 / APP_BUILD 05 / FILE_VERSION
+  0x7F050001 / DATE 20261005 (verified unused across repo+history),
+  stamped `DEV_IDENTITY=…` by the build; gates, finalizer,
+  recovery contract and wrapper test rolled with it.
+- Seal + dual builds: see M5 (seal commit below, then PR pair +
+  dispatched rebuild at one SHA with compared hashes).
+- [x] M5 reconcile matrix + PR #8 body + issue #1 + stop (**independent acceptance review pending**)
+
+## M5 seal + reconciliation (2026-10-05)
+
+Seal: this commit is the R17–R23 seal candidate — no source changes
+beyond it in this goal. Exact-head validation runs on this SHA (PR
+boundary + readiness pair, then a dispatched readiness rebuild from
+a fresh checkout); the live run IDs, manifest/wrapper hashes and the
+pairwise compares are recorded GitHub-side in the PR #8 body and the
+issue #1 seal comment (a repo file cannot cite its own future runs).
+Acceptance mapping: A17–A19 by run 37274769053 (+ M1 red 37273719102),
+A20–A22 by run 37275401844 (+ the same M1 red), A23 by the TC32 probe
+(`FOUNDATION_RECORD_ABI`/`POOL_ALLOC_ABI`) + host layout test +
+opaque-crossing gate in run 37276335690/37276335707, A24 by the fresh
+GLSD-ED-004 identity and the seal-SHA dual builds (GitHub-side).
+Ledger coherence (R23): the stale R9–R16 pending rows were reconciled
+in M0 above; this phase keeps one current matrix (M0–M5) with all
+history labeled; findings R17–R23 carry repro/fix/proof refs;
+ingress rows below carry the M2–M4 atom mapping. PR #6
+(`760c1419`) and the quarantine posture are untouched; no device,
+deploy, merge, or release action was taken or authorized.
+
+Next action: none — implementation complete; **independent acceptance
+review pending** (Codex review of the sealed SHA).

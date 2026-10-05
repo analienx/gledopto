@@ -649,4 +649,10 @@ thresholds in both flag contexts; tested Identify command/write
 adapter tied to production code; host-harness layout comparison with
 explicit difference guards; one current matrix with labeled history;
 coherent checkpoint/ingress/PR/issue records.
-Fix commit: TBD. Hosted proof: TBD.
+Fix commit: 6df9c21 (M2 shared adapter) + 9688233 (M4 probe/gate/
+host test) + M0/M5 ledger. Hosted proof: boundary 37276335690 +
+readiness 37276335707 (probe echoes + host layout + gate green);
+Identify wiring is the real SDK→observer path with statically
+asserted ZCL codes; M0 reconciled the stale M4/M5 rows (history
+preserved); seal-SHA dual-build hashes GitHub-side (PR #8 body +
+issue #1 seal comment).
