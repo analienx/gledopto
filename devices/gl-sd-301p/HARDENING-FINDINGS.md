@@ -521,9 +521,8 @@ dispatch. Blink emits ON at maximum, Breathe forces ON; the
 saved-output restore can re-energize later; control preemption paths
 entangle effects with transitions. The authorized contract requires
 RAM IdentifyTime/countdown with power output unchanged.
-Original repro: TBD (M1 SDK dispatch with OFF/ON output, running
-transition, takeover, fault, delayed UART; output/level/timer
-observations + unsupported-effect status).
+Original repro: M1 red at b28f454 (boundary 37273719102):
+r17_trigger FAILs on SUCCESS-vs-INVALID_FIELD; r17_cmd PASS-NOW.
 Proposed fix: delete the power-effect overlay, saved-state restore
 and effect preemption; reject unsupported optional effects with a
 truthful status before any state/timer/transition/UART mutation; keep
@@ -540,9 +539,8 @@ Trigger: second mark 0, write IdentifyTime=1 at 999 ms → adopted at
 writes never restart; post-gap writes are charged pre-write elapsed
 time. Detection is a store-vs-shadow comparison at an old boundary,
 not a receipt-time event.
-Original repro: TBD (M1 foundation write dispatch at 1/999/1000 ms,
-equal-value repeats, stop/restart, delayed service, mixed records,
-wrap; Query/AddIf-immediate + first-decrement observations).
+Original repro: M1 red at b28f454 (boundary 37273719102):
+r18_write FAILs (write-1 at t=999 already 0 at t=1500).
 Proposed fix: bounded production observer/shared adapter for accepted
 IdentifyTime writes (receipt time + value incl. same-value writes);
 start/restart at the write's time; failed/wrong-type/wrong-endpoint
@@ -558,9 +556,8 @@ Trigger: a 24 h service gap iterates 86400 times (near-wrap gaps up
 to ~4.29M) before PUSH sampling/UART service, even with the countdown
 at zero. Operation count is source-apparent; no on-target duration
 claimed.
-Original repro: TBD (M1 deterministic work-bound oracle on hosted
-runners, not a CI hang: large gaps/zero/max/wrap through the real
-shared tick + IO sequence).
+Original repro: M1 red at b28f454 (boundary 37273719102):
+r19_bound FAILs (200 catch-up steps in one 200 s IO step).
 Proposed fix: O(1) elapsed whole-second arithmetic with residual
 phase and saturating decrement; no catch-up work for a disabled
 countdown; unsigned wrap conventions preserved; no silent-loss caps
@@ -575,9 +572,8 @@ Trigger: CurrentLevel=10, MinLevel=2, accepted Move to Level(0,
 transitionTime=100) schedules the 8-unit clamped move for 80 tenths
 instead of the requested 100. Proportional reduction belongs to
 clipped Steps only.
-Original repro: TBD (M1 SDK Move to Level/WithOnOff below minimum
-with finite/zero/reserved times, gaps/wrap, RemainingTime +
-clipped/unclipped Step controls).
+Original repro: M1 red at b28f454 (boundary 37273719102):
+r20_duration FAILs (remaining 80, expected 100).
 Proposed fix: preserve the accepted/clamped Move to Level policy and
 requested finite duration; keep proportional timing at Step dispatch
 only with its bounded arithmetic/rounding; no acceptance-policy
@@ -594,9 +590,8 @@ nonzero duration returns SUCCESS but leaves mirror/runtime OFF until
 the first 100 ms callback (STEP shares the path; MOVE already applies
 at onset). The existing regression observes after 150 ms, proving
 early-in-transition behavior, not command-onset effect.
-Original repro: TBD (M1 mirror/runtime/frame inspection immediately
-after SDK dispatch, before any timer advance; zero-progress/delay/
-replacement/failure/fault/OFF-priority legs).
+Original repro: M1 red at b28f454 (boundary 37273719102):
+r21_onset FAILs (runtime OFF immediately after admission).
 Proposed fix: apply a real accepted increase at admission, before
 dispatch returns; keep equality/downward/fault/readiness/OFF
 invariants; rejected/failed admissions change nothing; emit through
@@ -614,9 +609,8 @@ zero size); Configure Reporting / read-cfg-response with reserved
 direction 2 (any nonzero treated as receive form); Configure
 Reporting Response long forms validated for length only.
 Accepted-malformed-input defects (no new overwrite claim).
-Original repro: TBD (M1 real root/foundation dispatch for the review
-examples + complete/truncated controls; return/wire status, hook,
-allocations, table/NV, cleanup observations).
+Original repro: M1 red at b28f454 (boundary 37273719102):
+r22_struct + r22_direction FAIL (malformed shapes accepted).
 Proposed fix: explicit supported datatype grammar; full wire count
 width/sentinels; truthful rejection of unsupported compound forms
 before unsafe SDK size logic (no unbounded recursion); valid flat

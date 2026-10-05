@@ -308,11 +308,41 @@ restore/preemption paths are removed, not reinterpreted.
 ## Status
 
 - [x] M0 reconcile + review docs + R17–R23 ledger + checkpoint
-- [ ] M1 hosted adverse-behavior repros (R17–R23, negative controls @ reviewed SHA)
+- [x] M1 hosted adverse-behavior repros (R17–R22, negative controls @ reviewed behavior)
+
+## M1 negative controls (2026-10-05, run 37273719102 @ b28f454)
+
+Code under test is 69831aa behavior + M0 docs + tests-only M1 cases
+(except one non-behavioral R19 diagnostic counter in
+`src/glsd301p_identify.c`). Old suites all pass first
+(`GLSD301P_ZCL_DISPATCH_SEQ=PASS`, R9–R16 matrix failed=0); the new
+R17–R23 isolation matrix then reports 7 FAIL / 1 PASS-NOW. Each FAIL
+is a stated behavioral assertion at the intended contract, not infra
+(first red run 37273474269 had an r20 setup bug — plain Level legs
+missing the SDK execute-gate attr — corrected in b28f454 with the
+established `t_onoff` pattern; all other cases were already red at
+the intended asserts):
+
+- R17 `r17_trigger`: TriggerEffect Blink answers SUCCESS (expected
+  INVALID_FIELD). Control `r17_cmd` PASS (Identify command path).
+- R18 `r18_write`: write-1 at t=999 reads 0 at t=1500 (expected 1:
+  only 501 ms elapsed since receipt).
+- R19 `r19_bound`: one 200 s IO step executes 200 catch-up iterations
+  with the countdown at zero (expected ≤2 per-tick steps).
+- R20 `r20_duration`: below-minimum Move to Level(0, 100) reports
+  remaining 80 (expected the requested 100).
+- R21 `r21_onset`: upward With On/Off leaves runtime OFF at admission
+  (expected ON before dispatch returns).
+- R22 `r22_struct`: Report `00 00 4c 00 01` accepted (expected
+  MALFORMED). `r22_direction`: direction-2 Configure Reporting
+  accepted as receive form (expected MALFORMED).
+- R23: no code repro (evidence/ledger gap; ABI probe still
+  cluster/timer-only at this SHA — recorded, fixed in M4).
 - [ ] M2 output-neutral Identify (R17–R19 + shared write adapter) + regressions green
 - [ ] M3 Level + typed protocol (R20–R22) + regressions green
 - [ ] M4 target ABI + fresh identity + seal + two matching TC32+OTA builds (A23/A24)
 - [ ] M5 reconcile matrix + PR #8 body + issue #1 + stop (**independent acceptance review pending**)
 
-Next action: M1 — author production-entry negative controls that FAIL
-on the reviewed behavior; no source fixes in M1.
+Next action: M2 — minimal output-neutral Identify (R17–R19 + shared
+write adapter); replace the Blink/Breathe-blessing tests with the
+authorized contract.
