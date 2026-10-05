@@ -487,9 +487,42 @@ the initial survey are not reopened.
 ## Status
 
 - [x] M0 reconcile + B review docs + R24–R26/Q1 ledger + checkpoint
-- [ ] M1 focused hosted controls (R24 negatives + oracle/mutant survival demos)
+- [x] M1 focused hosted controls (R24 negatives + oracle/mutant survival demos)
+
+## M1 red (2026-10-05, run 37343108327 @ 4b008f3; first red 37342581044 @ 72e84cf)
+
+Code under test is 7975ff0 behavior + M0 docs + tests/workflow-only M1
+(no src/ or patcher change). SEQ PASS, R9–R16 failed=0, R17–R23
+failed=0, ORIGINAL_BODY_REPRO PASS; new R24_R26 matrix reports 4
+FAIL / 1 PASS, each FAIL at its intended assert (stderr lines in the
+run log):
+
+- R24 `r24_writeresp`: long `00 00 00` accepted (expected MALFORMED).
+- R24 `r24_cfgrsp`: long `00 00 00 00` accepted (expected MALFORMED).
+- R24 `r24_readcfgrsp`: failure `86 02 00 00` accepted (expected
+  MALFORMED). First M1 push had a success_rec setup bug (u8 is an
+  analog type per `zcl_analogDataType`, so the control missed its
+  reportableChange byte) — corrected in 4b008f3 with the
+  established pattern; all other cases were already red at the
+  intended asserts.
+- R24 `r24_undivided`: refused mixed write answers 6 bytes with
+  SUCCESS at byte 3 (expected failure-only 3 bytes).
+- R26 `r26_boundary` PASS-NOW on the unpacked host (N=50 accept;
+  N=51/55/56 refuse at the exact computed edges).
+
+Oracle-survival demos (same run, `GLSD301P_MUTANTS=RED`):
+`R25_MUTANT=SURVIVED` (slow-loop mutant passes `r19_bound`;
+marker `R25_MUTANT_LOOP_ACTIVE` proves the loop ran);
+`R26_NARROW_MUTANT=SURVIVED` (u16→u8 mutant passes; pool slack
+hides it); `R26_PACKED_RUN=DIVERGED` (packed binary accepts N=51,
+aborts at the host `refuse-host` leg — the layout delta). The
+mutant/interop steps use continue-on-error with an end-of-job
+verdict gate so one red phase still reports every signal; the gate
+fails the job on any survived mutant or interop failure.
 - [ ] M2 minimal fixes + Q1 disposition + AP green
 - [ ] M3 internal verifier + seal + dual builds + ledger + stop
 
-Next action: author M1 cases against production entry points; commit
-tests-only; observe hosted red at 7975ff0 behavior.
+Next action: M2 — P5v5 grammar + Undivided failure-only + repin;
+R25 gcov work oracle; R26 target ABI metadata + layout-adaptive
+boundaries + request observation; Q1 timer-contract disposition;
+fresh identity; AP green.
