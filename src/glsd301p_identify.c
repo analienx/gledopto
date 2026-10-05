@@ -13,6 +13,7 @@ void glsd301p_identify_init(glsd301p_identify_t *st)
     st->shadow = 0u;
     st->second_mark_ms = 0u;
     st->second_mark_valid = false;
+    st->tick_steps_max = 0u;
     st->effect_active = false;
     st->effect_id = GLSD301P_IDENTIFY_EFFECT_BLINK;
     st->effect_start_ms = 0u;
@@ -46,25 +47,36 @@ void glsd301p_identify_tick(glsd301p_identify_t *st, uint16_t *store,
         st->second_mark_valid = true;
         return;
     }
-    while (glsd301p_timebase_age_ms(st->second_mark_ms, now_ms) >= 1000u) {
-        st->second_mark_ms += 1000u;
-        if (*store != st->shadow) {
-            /*
-             * Externally written value (IdentifyTime writes notify
-             * nobody): adopt it, charging the elapsed phase as one
-             * second (ceiling behavior: a value written up to a
-             * second ago has a second elapsed).
-             */
-            st->countdown = *store;
-            if (st->countdown > 0u) {
-                st->countdown--;
+    {
+        /* R19 diagnostic only: per-tick catch-up step count. */
+        uint32_t steps = 0u;
+        while (glsd301p_timebase_age_ms(st->second_mark_ms, now_ms) >=
+               1000u) {
+            st->second_mark_ms += 1000u;
+            if (steps < 0xFFFFFFFFu) {
+                steps++;
             }
-            *store = st->countdown;
-            st->shadow = st->countdown;
-        } else if (st->countdown > 0u) {
-            st->countdown--;
-            *store = st->countdown;
-            st->shadow = st->countdown;
+            if (steps > st->tick_steps_max) {
+                st->tick_steps_max = steps;
+            }
+            if (*store != st->shadow) {
+                /*
+                 * Externally written value (IdentifyTime writes notify
+                 * nobody): adopt it, charging the elapsed phase as one
+                 * second (ceiling behavior: a value written up to a
+                 * second ago has a second elapsed).
+                 */
+                st->countdown = *store;
+                if (st->countdown > 0u) {
+                    st->countdown--;
+                }
+                *store = st->countdown;
+                st->shadow = st->countdown;
+            } else if (st->countdown > 0u) {
+                st->countdown--;
+                *store = st->countdown;
+                st->shadow = st->countdown;
+            }
         }
     }
 }

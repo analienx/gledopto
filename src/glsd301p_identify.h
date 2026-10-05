@@ -47,6 +47,12 @@ typedef struct {
     uint16_t shadow;
     uint32_t second_mark_ms;
     bool second_mark_valid;
+    /*
+     * R19 diagnostic: maximum per-tick catch-up steps executed by
+     * glsd301p_identify_tick(). RAM-only, never affects behavior; the
+     * hosted R19 oracle asserts it stays bounded under large gaps.
+     */
+    uint32_t tick_steps_max;
     bool effect_active;
     uint8_t effect_id;
     uint32_t effect_start_ms;

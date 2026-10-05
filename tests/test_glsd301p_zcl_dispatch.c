@@ -3169,6 +3169,890 @@ static void test_r13_trigger_effect_truthful(void)
     assert(pool_free_total() == 26u);
 }
 
+/* ------------------------------------------------------------------ */
+/* R17-R23 negative controls (M1). Each case asserts the intended      */
+/* contract; a case that fails on the reviewed behavior is the         */
+/* reproduction. Controls that already pass pin behavior the fixes     */
+/* must preserve.                                                      */
+/* ------------------------------------------------------------------ */
+
+/*
+ * Advance the scripted clock by whole ms, then run exactly one timer
+ * pass, so a single IO step observes a large service gap (R19). The
+ * product ms*16000 must fit u32 (ms <= 268435); the SDK delta, the P1
+ * timebase hook and the wrap arithmetic all run for real.
+ */
+static void jump_ms(uint32_t ms)
+{
+    host_clock_advance(ms * HOST_TICKS_PER_MS);
+    ev_timer_process();
+}
+
+static void test_r17_trigger_effect_output_neutral(void)
+{
+    const u8 blink[] = {0x00u, 0x00u};
+    const u8 breathe[] = {0x01u, 0x00u};
+    const u8 to_mid[] = {0x40u, 0x00u, 0x00u};
+    const u8 to_lo[] = {0x10u, 0x00u, 0x00u};
+    const u8 up[] = {0x40u, 0x14u, 0x00u};
+    const u8 identify5[] = {0x05u, 0x00u};
+    uint32_t base;
+
+    /*
+     * M1: the authorized contract is output-neutral Identify. Every
+     * Trigger Effect is unsupported in this scope and must be rejected
+     * before any state, timer, transition or UART mutation. The
+     * reviewed code answers SUCCESS and runs Blink/Breathe programs
+     * that energize the load, so this case is RED until M2.
+     */
+
+    /* From OFF: rejected, silent, nothing starts. */
+    fixture_init(NULL);
+    boot_ready();
+    pump_ms(1u);
+    assert(!g_runtime.logical_output_enabled);
+    assert(g_level.current_level == DISPATCH_MAX_LEVEL);
+    base = host_uart_accepted_count();
+    assert(dispatch_identify(ZCL_CMD_TRIGGER_EFFECT,
+                             ZCL_FRAME_CLIENT_SERVER_DIR, blink,
+                             (u16)sizeof(blink)) == ZCL_STA_INVALID_FIELD);
+    assert(identify_calls == 1u);
+    assert(!glsd301p_timer_level_registered());
+    assert(g_level.mode == GLSD301P_LEVEL_IDLE);
+    assert(!g_runtime.logical_output_enabled);
+    assert(g_level.current_level == DISPATCH_MAX_LEVEL);
+    assert(g_onoff == 0u);
+    assert(t_identify_time == 0u);
+    assert(host_uart_accepted_count() == base);
+    pump_ms(2000u);
+    assert(!g_runtime.logical_output_enabled);
+    assert(g_level.current_level == DISPATCH_MAX_LEVEL);
+    assert(host_uart_accepted_count() == base);
+    assert(!glsd301p_timer_level_registered());
+
+    /* From ON at mid level: same rejection, output preserved. */
+    fixture_init(NULL);
+    boot_ready();
+    pump_ms(1u);
+    assert(dispatch_onoff(ZCL_CMD_ONOFF_ON, NULL, 0u) == ZCL_STA_SUCCESS);
+    assert(dispatch_level(ZCL_CMD_LEVEL_MOVE_TO_LEVEL_WITH_ON_OFF, to_mid,
+                          (u16)sizeof(to_mid)) == ZCL_STA_SUCCESS);
+    pump_ms(10u);
+    assert(g_runtime.logical_output_enabled);
+    base = host_uart_accepted_count();
+    assert(dispatch_identify(ZCL_CMD_TRIGGER_EFFECT,
+                             ZCL_FRAME_CLIENT_SERVER_DIR, breathe,
+                             (u16)sizeof(breathe)) == ZCL_STA_INVALID_FIELD);
+    assert(!glsd301p_timer_level_registered());
+    assert(g_runtime.logical_output_enabled);
+    assert(g_level.current_level == 0x40u);
+    assert(g_onoff == 1u);
+    assert(host_uart_accepted_count() == base);
+    pump_ms(2000u);
+    assert(g_runtime.logical_output_enabled);
+    assert(g_level.current_level == 0x40u);
+    assert(host_uart_accepted_count() == base);
+
+    /* A running transition continues unaffected by the rejection. */
+    fixture_init(NULL);
+    boot_ready();
+    assert(dispatch_onoff(ZCL_CMD_ONOFF_ON, NULL, 0u) == ZCL_STA_SUCCESS);
+    assert(dispatch_level(ZCL_CMD_LEVEL_MOVE_TO_LEVEL_WITH_ON_OFF, to_lo,
+                          (u16)sizeof(to_lo)) == ZCL_STA_SUCCESS);
+    pump_ms(10u);
+    assert(dispatch_onoff(ZCL_CMD_ONOFF_OFF, NULL, 0u) == ZCL_STA_SUCCESS);
+    pump_ms(10u);
+    assert(dispatch_level(ZCL_CMD_LEVEL_MOVE_TO_LEVEL_WITH_ON_OFF, up,
+                          (u16)sizeof(up)) == ZCL_STA_SUCCESS);
+    pump_ms(500u);
+    assert(g_level.mode == GLSD301P_LEVEL_TARGET);
+    base = host_uart_accepted_count();
+    assert(dispatch_identify(ZCL_CMD_TRIGGER_EFFECT,
+                             ZCL_FRAME_CLIENT_SERVER_DIR, blink,
+                             (u16)sizeof(blink)) == ZCL_STA_INVALID_FIELD);
+    assert(g_level.mode == GLSD301P_LEVEL_TARGET);
+    assert(glsd301p_timer_level_registered());
+    pump_ms(2000u);
+    assert(g_level.mode == GLSD301P_LEVEL_IDLE);
+    assert(g_level.current_level == 0x40u);
+    assert(g_runtime.logical_output_enabled);
+
+    /* A running countdown is untouched by the rejection. */
+    fixture_init(NULL);
+    boot_ready();
+    pump_ms(1u);
+    assert(dispatch_identify(ZCL_CMD_IDENTIFY,
+                             ZCL_FRAME_CLIENT_SERVER_DIR, identify5,
+                             (u16)sizeof(identify5)) == ZCL_STA_SUCCESS);
+    assert(t_identify_time == 5u);
+    assert(dispatch_identify(ZCL_CMD_TRIGGER_EFFECT,
+                             ZCL_FRAME_CLIENT_SERVER_DIR, blink,
+                             (u16)sizeof(blink)) == ZCL_STA_INVALID_FIELD);
+    assert(t_identify_time == 5u);
+    pump_ms(1000u);
+    assert(t_identify_time == 4u);
+
+    /* Fault latched: still rejected, never restored to ON later. */
+    fixture_init(NULL);
+    boot_ready();
+    pump_ms(1u);
+    assert(dispatch_onoff(ZCL_CMD_ONOFF_ON, NULL, 0u) == ZCL_STA_SUCCESS);
+    host_uart_set_busy(true);
+    pump_ms(40u);
+    assert(glsd301p_uart_service_deadline_faults(&g_uart) == 1u);
+    assert(!g_runtime.logical_output_enabled);
+    host_uart_set_busy(false);
+    pump_ms(1u);
+    base = host_uart_accepted_count();
+    assert(dispatch_identify(ZCL_CMD_TRIGGER_EFFECT,
+                             ZCL_FRAME_CLIENT_SERVER_DIR, blink,
+                             (u16)sizeof(blink)) == ZCL_STA_INVALID_FIELD);
+    assert(!g_runtime.logical_output_enabled);
+    assert(g_level.mode == GLSD301P_LEVEL_IDLE);
+    pump_ms(2000u);
+    assert(!g_runtime.logical_output_enabled);
+    assert(host_uart_accepted_count() == base);
+
+    /* Delayed UART around the trigger: no effect traffic either way. */
+    fixture_init(NULL);
+    boot_ready();
+    pump_ms(1u);
+    assert(dispatch_onoff(ZCL_CMD_ONOFF_ON, NULL, 0u) == ZCL_STA_SUCCESS);
+    assert(dispatch_level(ZCL_CMD_LEVEL_MOVE_TO_LEVEL_WITH_ON_OFF, to_mid,
+                          (u16)sizeof(to_mid)) == ZCL_STA_SUCCESS);
+    pump_ms(10u);
+    host_uart_set_busy(true);
+    assert(dispatch_identify(ZCL_CMD_TRIGGER_EFFECT,
+                             ZCL_FRAME_CLIENT_SERVER_DIR, breathe,
+                             (u16)sizeof(breathe)) == ZCL_STA_INVALID_FIELD);
+    pump_ms(40u);
+    host_uart_set_busy(false);
+    pump_ms(10u);
+    assert(g_runtime.logical_output_enabled);
+    assert(g_level.current_level == 0x40u);
+    assert(!glsd301p_timer_level_registered());
+    assert(pool_free_total() == 26u);
+}
+
+static void test_r17_identify_command_neutral_control(void)
+{
+    const u8 identify5[] = {0x05u, 0x00u};
+    const u8 identify3[] = {0x03u, 0x00u};
+    const u8 identify0[] = {0x00u, 0x00u};
+    const u8 add_if2[] = {0x12u, 0x00u, 0x00u};
+    u16 cluster;
+    u8 cmd;
+    const u8 *pld;
+    u16 len;
+    uint32_t base;
+
+    /*
+     * PASS-NOW control: the Identify command path is already silent RAM
+     * state (countdown + honest Query + AddIf gating). M2 must preserve
+     * all of it while removing the Trigger Effect overlay.
+     */
+    fixture_init(NULL);
+    boot_ready();
+    pump_ms(1u);
+    base = host_uart_accepted_count();
+
+    assert(dispatch_identify(ZCL_CMD_IDENTIFY,
+                             ZCL_FRAME_CLIENT_SERVER_DIR, identify5,
+                             (u16)sizeof(identify5)) == ZCL_STA_SUCCESS);
+    assert(t_identify_time == 5u);
+    assert(host_uart_accepted_count() == base);
+    assert(!glsd301p_timer_level_registered());
+    assert(g_level.mode == GLSD301P_LEVEL_IDLE);
+
+    assert(dispatch_identify(ZCL_CMD_IDENTIFY_QUERY,
+                             ZCL_FRAME_CLIENT_SERVER_DIR, NULL,
+                             0u) == ZCL_STA_CMD_HAS_RESP);
+    assert(af_count == 1u);
+    assert(af_parse(0u, &cluster, &cmd, &pld, &len));
+    assert(cmd == ZCL_CMD_IDENTIFY_QUERY_RSP);
+    assert(len == 2u);
+    assert(pld[0] == 0x05u && pld[1] == 0x00u);
+
+    pump_ms(2000u);
+    assert(t_identify_time == 3u);
+    assert(host_uart_accepted_count() == base);
+
+    assert(dispatch_group(ZCL_CMD_GROUP_ADD_GROUP_IF_IDF,
+                          ZCL_FRAME_CLIENT_SERVER_DIR, add_if2,
+                          (u16)sizeof(add_if2)) == ZCL_STA_SUCCESS);
+    assert(aps_add_calls == 1u);
+
+    pump_ms(4000u);
+    assert(t_identify_time == 0u);
+    assert(dispatch_group(ZCL_CMD_GROUP_ADD_GROUP_IF_IDF,
+                          ZCL_FRAME_CLIENT_SERVER_DIR, add_if2,
+                          (u16)sizeof(add_if2)) == ZCL_STA_SUCCESS);
+    assert(aps_add_calls == 1u);
+
+    assert(dispatch_identify(ZCL_CMD_IDENTIFY,
+                             ZCL_FRAME_CLIENT_SERVER_DIR, identify3,
+                             (u16)sizeof(identify3)) == ZCL_STA_SUCCESS);
+    assert(t_identify_time == 3u);
+    assert(dispatch_identify(ZCL_CMD_IDENTIFY,
+                             ZCL_FRAME_CLIENT_SERVER_DIR, identify0,
+                             (u16)sizeof(identify0)) == ZCL_STA_SUCCESS);
+    assert(t_identify_time == 0u);
+    assert(host_uart_accepted_count() == base);
+    assert(pool_free_total() == 26u);
+}
+
+static void test_r18_write_receipt_restart(void)
+{
+    const u8 identify5[] = {0x05u, 0x00u};
+    const u8 identify3[] = {0x03u, 0x00u};
+    const u8 identify0[] = {0x00u, 0x00u};
+    const u8 write_time1[] = {0x00u, 0x00u, 0x21u, 0x01u, 0x00u};
+    const u8 write_time4[] = {0x00u, 0x00u, 0x21u, 0x04u, 0x00u};
+    const u8 write_time6[] = {0x00u, 0x00u, 0x21u, 0x06u, 0x00u};
+    const u8 write_badtype[] = {0x00u, 0x00u, 0x20u, 0x09u};
+    const u8 write_mixed[] = {0xFFu, 0xFFu, 0x20u, 0x00u,
+                              0x00u, 0x00u, 0x21u, 0x05u, 0x00u};
+    u16 cluster;
+    u8 cmd;
+    const u8 *pld;
+    u16 len;
+
+    /*
+     * M1: an accepted IdentifyTime write must start/restart the
+     * countdown at the write's receipt time, including same-value
+     * writes. The reviewed code adopts the store at an old
+     * whole-second boundary (charging up to a second the write never
+     * owned) and ignores equal writes, so the phase legs below are RED
+     * until M2. Failure legs are PASS-NOW controls.
+     */
+
+    /* Short write late in the old phase keeps its full second. */
+    fixture_init(noop_hook);
+    boot_ready();
+    pump_ms(992u); /* t=999 */
+    assert(root_frame(ZCL_CLUSTER_GEN_IDENTIFY, ZCL_CMD_WRITE, 0u,
+                      ZCL_FRAME_CLIENT_SERVER_DIR, write_time1,
+                      (u16)sizeof(write_time1), 1u));
+    assert(t_identify_time == 1u);
+    assert(af_count == 1u);
+    assert(af_parse(0u, &cluster, &cmd, &pld, &len));
+    assert(cmd == ZCL_CMD_WRITE_RSP && len == 1u &&
+           pld[0] == ZCL_STA_SUCCESS);
+    pump_ms(501u); /* t=1500: 501 ms after receipt, still identifying */
+    assert(t_identify_time == 1u);
+    pump_ms(498u); /* t=1998 */
+    assert(t_identify_time == 1u);
+    pump_ms(1u); /* t=1999: first full second elapsed */
+    assert(t_identify_time == 0u);
+
+    /* An equal-value write restarts the phase instead of vanishing. */
+    fixture_init(noop_hook);
+    boot_ready();
+    assert(dispatch_identify(ZCL_CMD_IDENTIFY,
+                             ZCL_FRAME_CLIENT_SERVER_DIR, identify5,
+                             (u16)sizeof(identify5)) == ZCL_STA_SUCCESS);
+    assert(t_identify_time == 5u);
+    pump_ms(4900u); /* t=4907: four boundaries consumed */
+    assert(t_identify_time == 1u);
+    assert(root_frame(ZCL_CLUSTER_GEN_IDENTIFY, ZCL_CMD_WRITE, 0u,
+                      ZCL_FRAME_CLIENT_SERVER_DIR, write_time1,
+                      (u16)sizeof(write_time1), 2u));
+    assert(t_identify_time == 1u);
+    pump_ms(600u); /* t=5507: 600 ms after the equal write */
+    assert(t_identify_time == 1u);
+    pump_ms(400u); /* t=5907: the restarted second elapsed */
+    assert(t_identify_time == 0u);
+
+    /* Stop/restart commands (PASS-NOW control). */
+    fixture_init(noop_hook);
+    boot_ready();
+    assert(dispatch_identify(ZCL_CMD_IDENTIFY,
+                             ZCL_FRAME_CLIENT_SERVER_DIR, identify5,
+                             (u16)sizeof(identify5)) == ZCL_STA_SUCCESS);
+    pump_ms(2000u);
+    assert(t_identify_time == 3u);
+    assert(dispatch_identify(ZCL_CMD_IDENTIFY,
+                             ZCL_FRAME_CLIENT_SERVER_DIR, identify0,
+                             (u16)sizeof(identify0)) == ZCL_STA_SUCCESS);
+    assert(t_identify_time == 0u);
+    pump_ms(2000u);
+    assert(t_identify_time == 0u);
+    assert(dispatch_identify(ZCL_CMD_IDENTIFY,
+                             ZCL_FRAME_CLIENT_SERVER_DIR, identify3,
+                             (u16)sizeof(identify3)) == ZCL_STA_SUCCESS);
+    assert(t_identify_time == 3u);
+    pump_ms(1000u);
+    assert(t_identify_time == 2u);
+
+    /* Mixed valid/invalid records: the valid write still restarts. */
+    fixture_init(noop_hook);
+    boot_ready();
+    pump_ms(992u); /* t=999 */
+    assert(root_frame(ZCL_CLUSTER_GEN_IDENTIFY, ZCL_CMD_WRITE, 0u,
+                      ZCL_FRAME_CLIENT_SERVER_DIR, write_mixed,
+                      (u16)sizeof(write_mixed), 3u));
+    assert(t_identify_time == 5u);
+    assert(af_count == 1u);
+    assert(af_parse(0u, &cluster, &cmd, &pld, &len));
+    assert(cmd == ZCL_CMD_WRITE_RSP && len == 3u);
+    assert(pld[0] == ZCL_STA_UNSUPPORTED_ATTRIBUTE);
+    assert(pld[1] == 0xFFu && pld[2] == 0xFFu);
+    pump_ms(501u); /* t=1500 */
+    assert(t_identify_time == 5u);
+    pump_ms(499u); /* t=1999 */
+    assert(t_identify_time == 4u);
+
+    /* Wrong-type writes never restart (PASS-NOW control). */
+    fixture_init(noop_hook);
+    boot_ready();
+    assert(dispatch_identify(ZCL_CMD_IDENTIFY,
+                             ZCL_FRAME_CLIENT_SERVER_DIR, identify5,
+                             (u16)sizeof(identify5)) == ZCL_STA_SUCCESS);
+    pump_ms(1000u);
+    assert(t_identify_time == 4u);
+    assert(root_frame(ZCL_CLUSTER_GEN_IDENTIFY, ZCL_CMD_WRITE, 0u,
+                      ZCL_FRAME_CLIENT_SERVER_DIR, write_badtype,
+                      (u16)sizeof(write_badtype), 4u));
+    assert(t_identify_time == 4u);
+    assert(af_count == 1u);
+    assert(af_parse(0u, &cluster, &cmd, &pld, &len));
+    assert(cmd == ZCL_CMD_WRITE_RSP && len == 3u);
+    assert(pld[0] == ZCL_STA_INVALID_DATA_TYPE);
+    pump_ms(1000u);
+    assert(t_identify_time == 3u);
+
+    /* No-response and undivided writes restart at receipt time. */
+    fixture_init(noop_hook);
+    boot_ready();
+    pump_ms(992u); /* t=999 */
+    assert(root_frame(ZCL_CLUSTER_GEN_IDENTIFY, ZCL_CMD_WRITE_NO_RSP, 0u,
+                      ZCL_FRAME_CLIENT_SERVER_DIR, write_time6,
+                      (u16)sizeof(write_time6), 5u));
+    assert(t_identify_time == 6u);
+    assert(af_count == 0u);
+    pump_ms(501u); /* t=1500 */
+    assert(t_identify_time == 6u);
+
+    fixture_init(noop_hook);
+    boot_ready();
+    pump_ms(992u); /* t=999 */
+    assert(root_frame(ZCL_CLUSTER_GEN_IDENTIFY, ZCL_CMD_WRITE_UNDIVIDED,
+                      0u, ZCL_FRAME_CLIENT_SERVER_DIR, write_time4,
+                      (u16)sizeof(write_time4), 6u));
+    assert(t_identify_time == 4u);
+    assert(af_count == 1u);
+    assert(af_parse(0u, &cluster, &cmd, &pld, &len));
+    assert(cmd == ZCL_CMD_WRITE_RSP && len == 1u &&
+           pld[0] == ZCL_STA_SUCCESS);
+    pump_ms(501u); /* t=1500 */
+    assert(t_identify_time == 4u);
+
+    /* Undivided with one invalid record applies nothing (control). */
+    fixture_init(noop_hook);
+    boot_ready();
+    assert(dispatch_identify(ZCL_CMD_IDENTIFY,
+                             ZCL_FRAME_CLIENT_SERVER_DIR, identify5,
+                             (u16)sizeof(identify5)) == ZCL_STA_SUCCESS);
+    pump_ms(1000u);
+    assert(t_identify_time == 4u);
+    assert(root_frame(ZCL_CLUSTER_GEN_IDENTIFY, ZCL_CMD_WRITE_UNDIVIDED,
+                      0u, ZCL_FRAME_CLIENT_SERVER_DIR, write_mixed,
+                      (u16)sizeof(write_mixed), 7u));
+    assert(t_identify_time == 4u);
+    assert(af_count == 1u);
+    assert(af_parse(0u, &cluster, &cmd, &pld, &len));
+    assert(cmd == ZCL_CMD_WRITE_RSP && len == 6u);
+    assert(pld[0] == ZCL_STA_UNSUPPORTED_ATTRIBUTE);
+    assert(pld[3] == ZCL_STA_SUCCESS);
+    pump_ms(1000u);
+    assert(t_identify_time == 3u);
+
+    /* Wrap arithmetic through the real shared tick (control). */
+    {
+        glsd301p_identify_t loc;
+        uint16_t store = 0u;
+
+        glsd301p_identify_init(&loc);
+        glsd301p_identify_on_identify(&loc, 5u, &store, 0xFFFFFF00u);
+        assert(store == 5u);
+        glsd301p_identify_tick(&loc, &store, 0x00000100u);
+        assert(store == 5u);
+        glsd301p_identify_tick(&loc, &store, 0x000008C4u);
+        assert(store == 3u);
+        glsd301p_identify_tick(&loc, &store, 0x0000147Cu);
+        assert(store == 0u);
+    }
+    assert(pool_free_total() == 26u);
+}
+
+static void test_r19_identify_catchup_bounded(void)
+{
+    const u8 identify_max[] = {0xFFu, 0xFFu};
+    const u8 identify10[] = {0x0Au, 0x00u};
+
+    /*
+     * M1: one IO step must do constant bounded Identify work no matter
+     * how large the service gap is. The reviewed tick loops once per
+     * elapsed second (200 iterations for a 200 s gap, and it keeps
+     * looping with the countdown at zero), so the tick_steps_max legs
+     * below are RED until M2. End-state legs already pass and pin the
+     * no-time-loss behavior the fix must preserve.
+     */
+
+    /* Zero countdown, 200 s gap in one IO step: no catch-up work. */
+    fixture_init(NULL);
+    boot_ready();
+    pump_ms(1u);
+    assert(t_identify_time == 0u);
+    assert(g_ctx.identify.tick_steps_max == 0u);
+    jump_ms(200000u);
+    assert(t_identify_time == 0u);
+    assert(g_ctx.identify.tick_steps_max <= 2u);
+    /* The IO sequence still ran: gap recorded, UART alive after. */
+    assert(g_ctx.io_max_gap_ms == 200000u);
+    assert(dispatch_onoff(ZCL_CMD_ONOFF_ON, NULL, 0u) == ZCL_STA_SUCCESS);
+    {
+        uint32_t base = host_uart_accepted_count();
+        pump_ms(1u);
+        assert(g_runtime.logical_output_enabled);
+        assert(host_uart_accepted_count() > base);
+    }
+
+    /* Maximum countdown saturates down by whole seconds only. */
+    fixture_init(NULL);
+    boot_ready();
+    pump_ms(1u);
+    assert(dispatch_identify(ZCL_CMD_IDENTIFY,
+                             ZCL_FRAME_CLIENT_SERVER_DIR, identify_max,
+                             (u16)sizeof(identify_max)) == ZCL_STA_SUCCESS);
+    assert(t_identify_time == 0xFFFFu);
+    jump_ms(200000u);
+    assert(t_identify_time == (uint16_t)(0xFFFFu - 200u));
+    assert(g_ctx.identify.tick_steps_max <= 2u);
+
+    /* The same bound holds across a host-tick wrap. */
+    fixture_init(NULL);
+    boot_ready();
+    pump_ms(1u);
+    host_clock_set(0xFFFFFFFFu - 100u * HOST_TICKS_PER_MS);
+    ev_timer_process();
+    assert(dispatch_identify(ZCL_CMD_IDENTIFY,
+                             ZCL_FRAME_CLIENT_SERVER_DIR, identify10,
+                             (u16)sizeof(identify10)) == ZCL_STA_SUCCESS);
+    assert(t_identify_time == 10u);
+    jump_ms(200000u);
+    assert(t_identify_time == 0u);
+    assert(g_ctx.identify.tick_steps_max <= 2u);
+    assert(dispatch_onoff(ZCL_CMD_ONOFF_ON, NULL, 0u) == ZCL_STA_SUCCESS);
+    {
+        uint32_t base = host_uart_accepted_count();
+        pump_ms(1u);
+        assert(g_runtime.logical_output_enabled);
+        assert(host_uart_accepted_count() > base);
+    }
+    assert(pool_free_total() == 26u);
+}
+
+static void test_r20_movetolevel_keeps_duration(void)
+{
+    const u8 to_10[] = {0x0Au, 0x00u, 0x00u};
+    const u8 to_40[] = {0x40u, 0x00u, 0x00u};
+    const u8 to_250[] = {0xFAu, 0x00u, 0x00u};
+    const u8 move0_tt100[] = {0x00u, 0x64u, 0x00u};
+    const u8 move40_tt100[] = {0x40u, 0x64u, 0x00u};
+    const u8 step_up40_tt100[] = {0x00u, 0x28u, 0x64u, 0x00u};
+
+    /*
+     * M1: an accepted Move to Level with a finite duration must run
+     * the requested tenths even when its target clips at the minimum.
+     * Proportional reduction belongs to clipped Steps only. The
+     * reviewed start_target scales every clipped span, so the
+     * below-minimum legs are RED until M3; immediate/Step/gap legs are
+     * PASS-NOW controls.
+     */
+
+    /* Plain below-minimum move keeps the full 100 tenths. */
+    fixture_init(NULL);
+    boot_ready();
+    assert(dispatch_onoff(ZCL_CMD_ONOFF_ON, NULL, 0u) == ZCL_STA_SUCCESS);
+    assert(dispatch_level(ZCL_CMD_LEVEL_MOVE_TO_LEVEL, to_10,
+                          (u16)sizeof(to_10)) == ZCL_STA_SUCCESS);
+    pump_ms(10u);
+    assert(g_level.current_level == 0x0Au);
+    assert(dispatch_level(ZCL_CMD_LEVEL_MOVE_TO_LEVEL, move0_tt100,
+                          (u16)sizeof(move0_tt100)) == ZCL_STA_SUCCESS);
+    assert(g_level.mode == GLSD301P_LEVEL_TARGET);
+    assert(g_level.remaining_time == 100u);
+    pump_ms(8100u);
+    assert(g_level.mode == GLSD301P_LEVEL_TARGET);
+    assert(g_level.current_level == 0x04u);
+    assert(g_level.remaining_time == 19u);
+    pump_ms(2000u);
+    assert(g_level.mode == GLSD301P_LEVEL_IDLE);
+    assert(g_level.current_level == DISPATCH_MIN_LEVEL);
+    assert(g_level.remaining_time == 0u);
+
+    /* With On/Off variant: same duration, output preserved. */
+    fixture_init(NULL);
+    boot_ready();
+    assert(dispatch_onoff(ZCL_CMD_ONOFF_ON, NULL, 0u) == ZCL_STA_SUCCESS);
+    assert(dispatch_level(ZCL_CMD_LEVEL_MOVE_TO_LEVEL_WITH_ON_OFF, to_10,
+                          (u16)sizeof(to_10)) == ZCL_STA_SUCCESS);
+    pump_ms(10u);
+    assert(dispatch_level(ZCL_CMD_LEVEL_MOVE_TO_LEVEL_WITH_ON_OFF,
+                          move0_tt100,
+                          (u16)sizeof(move0_tt100)) == ZCL_STA_SUCCESS);
+    assert(g_level.remaining_time == 100u);
+    pump_ms(8100u);
+    assert(g_level.mode == GLSD301P_LEVEL_TARGET);
+    assert(g_runtime.logical_output_enabled);
+    pump_ms(2000u);
+    assert(g_level.mode == GLSD301P_LEVEL_IDLE);
+    assert(g_level.current_level == DISPATCH_MIN_LEVEL);
+
+    /* Zero and reserved durations stay immediate (controls). */
+    fixture_init(NULL);
+    boot_ready();
+    assert(dispatch_onoff(ZCL_CMD_ONOFF_ON, NULL, 0u) == ZCL_STA_SUCCESS);
+    assert(dispatch_level(ZCL_CMD_LEVEL_MOVE_TO_LEVEL, to_40,
+                          (u16)sizeof(to_40)) == ZCL_STA_SUCCESS);
+    assert(g_level.mode == GLSD301P_LEVEL_IDLE);
+    assert(g_level.current_level == 0x40u);
+    {
+        const u8 move40_reserved[] = {0x40u, 0xFFu, 0xFFu};
+        assert(dispatch_level(ZCL_CMD_LEVEL_MOVE_TO_LEVEL,
+                              move40_reserved,
+                              (u16)sizeof(move40_reserved)) ==
+               ZCL_STA_SUCCESS);
+        assert(g_level.mode == GLSD301P_LEVEL_IDLE);
+    }
+
+    /* Clipped Steps still scale (control pinned through M3). */
+    fixture_init(NULL);
+    boot_ready();
+    assert(dispatch_onoff(ZCL_CMD_ONOFF_ON, NULL, 0u) == ZCL_STA_SUCCESS);
+    assert(dispatch_level(ZCL_CMD_LEVEL_MOVE_TO_LEVEL, to_250,
+                          (u16)sizeof(to_250)) == ZCL_STA_SUCCESS);
+    pump_ms(10u);
+    assert(g_level.current_level == 0xFAu);
+    assert(dispatch_level(ZCL_CMD_LEVEL_STEP, step_up40_tt100,
+                          (u16)sizeof(step_up40_tt100)) ==
+           ZCL_STA_SUCCESS);
+    assert(g_level.remaining_time == 10u);
+    pump_ms(1500u);
+    assert(g_level.mode == GLSD301P_LEVEL_IDLE);
+    assert(g_level.current_level == DISPATCH_MAX_LEVEL);
+
+    /* A mid-transition gap interpolates on elapsed time (control). */
+    fixture_init(NULL);
+    boot_ready();
+    assert(dispatch_onoff(ZCL_CMD_ONOFF_ON, NULL, 0u) == ZCL_STA_SUCCESS);
+    assert(dispatch_level(ZCL_CMD_LEVEL_MOVE_TO_LEVEL, to_10,
+                          (u16)sizeof(to_10)) == ZCL_STA_SUCCESS);
+    pump_ms(10u);
+    assert(dispatch_level(ZCL_CMD_LEVEL_MOVE_TO_LEVEL, move40_tt100,
+                          (u16)sizeof(move40_tt100)) == ZCL_STA_SUCCESS);
+    jump_ms(5000u);
+    assert(g_level.mode == GLSD301P_LEVEL_TARGET);
+    assert(g_level.current_level == 0x25u);
+    assert(g_level.remaining_time == 50u);
+    pump_ms(5100u);
+    assert(g_level.mode == GLSD301P_LEVEL_IDLE);
+    assert(g_level.current_level == 0x40u);
+    assert(pool_free_total() == 26u);
+}
+
+static void test_r21_upward_onset_immediate(void)
+{
+    const u8 to_16[] = {0x10u, 0x00u, 0x00u};
+    const u8 up40_tt20[] = {0x40u, 0x14u, 0x00u};
+    const u8 step_up8_tt20[] = {0x00u, 0x08u, 0x14u, 0x00u};
+    const u8 move_up[] = {0x00u, 0x20u};
+    uint8_t f[6];
+    bool is_off;
+    uint32_t base;
+
+    /*
+     * M1: an accepted upward TARGET With On/Off command must apply ON
+     * at admission, before dispatch returns — not at the first 100 ms
+     * timer callback. The reviewed start_target arms the timer without
+     * the onset effect, so the admission legs are RED until M3.
+     * MOVE-up (already onset), plain-up (stays OFF), not-ready and
+     * fault legs are PASS-NOW controls.
+     */
+
+    /* Move to Level With On/Off: ON the moment dispatch returns. */
+    fixture_init(NULL);
+    boot_ready();
+    assert(dispatch_onoff(ZCL_CMD_ONOFF_ON, NULL, 0u) == ZCL_STA_SUCCESS);
+    assert(dispatch_level(ZCL_CMD_LEVEL_MOVE_TO_LEVEL_WITH_ON_OFF, to_16,
+                          (u16)sizeof(to_16)) == ZCL_STA_SUCCESS);
+    pump_ms(10u);
+    assert(dispatch_onoff(ZCL_CMD_ONOFF_OFF, NULL, 0u) == ZCL_STA_SUCCESS);
+    pump_ms(10u);
+    assert(!g_runtime.logical_output_enabled);
+    assert(g_level.current_level == 0x10u);
+    assert(g_onoff == 0u);
+    base = host_uart_accepted_count();
+    assert(dispatch_level(ZCL_CMD_LEVEL_MOVE_TO_LEVEL_WITH_ON_OFF,
+                          up40_tt20,
+                          (u16)sizeof(up40_tt20)) == ZCL_STA_SUCCESS);
+    assert(g_runtime.logical_output_enabled);
+    assert(g_onoff == 1u);
+    assert(glsd301p_uart_transport_has_pending(&g_transport));
+    assert(glsd301p_uart_transport_peek(&g_transport, f, &is_off));
+    assert(!is_off && f[3] != 0x00u);
+    /* Still before the first 100 ms level tick: the ON frame is out. */
+    pump_ms(50u);
+    assert(host_uart_accepted_count() > base);
+    assert(host_uart_accepted_frame(base, f));
+    assert(f[3] != 0x00u);
+    pump_ms(2500u);
+    assert(g_level.mode == GLSD301P_LEVEL_IDLE);
+    assert(g_level.current_level == 0x40u);
+    assert(g_runtime.logical_output_enabled);
+
+    /* Step With On/Off shares the TARGET path: same onset. */
+    fixture_init(NULL);
+    boot_ready();
+    assert(dispatch_onoff(ZCL_CMD_ONOFF_ON, NULL, 0u) == ZCL_STA_SUCCESS);
+    assert(dispatch_level(ZCL_CMD_LEVEL_MOVE_TO_LEVEL_WITH_ON_OFF, to_16,
+                          (u16)sizeof(to_16)) == ZCL_STA_SUCCESS);
+    pump_ms(10u);
+    assert(dispatch_onoff(ZCL_CMD_ONOFF_OFF, NULL, 0u) == ZCL_STA_SUCCESS);
+    pump_ms(10u);
+    assert(dispatch_level(ZCL_CMD_LEVEL_STEP_WITH_ON_OFF, step_up8_tt20,
+                          (u16)sizeof(step_up8_tt20)) == ZCL_STA_SUCCESS);
+    assert(g_runtime.logical_output_enabled);
+    assert(g_onoff == 1u);
+    pump_ms(2500u);
+    assert(g_level.mode == GLSD301P_LEVEL_IDLE);
+    assert(g_level.current_level == 0x18u);
+
+    /* MOVE-up With On/Off already applies at onset (control). */
+    fixture_init(NULL);
+    boot_ready();
+    assert(dispatch_onoff(ZCL_CMD_ONOFF_ON, NULL, 0u) == ZCL_STA_SUCCESS);
+    assert(dispatch_level(ZCL_CMD_LEVEL_MOVE_TO_LEVEL_WITH_ON_OFF, to_16,
+                          (u16)sizeof(to_16)) == ZCL_STA_SUCCESS);
+    pump_ms(10u);
+    assert(dispatch_onoff(ZCL_CMD_ONOFF_OFF, NULL, 0u) == ZCL_STA_SUCCESS);
+    pump_ms(10u);
+    assert(dispatch_level(ZCL_CMD_LEVEL_MOVE_WITH_ON_OFF, move_up,
+                          (u16)sizeof(move_up)) == ZCL_STA_SUCCESS);
+    assert(g_runtime.logical_output_enabled);
+    assert(g_level.mode == GLSD301P_LEVEL_MOVE);
+
+    /* Plain upward move from OFF stays OFF (control). */
+    fixture_init(NULL);
+    boot_ready();
+    assert(dispatch_onoff(ZCL_CMD_ONOFF_ON, NULL, 0u) == ZCL_STA_SUCCESS);
+    assert(dispatch_level(ZCL_CMD_LEVEL_MOVE_TO_LEVEL_WITH_ON_OFF, to_16,
+                          (u16)sizeof(to_16)) == ZCL_STA_SUCCESS);
+    pump_ms(10u);
+    assert(dispatch_onoff(ZCL_CMD_ONOFF_OFF, NULL, 0u) == ZCL_STA_SUCCESS);
+    pump_ms(10u);
+    assert(dispatch_level(ZCL_CMD_LEVEL_MOVE_TO_LEVEL, up40_tt20,
+                          (u16)sizeof(up40_tt20)) == ZCL_STA_SUCCESS);
+    assert(!g_runtime.logical_output_enabled);
+    assert(g_onoff == 0u);
+    pump_ms(2500u);
+    assert(g_level.mode == GLSD301P_LEVEL_IDLE);
+    assert(g_level.current_level == 0x40u);
+    assert(!g_runtime.logical_output_enabled);
+
+    /* Not-ready admission fails and changes nothing (control). */
+    fixture_init(NULL);
+    assert(dispatch_level(ZCL_CMD_LEVEL_MOVE_TO_LEVEL_WITH_ON_OFF,
+                          up40_tt20,
+                          (u16)sizeof(up40_tt20)) == ZCL_STA_FAILURE);
+    assert(!g_runtime.logical_output_enabled);
+    assert(!glsd301p_uart_transport_has_pending(&g_transport));
+    assert(g_level.mode == GLSD301P_LEVEL_IDLE);
+
+    /* Faulted admission fails and changes nothing (control). */
+    fixture_init(NULL);
+    boot_ready();
+    assert(dispatch_onoff(ZCL_CMD_ONOFF_ON, NULL, 0u) == ZCL_STA_SUCCESS);
+    assert(dispatch_level(ZCL_CMD_LEVEL_MOVE_TO_LEVEL_WITH_ON_OFF, to_16,
+                          (u16)sizeof(to_16)) == ZCL_STA_SUCCESS);
+    pump_ms(10u);
+    assert(dispatch_onoff(ZCL_CMD_ONOFF_ON, NULL, 0u) == ZCL_STA_SUCCESS);
+    host_uart_set_busy(true);
+    pump_ms(40u);
+    assert(glsd301p_uart_service_deadline_faults(&g_uart) == 1u);
+    assert(!g_runtime.logical_output_enabled);
+    host_uart_set_busy(false);
+    pump_ms(1u);
+    base = host_uart_accepted_count();
+    assert(dispatch_level(ZCL_CMD_LEVEL_MOVE_TO_LEVEL_WITH_ON_OFF,
+                          up40_tt20,
+                          (u16)sizeof(up40_tt20)) == ZCL_STA_FAILURE);
+    assert(!g_runtime.logical_output_enabled);
+    assert(g_onoff == 0u);
+    assert(g_level.mode == GLSD301P_LEVEL_IDLE);
+    assert(host_uart_accepted_count() == base);
+    assert(pool_free_total() == 26u);
+}
+
+static void test_r22_struct_type_grammar(void)
+{
+    const u8 rep_hibyte[] = {0x00u, 0x00u, 0x4Cu, 0x00u, 0x01u};
+    const u8 rep_nested[] = {0x00u, 0x00u, 0x4Cu, 0x01u, 0x00u, 0x4Cu};
+    const u8 rep_reserved[] = {0x00u, 0x00u, 0xFFu};
+    const u8 rep_array[] = {0x00u, 0x00u, 0x48u};
+    const u8 rep_struct_ok[] = {0x02u, 0x00u, 0x4Cu, 0x01u, 0x00u, 0x20u,
+                                0x07u};
+    const u8 rep_nodata[] = {0x00u, 0x00u, 0x00u};
+    u8 rsp_cmd;
+    u8 status;
+
+    /*
+     * M1: the supported datatype grammar must use the full wire count
+     * width, reject unsupported compound forms, and tell genuine
+     * zero-length data from unknown types. The reviewed validator
+     * reads only the low count byte, treats a missing compound body
+     * as a zero-length scalar, and accepts reserved/compound types
+     * through the SDK zero-size default — so the malformed legs are
+     * RED until M3. The valid STRUCT and No Data legs are PASS-NOW
+     * controls the grammar must preserve.
+     */
+    fixture_init(noop_hook);
+
+    /* STRUCT count 0x0100 with no body: truncated, not empty. */
+    assert(root_frame(ZCL_CLUSTER_GEN_ON_OFF, ZCL_CMD_REPORT, 0u,
+                      ZCL_FRAME_CLIENT_SERVER_DIR, rep_hibyte,
+                      (u16)sizeof(rep_hibyte), 1u));
+    assert(af_count == 1u);
+    assert(last_default_rsp(0u, &rsp_cmd, &status));
+    assert(status == ZCL_STA_MALFORMED_COMMAND);
+
+    /* One STRUCT element declared, nested body absent. */
+    assert(root_frame(ZCL_CLUSTER_GEN_ON_OFF, ZCL_CMD_REPORT, 0u,
+                      ZCL_FRAME_CLIENT_SERVER_DIR, rep_nested,
+                      (u16)sizeof(rep_nested), 2u));
+    assert(af_count == 2u);
+    assert(last_default_rsp(1u, &rsp_cmd, &status));
+    assert(status == ZCL_STA_MALFORMED_COMMAND);
+
+    /* Reserved datatype with no value. */
+    assert(root_frame(ZCL_CLUSTER_GEN_ON_OFF, ZCL_CMD_REPORT, 0u,
+                      ZCL_FRAME_CLIENT_SERVER_DIR, rep_reserved,
+                      (u16)sizeof(rep_reserved), 3u));
+    assert(af_count == 3u);
+    assert(last_default_rsp(2u, &rsp_cmd, &status));
+    assert(status == ZCL_STA_MALFORMED_COMMAND);
+
+    /* Top-level ARRAY is an unsupported compound form here. */
+    assert(root_frame(ZCL_CLUSTER_GEN_ON_OFF, ZCL_CMD_REPORT, 0u,
+                      ZCL_FRAME_CLIENT_SERVER_DIR, rep_array,
+                      (u16)sizeof(rep_array), 4u));
+    assert(af_count == 4u);
+    assert(last_default_rsp(3u, &rsp_cmd, &status));
+    assert(status == ZCL_STA_MALFORMED_COMMAND);
+
+    /* Valid flat STRUCT with one scalar element (control). */
+    assert(root_frame(ZCL_CLUSTER_GEN_ON_OFF, ZCL_CMD_REPORT, 0u,
+                      ZCL_FRAME_CLIENT_SERVER_DIR, rep_struct_ok,
+                      (u16)sizeof(rep_struct_ok), 5u));
+    assert(af_count == 5u);
+    assert(last_default_rsp(4u, &rsp_cmd, &status));
+    assert(status == ZCL_STA_SUCCESS);
+
+    /* Genuine No Data zero-length record (control). */
+    assert(root_frame(ZCL_CLUSTER_GEN_ON_OFF, ZCL_CMD_REPORT, 0u,
+                      ZCL_FRAME_CLIENT_SERVER_DIR, rep_nodata,
+                      (u16)sizeof(rep_nodata), 6u));
+    assert(af_count == 6u);
+    assert(last_default_rsp(5u, &rsp_cmd, &status));
+    assert(status == ZCL_STA_SUCCESS);
+
+    assert(pool_free_total() == 26u);
+}
+
+static void test_r22_reporting_direction_grammar(void)
+{
+    const u8 cfg_dir2[] = {0x02u, 0x00u, 0x00u, 0x10u, 0x00u};
+    const u8 cfg_ok[] = {0x00u, 0x00u, 0x00u, 0x10u, 0x01u, 0x00u, 0xFFu,
+                         0x00u};
+    const u8 cfg_dir1[] = {0x01u, 0x00u, 0x00u, 0x10u, 0x00u};
+    const u8 readcfgrsp_dir2[] = {0x00u, 0x02u, 0x00u, 0x00u, 0x10u, 0x00u};
+    const u8 cfgrsp_dir2[] = {0x00u, 0x02u, 0x00u, 0x00u};
+    const u8 cfgrsp_ok[] = {0x00u, 0x00u, 0x00u, 0x00u};
+    const u8 cfgrsp_short[] = {0x00u};
+    u16 cluster;
+    u8 cmd;
+    const u8 *pld;
+    u16 len;
+    u8 rsp_cmd;
+    u8 status;
+
+    /*
+     * M1: only the two defined reporting directions (0x00 send, 0x01
+     * receive) are valid, including inside status-dependent long
+     * records. The reviewed validators treat any nonzero direction as
+     * the receive form and check long Configure Reporting Responses
+     * for length only — so the reserved-direction legs are RED until
+     * M3. Defined-direction legs are PASS-NOW controls.
+     */
+    fixture_init(noop_hook);
+
+    /* Configure Reporting with reserved direction 2. */
+    assert(root_frame(ZCL_CLUSTER_GEN_ON_OFF, ZCL_CMD_CONFIG_REPORT, 0u,
+                      ZCL_FRAME_CLIENT_SERVER_DIR, cfg_dir2,
+                      (u16)sizeof(cfg_dir2), 1u));
+    assert(af_count == 1u);
+    assert(last_default_rsp(0u, &rsp_cmd, &status));
+    assert(status == ZCL_STA_MALFORMED_COMMAND);
+    assert(nv_save_calls == 0u);
+
+    /* Defined send-form record still configures (control). */
+    assert(root_frame(ZCL_CLUSTER_GEN_ON_OFF, ZCL_CMD_CONFIG_REPORT, 0u,
+                      ZCL_FRAME_CLIENT_SERVER_DIR, cfg_ok,
+                      (u16)sizeof(cfg_ok), 2u));
+    assert(nv_save_calls == 1u);
+
+    /* Defined receive-form record parses (control, no MALFORMED). */
+    assert(root_frame(ZCL_CLUSTER_GEN_ON_OFF, ZCL_CMD_CONFIG_REPORT, 0u,
+                      ZCL_FRAME_CLIENT_SERVER_DIR, cfg_dir1,
+                      (u16)sizeof(cfg_dir1), 3u));
+    assert(af_count == 3u);
+    assert(af_parse(2u, &cluster, &cmd, &pld, &len));
+    assert(cmd == ZCL_CMD_CONFIG_REPORT_RSP);
+
+    /* Read-reporting-configuration response, long form, dir 2. */
+    assert(root_frame(ZCL_CLUSTER_GEN_ON_OFF, ZCL_CMD_READ_REPORT_CFG_RSP,
+                      0u, ZCL_FRAME_SERVER_CLIENT_DIR, readcfgrsp_dir2,
+                      (u16)sizeof(readcfgrsp_dir2), 4u));
+    assert(af_count == 4u);
+    assert(last_default_rsp(3u, &rsp_cmd, &status));
+    assert(status == ZCL_STA_MALFORMED_COMMAND);
+
+    /* Configure Reporting Response long form with dir 2. */
+    assert(root_frame(ZCL_CLUSTER_GEN_ON_OFF, ZCL_CMD_CONFIG_REPORT_RSP,
+                      0u, ZCL_FRAME_SERVER_CLIENT_DIR, cfgrsp_dir2,
+                      (u16)sizeof(cfgrsp_dir2), 5u));
+    assert(af_count == 5u);
+    assert(last_default_rsp(4u, &rsp_cmd, &status));
+    assert(status == ZCL_STA_MALFORMED_COMMAND);
+
+    /* Defined-direction long and short forms parse (controls). */
+    assert(root_frame(ZCL_CLUSTER_GEN_ON_OFF, ZCL_CMD_CONFIG_REPORT_RSP,
+                      0u, ZCL_FRAME_SERVER_CLIENT_DIR, cfgrsp_ok,
+                      (u16)sizeof(cfgrsp_ok), 6u));
+    assert(af_count == 6u);
+    assert(last_default_rsp(5u, &rsp_cmd, &status));
+    assert(status == ZCL_STA_SUCCESS);
+    assert(root_frame(ZCL_CLUSTER_GEN_ON_OFF, ZCL_CMD_CONFIG_REPORT_RSP,
+                      0u, ZCL_FRAME_SERVER_CLIENT_DIR, cfgrsp_short,
+                      (u16)sizeof(cfgrsp_short), 7u));
+    assert(af_count == 7u);
+    assert(last_default_rsp(6u, &rsp_cmd, &status));
+    assert(status == ZCL_STA_SUCCESS);
+
+    assert(pool_free_total() == 26u);
+}
+
 typedef void (*r9_r16_test_fn_t)(void);
 
 typedef struct r9_r16_case {
@@ -3231,6 +4115,49 @@ static int r9_r16_run_matrix(const char *self)
     return failed == 0u ? 0 : 1;
 }
 
+typedef void (*r17_r23_test_fn_t)(void);
+
+typedef struct r17_r23_case {
+    const char *name;
+    r17_r23_test_fn_t fn;
+} r17_r23_case_t;
+
+static const r17_r23_case_t r17_r23_matrix[] = {
+    {"r17_trigger", test_r17_trigger_effect_output_neutral},
+    {"r17_cmd", test_r17_identify_command_neutral_control},
+    {"r18_write", test_r18_write_receipt_restart},
+    {"r19_bound", test_r19_identify_catchup_bounded},
+    {"r20_duration", test_r20_movetolevel_keeps_duration},
+    {"r21_onset", test_r21_upward_onset_immediate},
+    {"r22_struct", test_r22_struct_type_grammar},
+    {"r22_direction", test_r22_reporting_direction_grammar},
+    {NULL, NULL},
+};
+
+/* Same isolation as the R9-R16 matrix: one child per case. */
+static int r17_r23_run_matrix(const char *self)
+{
+    unsigned int i;
+    unsigned int failed = 0u;
+
+    for (i = 0u; r17_r23_matrix[i].name != NULL; i++) {
+        char cmd[256];
+        int rc;
+
+        snprintf(cmd, sizeof(cmd), "%s %s", self, r17_r23_matrix[i].name);
+        fflush(stdout);
+        rc = system(cmd);
+        printf("R17_R23_MATRIX %s %s\n", r17_r23_matrix[i].name,
+               rc == 0 ? "PASS" : "FAIL");
+        fflush(stdout);
+        if (rc != 0) {
+            failed++;
+        }
+    }
+    printf("R17_R23_MATRIX_DONE failed=%u\n", failed);
+    return failed == 0u ? 0 : 1;
+}
+
 int main(int argc, char **argv)
 {
     unsigned int i;
@@ -3243,7 +4170,14 @@ int main(int argc, char **argv)
                 return 0;
             }
         }
-        printf("R9_R16_CASE %s UNKNOWN\n", argv[1]);
+        for (i = 0u; r17_r23_matrix[i].name != NULL; i++) {
+            if (strcmp(argv[1], r17_r23_matrix[i].name) == 0) {
+                r17_r23_matrix[i].fn();
+                printf("R17_R23_CASE %s PASS\n", argv[1]);
+                return 0;
+            }
+        }
+        printf("R17_R23_CASE %s UNKNOWN\n", argv[1]);
         return 2;
     }
 
@@ -3286,6 +4220,9 @@ int main(int argc, char **argv)
     printf("GLSD301P_ZCL_DISPATCH_SEQ=PASS\n");
     fflush(stdout);
     if (r9_r16_run_matrix(argv[0]) != 0) {
+        return 1;
+    }
+    if (r17_r23_run_matrix(argv[0]) != 0) {
         return 1;
     }
     printf("GLSD301P_ZCL_DISPATCH=PASS\n");
