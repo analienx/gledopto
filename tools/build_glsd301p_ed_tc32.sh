@@ -20,7 +20,7 @@ APP_SLOT_SIZE=0x34000
 BANK_B_BASE=0x40000
 BANK_B_SLOT_END=0x74000
 MAC_REGION_START=0x76000
-FILE_VERSION=0x7F040001
+FILE_VERSION=0x7F050001
 
 [[ -f "$SDK/platform/boot/8258/boot_8258.link" ]] || { echo 'ERROR: pinned TLSR8258 SDK fixture incomplete' >&2; exit 2; }
 [[ -f "$SDK/zigbee/lib/tc32/libzb_ed.a" ]] || { echo 'ERROR: libzb_ed.a missing' >&2; exit 2; }
@@ -209,7 +209,7 @@ grep -q 'glsd301p_rejoin_init' "$TARGET/glsd301p_telink_target.c" || {
 }
 
 # M5: RAM-only v2 health snapshot on Basic:0xFF10, read-only, refreshed by
-# the owned 1 s event; development identity GLSD-ED-003 / 0x7F040001.
+# the owned 1 s event; development identity GLSD-ED-004 / 0x7F050001.
 grep -q 'GLSD301P_HEALTH_ATTR_ID, ZCL_DATA_TYPE_OCTET_STR, ACCESS_CONTROL_READ, g_basic_health' \
   "$TARGET/glsd301p_telink_target.c" || {
   echo 'ERROR: Basic:0xFF10 health attribute entry missing or not read-only' >&2; exit 1;
@@ -226,13 +226,13 @@ grep -q 'glsd301p_health_note_bdb_status' "$TARGET/glsd301p_telink_target.c" || 
 if grep -q 'nv_\|zcl_nv\|reportAttr\|zcl_report' "$CORE/glsd301p_health.c"; then
   echo 'ERROR: health snapshot must not touch NVM or reporting' >&2; exit 1;
 fi
-grep -q '#define FILE_VERSION[[:space:]]*0x7F040001' "$TARGET/version_cfg.h" || {
-  echo 'ERROR: FILE_VERSION must be the allocated 0x7F040001' >&2; exit 1;
+grep -q '#define FILE_VERSION[[:space:]]*0x7F050001' "$TARGET/version_cfg.h" || {
+  echo 'ERROR: FILE_VERSION must be the allocated 0x7F050001' >&2; exit 1;
 }
-grep -q '#define APP_BUILD[[:space:]]*0x04' "$TARGET/version_cfg.h" || {
-  echo 'ERROR: APP_BUILD must be the allocated 04' >&2; exit 1;
+grep -q '#define APP_BUILD[[:space:]]*0x05' "$TARGET/version_cfg.h" || {
+  echo 'ERROR: APP_BUILD must be the allocated 05' >&2; exit 1;
 }
-[[ "$FILE_VERSION" == '0x7F040001' ]] || {
+[[ "$FILE_VERSION" == '0x7F050001' ]] || {
   echo 'ERROR: build FILE_VERSION drifted from allocated identity' >&2; exit 1;
 }
 
@@ -263,6 +263,20 @@ for sym in "${gc_only_sentinels[@]}"; do
   }
 done
 
+# R23: parsed foundation commands are allocated, filled, consumed and
+# freed inside SDK-compiled code in both binaries; they cross to app
+# code only as opaque attrCmd pointers. App sources must never
+# dereference parsed-record internals (this is what makes the packed/
+# unpacked host-vs-target layout delta harmless).
+if grep -rEn 'attrCmd|attrList|pWriteCmd|pReportCmd|pCfgReport|pReadRspCmd|pReadReportCfg|->attrData' \
+    "$CORE" "$TARGET" 2>/dev/null; then
+  echo 'ERROR: app sources dereference parsed foundation internals' >&2; exit 1;
+fi
+# Harness fixtures may only NULL the incoming attrCmd slot, never read it.
+if grep -rEn 'attrCmd' "$ROOT/tests" 2>/dev/null | grep -v 'attrCmd = NULL'; then
+  echo 'ERROR: harness must treat attrCmd as opaque' >&2; exit 1;
+fi
+
 rm -rf "$DIR"
 mkdir -p "$DIR/obj/sdk" "$DIR/obj/app" "$DIR/obj/abi"
 objects=()
@@ -280,6 +294,7 @@ abi_probe_body='
 #include "zb_api.h"
 #include "zcl_include.h"
 #include "ev_timer.h"
+#include "ev_buffer.h"
 #define ABI_ASSERT(name, expr) typedef char name[(expr) ? 1 : -1]
 ABI_ASSERT(glsd_zcl_spec_size, sizeof(zcl_specClusterInfo_t) == 18u);
 ABI_ASSERT(glsd_zcl_spec_attr, __builtin_offsetof(zcl_specClusterInfo_t, attrTbl) == 6u);
@@ -296,6 +311,65 @@ ABI_ASSERT(glsd_ev_timer_resv, __builtin_offsetof(ev_timer_event_t, resv) == 24u
 ABI_ASSERT(glsd_ev_timer_isbusy, __builtin_offsetof(ev_timer_event_t, isBusy) == 25u);
 ABI_ASSERT(glsd_ev_timer_isrunning, __builtin_offsetof(ev_timer_event_t, isRunning) == 26u);
 ABI_ASSERT(glsd_ev_timer_used, __builtin_offsetof(ev_timer_event_t, used) == 27u);
+/* R23: P5 foundation record layouts (packed target ABI). */
+ABI_ASSERT(glsd_write_rec_size, sizeof(zclWriteRec_t) == 7u);
+ABI_ASSERT(glsd_write_rec_attr, __builtin_offsetof(zclWriteRec_t, attrID) == 0u);
+ABI_ASSERT(glsd_write_rec_type, __builtin_offsetof(zclWriteRec_t, dataType) == 2u);
+ABI_ASSERT(glsd_write_rec_data, __builtin_offsetof(zclWriteRec_t, attrData) == 3u);
+ABI_ASSERT(glsd_write_cmd_size, sizeof(zclWriteCmd_t) == 1u);
+ABI_ASSERT(glsd_report_rec_size, sizeof(zclReport_t) == 7u);
+ABI_ASSERT(glsd_report_cmd_size, sizeof(zclReportCmd_t) == 1u);
+ABI_ASSERT(glsd_write_rsp_size, sizeof(zclWriteRspStatus_t) == 3u);
+ABI_ASSERT(glsd_write_rsp_status, __builtin_offsetof(zclWriteRspStatus_t, status) == 0u);
+ABI_ASSERT(glsd_write_rsp_attr, __builtin_offsetof(zclWriteRspStatus_t, attrID) == 1u);
+ABI_ASSERT(glsd_read_rsp_size, sizeof(zclReadRspStatus_t) == 8u);
+ABI_ASSERT(glsd_read_rsp_attr, __builtin_offsetof(zclReadRspStatus_t, attrID) == 0u);
+ABI_ASSERT(glsd_read_rsp_status, __builtin_offsetof(zclReadRspStatus_t, status) == 2u);
+ABI_ASSERT(glsd_read_rsp_type, __builtin_offsetof(zclReadRspStatus_t, dataType) == 3u);
+ABI_ASSERT(glsd_read_rsp_data, __builtin_offsetof(zclReadRspStatus_t, data) == 4u);
+ABI_ASSERT(glsd_cfg_rec_size, sizeof(zclCfgReportRec_t) == 14u);
+ABI_ASSERT(glsd_cfg_rec_dir, __builtin_offsetof(zclCfgReportRec_t, direction) == 0u);
+ABI_ASSERT(glsd_cfg_rec_attr, __builtin_offsetof(zclCfgReportRec_t, attrID) == 1u);
+ABI_ASSERT(glsd_cfg_rec_type, __builtin_offsetof(zclCfgReportRec_t, dataType) == 3u);
+ABI_ASSERT(glsd_cfg_rec_min, __builtin_offsetof(zclCfgReportRec_t, minReportInt) == 4u);
+ABI_ASSERT(glsd_cfg_rec_max, __builtin_offsetof(zclCfgReportRec_t, maxReportInt) == 6u);
+ABI_ASSERT(glsd_cfg_rec_timeout, __builtin_offsetof(zclCfgReportRec_t, timeoutPeriod) == 8u);
+ABI_ASSERT(glsd_cfg_rec_change, __builtin_offsetof(zclCfgReportRec_t, reportableChange) == 10u);
+ABI_ASSERT(glsd_cfg_cmd_size, sizeof(zclCfgReportCmd_t) == 1u);
+ABI_ASSERT(glsd_cfg_rsp_size, sizeof(zclCfgReportStatus_t) == 4u);
+ABI_ASSERT(glsd_cfg_rsp_status, __builtin_offsetof(zclCfgReportStatus_t, status) == 0u);
+ABI_ASSERT(glsd_cfg_rsp_dir, __builtin_offsetof(zclCfgReportStatus_t, direction) == 1u);
+ABI_ASSERT(glsd_cfg_rsp_attr, __builtin_offsetof(zclCfgReportStatus_t, attrID) == 2u);
+ABI_ASSERT(glsd_readcfg_rec_size, sizeof(zclReadReportCfgRec_t) == 3u);
+ABI_ASSERT(glsd_readcfg_rec_dir, __builtin_offsetof(zclReadReportCfgRec_t, direction) == 0u);
+ABI_ASSERT(glsd_readcfg_rec_attr, __builtin_offsetof(zclReadReportCfgRec_t, attrID) == 1u);
+ABI_ASSERT(glsd_readcfgrsp_rec_size, sizeof(zclReportCfgRspRec_t) == 15u);
+ABI_ASSERT(glsd_readcfgrsp_rec_status, __builtin_offsetof(zclReportCfgRspRec_t, status) == 0u);
+ABI_ASSERT(glsd_readcfgrsp_rec_dir, __builtin_offsetof(zclReportCfgRspRec_t, direction) == 1u);
+ABI_ASSERT(glsd_readcfgrsp_rec_attr, __builtin_offsetof(zclReportCfgRspRec_t, attrID) == 2u);
+ABI_ASSERT(glsd_readcfgrsp_rec_type, __builtin_offsetof(zclReportCfgRspRec_t, dataType) == 4u);
+ABI_ASSERT(glsd_readcfgrsp_rec_min, __builtin_offsetof(zclReportCfgRspRec_t, minReportInt) == 5u);
+ABI_ASSERT(glsd_readcfgrsp_rec_max, __builtin_offsetof(zclReportCfgRspRec_t, maxReportInt) == 7u);
+ABI_ASSERT(glsd_readcfgrsp_rec_timeout, __builtin_offsetof(zclReportCfgRspRec_t, timeoutPeriod) == 9u);
+ABI_ASSERT(glsd_readcfgrsp_rec_change, __builtin_offsetof(zclReportCfgRspRec_t, reportableChange) == 11u);
+/* R23: pool geometry plus 255-cap allocation thresholds. The u16 parsed
+ * lengths never wrap at the P5 record cap, and the maxima exceed
+ * LARGE_BUFFER, so oversized parses fail closed with
+ * INSUFFICIENT_SPACE (proved behaviorally by pool-exhaustion tests). */
+ABI_ASSERT(glsd_pool_g0, BUFFER_GROUP_0 == 24);
+ABI_ASSERT(glsd_pool_g1, BUFFER_GROUP_1 == 60);
+ABI_ASSERT(glsd_pool_g2, BUFFER_GROUP_2 == 152);
+ABI_ASSERT(glsd_pool_g3, BUFFER_GROUP_3 == 512);
+ABI_ASSERT(glsd_pool_large, LARGE_BUFFER == 504);
+ABI_ASSERT(glsd_alloc_write_u16, sizeof(zclWriteCmd_t) + 255u * sizeof(zclWriteRec_t) <= 65535u);
+ABI_ASSERT(glsd_alloc_write_failclosed, sizeof(zclWriteCmd_t) + 255u * sizeof(zclWriteRec_t) > LARGE_BUFFER);
+ABI_ASSERT(glsd_alloc_readrsp_u16, sizeof(zclReadRspCmd_t) + 255u * sizeof(zclReadRspStatus_t) <= 65535u);
+ABI_ASSERT(glsd_alloc_readrsp_failclosed, sizeof(zclReadRspCmd_t) + 255u * sizeof(zclReadRspStatus_t) > LARGE_BUFFER);
+ABI_ASSERT(glsd_alloc_cfg_u16, sizeof(zclCfgReportCmd_t) + 255u * sizeof(zclCfgReportRec_t) <= 65535u);
+ABI_ASSERT(glsd_alloc_cfg_failclosed, sizeof(zclCfgReportCmd_t) + 255u * sizeof(zclCfgReportRec_t) > LARGE_BUFFER);
+ABI_ASSERT(glsd_alloc_readcfgrsp_u16, sizeof(zclReadReportCfgRspCmd_t) + 255u * sizeof(zclReportCfgRspRec_t) <= 65535u);
+ABI_ASSERT(glsd_alloc_readcfgrsp_failclosed, sizeof(zclReadReportCfgRspCmd_t) + 255u * sizeof(zclReportCfgRspRec_t) > LARGE_BUFFER);
+ABI_ASSERT(glsd_alloc_single_small, sizeof(zclWriteCmd_t) + sizeof(zclWriteRec_t) + 2u <= BUFFER_GROUP_0);
 int glsd301p_abi_probe(void) { return (int)sizeof(zcl_specClusterInfo_t); }
 '
 printf '%s' "$abi_probe_body" > "$DIR/sdk_abi_probe.c"
@@ -304,6 +378,8 @@ compile_one "$DIR/sdk_abi_probe.c" "$DIR/obj/abi/sdk-context.o" 1
 compile_one "$DIR/glsd301p_telink_abi_probe.c" "$DIR/obj/abi/app-context.o" 0
 echo 'ZCL_SPEC_CLUSTER_INFO_ABI=size18,attrTbl@6,register@10,appCb@14'
 echo 'EV_TIMER_EVENT_ABI=size28,next@0,cb@4,data@8,timeout@12,period@16,curSysTick@20,resv@24,isBusy@25,isRunning@26,used@27'
+echo 'FOUNDATION_RECORD_ABI=write7,cmd1,report7,writersp3,readrsp8,cfg14,cfgrsp4,readcfg3,readcfgrsp15'
+echo 'POOL_ALLOC_ABI=groups24/60/152/512,large504,cap255-u16safe,failclosed-above-504'
 
 for rel in "${sdk_sources[@]}"; do
   src="$SDK/$rel"
@@ -505,7 +581,7 @@ grep -q 'libzb_ed' "$map" || { echo 'ERROR: End Device stack archive absent from
   echo ZCL_COMMAND_POLICY=SHARED_DISPATCH_HARNESSED
   echo REJOIN=OWNED_SINGLE_ATTEMPT_ZDO_SUCCESS_MAPPED_ONESHOT_RETRY_5S
   echo HEALTH_SNAPSHOT=RAM_V2_48B_BASIC_0xFF10_READONLY_1S_OWNED
-  echo DEV_IDENTITY=GLSD-ED-003_APP_BUILD_04_FILE_VERSION_0x7F040001_DATE_20261004
+  echo DEV_IDENTITY=GLSD-ED-004_APP_BUILD_05_FILE_VERSION_0x7F050001_DATE_20261005
   python3 - "$DIR/sdk-patches.json" <<'PY'
 import json, sys
 report = json.load(open(sys.argv[1]))

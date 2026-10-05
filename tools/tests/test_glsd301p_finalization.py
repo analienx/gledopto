@@ -175,7 +175,7 @@ class FinalizationTests(unittest.TestCase):
             parsed = wrapper.validate_ota(ota.read_bytes())
             self.assertEqual(parsed["manufacturerCode"], 0x124F)
             self.assertEqual(parsed["imageType"], 0x1416)
-            self.assertEqual(parsed["fileVersion"], 0x7F040001)
+            self.assertEqual(parsed["fileVersion"], 0x7F050001)
             self.assertEqual((parsed["hardwareVersionMin"], parsed["hardwareVersionMax"]), (2, 2))
             self.assertTrue(meta["bankNeutral"])
             self.assertEqual(meta["physicalBootTargets"], [0, 0x40000])

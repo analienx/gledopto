@@ -4126,6 +4126,136 @@ static int r17_r23_run_matrix(const char *self)
     return failed == 0u ? 0 : 1;
 }
 
+/*
+ * R23 host-vs-target foundation layout comparison. The hosted harness
+ * compiles the pinned SDK -m32 WITHOUT packing; the TC32 target packs
+ * every TU. Documented deltas (host vs target): write/report records
+ * 8 vs 7, write-rsp records 4 vs 3, cfg records 16 vs 14, read-cfg
+ * records 4 vs 3, read-cfg-rsp records 16 vs 15. Read-rsp records (8)
+ * and all command wrappers (1) match. The delta is harmless because
+ * parsed commands are allocated, filled, consumed and freed inside
+ * SDK-compiled code in both binaries; they cross to app code only as
+ * opaque attrCmd pointers (enforced by the build-script gate that
+ * forbids app/harness dereference of parsed internals). Pool geometry
+ * and the 255-cap u16/fail-closed allocation thresholds hold
+ * identically on both layouts; the target half is asserted by the
+ * TC32 ABI probe in tools/build_glsd301p_ed_tc32.sh, which must be
+ * reviewed together with this function.
+ */
+static void test_r23_host_foundation_layout(void)
+{
+    _Static_assert(sizeof(zclWriteRec_t) == 8u, "host write rec");
+    _Static_assert(offsetof(zclWriteRec_t, attrID) == 0u, "host w/rec attr");
+    _Static_assert(offsetof(zclWriteRec_t, dataType) == 2u, "host w/rec ty");
+    _Static_assert(offsetof(zclWriteRec_t, attrData) == 4u, "host w/rec da");
+    _Static_assert(sizeof(zclWriteCmd_t) == 1u, "host write cmd");
+    _Static_assert(sizeof(zclReport_t) == 8u, "host report rec");
+    _Static_assert(sizeof(zclReportCmd_t) == 1u, "host report cmd");
+    _Static_assert(sizeof(zclWriteRspStatus_t) == 4u, "host wrsp rec");
+    _Static_assert(offsetof(zclWriteRspStatus_t, status) == 0u,
+                   "host wrsp st");
+    _Static_assert(offsetof(zclWriteRspStatus_t, attrID) == 2u,
+                   "host wrsp attr");
+    _Static_assert(sizeof(zclReadRspStatus_t) == 8u, "host rrsp rec");
+    _Static_assert(offsetof(zclReadRspStatus_t, attrID) == 0u,
+                   "host rrsp attr");
+    _Static_assert(offsetof(zclReadRspStatus_t, status) == 2u,
+                   "host rrsp st");
+    _Static_assert(offsetof(zclReadRspStatus_t, dataType) == 3u,
+                   "host rrsp ty");
+    _Static_assert(offsetof(zclReadRspStatus_t, data) == 4u, "host rrsp da");
+    _Static_assert(sizeof(zclCfgReportRec_t) == 16u, "host cfg rec");
+    _Static_assert(offsetof(zclCfgReportRec_t, direction) == 0u,
+                   "host cfg dir");
+    _Static_assert(offsetof(zclCfgReportRec_t, attrID) == 2u,
+                   "host cfg attr");
+    _Static_assert(offsetof(zclCfgReportRec_t, dataType) == 4u,
+                   "host cfg ty");
+    _Static_assert(offsetof(zclCfgReportRec_t, minReportInt) == 6u,
+                   "host cfg min");
+    _Static_assert(offsetof(zclCfgReportRec_t, maxReportInt) == 8u,
+                   "host cfg max");
+    _Static_assert(offsetof(zclCfgReportRec_t, timeoutPeriod) == 10u,
+                   "host cfg tmo");
+    _Static_assert(offsetof(zclCfgReportRec_t, reportableChange) == 12u,
+                   "host cfg chg");
+    _Static_assert(sizeof(zclCfgReportCmd_t) == 1u, "host cfg cmd");
+    _Static_assert(sizeof(zclCfgReportStatus_t) == 4u, "host crsp rec");
+    _Static_assert(offsetof(zclCfgReportStatus_t, status) == 0u,
+                   "host crsp st");
+    _Static_assert(offsetof(zclCfgReportStatus_t, direction) == 1u,
+                   "host crsp dir");
+    _Static_assert(offsetof(zclCfgReportStatus_t, attrID) == 2u,
+                   "host crsp attr");
+    _Static_assert(sizeof(zclReadReportCfgRec_t) == 4u, "host rdcfg rec");
+    _Static_assert(offsetof(zclReadReportCfgRec_t, direction) == 0u,
+                   "host rdcfg dir");
+    _Static_assert(offsetof(zclReadReportCfgRec_t, attrID) == 2u,
+                   "host rdcfg attr");
+    _Static_assert(sizeof(zclReportCfgRspRec_t) == 16u, "host rdcfgrsp rec");
+    _Static_assert(offsetof(zclReportCfgRspRec_t, status) == 0u,
+                   "host rdcfgrsp st");
+    _Static_assert(offsetof(zclReportCfgRspRec_t, direction) == 1u,
+                   "host rdcfgrsp dir");
+    _Static_assert(offsetof(zclReportCfgRspRec_t, attrID) == 2u,
+                   "host rdcfgrsp attr");
+    _Static_assert(offsetof(zclReportCfgRspRec_t, dataType) == 4u,
+                   "host rdcfgrsp ty");
+    _Static_assert(offsetof(zclReportCfgRspRec_t, minReportInt) == 6u,
+                   "host rdcfgrsp min");
+    _Static_assert(offsetof(zclReportCfgRspRec_t, maxReportInt) == 8u,
+                   "host rdcfgrsp max");
+    _Static_assert(offsetof(zclReportCfgRspRec_t, timeoutPeriod) == 10u,
+                   "host rdcfgrsp tmo");
+    _Static_assert(offsetof(zclReportCfgRspRec_t, reportableChange) == 12u,
+                   "host rdcfgrsp chg");
+    _Static_assert(BUFFER_GROUP_0 == 24, "host pool g0");
+    _Static_assert(BUFFER_GROUP_1 == 60, "host pool g1");
+    _Static_assert(BUFFER_GROUP_2 == 152, "host pool g2");
+    _Static_assert(BUFFER_GROUP_3 == 512, "host pool g3");
+    _Static_assert(LARGE_BUFFER == 504, "host pool large");
+    _Static_assert(sizeof(zclWriteCmd_t) + 255u * sizeof(zclWriteRec_t) <=
+                       65535u,
+                   "host alloc write u16");
+    _Static_assert(sizeof(zclWriteCmd_t) + 255u * sizeof(zclWriteRec_t) >
+                       LARGE_BUFFER,
+                   "host alloc write failclosed");
+    _Static_assert(sizeof(zclReadRspCmd_t) +
+                           255u * sizeof(zclReadRspStatus_t) <=
+                       65535u,
+                   "host alloc rrsp u16");
+    _Static_assert(sizeof(zclReadRspCmd_t) +
+                           255u * sizeof(zclReadRspStatus_t) >
+                       LARGE_BUFFER,
+                   "host alloc rrsp failclosed");
+    _Static_assert(sizeof(zclCfgReportCmd_t) +
+                           255u * sizeof(zclCfgReportRec_t) <=
+                       65535u,
+                   "host alloc cfg u16");
+    _Static_assert(sizeof(zclCfgReportCmd_t) +
+                           255u * sizeof(zclCfgReportRec_t) >
+                       LARGE_BUFFER,
+                   "host alloc cfg failclosed");
+    _Static_assert(sizeof(zclReadReportCfgRspCmd_t) +
+                           255u * sizeof(zclReportCfgRspRec_t) <=
+                       65535u,
+                   "host alloc rdcfgrsp u16");
+    _Static_assert(sizeof(zclReadReportCfgRspCmd_t) +
+                           255u * sizeof(zclReportCfgRspRec_t) >
+                       LARGE_BUFFER,
+                   "host alloc rdcfgrsp failclosed");
+    _Static_assert(sizeof(zclWriteCmd_t) + sizeof(zclWriteRec_t) + 2u <=
+                       BUFFER_GROUP_0,
+                   "host alloc single small");
+
+    /*
+     * Runtime witness: the pool behaves per the geometry above (26
+     * buffers across the four groups).
+     */
+    fixture_init(NULL);
+    assert(pool_free_total() == 26u);
+}
+
 int main(int argc, char **argv)
 {
     unsigned int i;
@@ -4185,6 +4315,7 @@ int main(int argc, char **argv)
     test_followup_ota_abort_path();
     test_followup_ota_requests();
     test_cluster_via_root_dispatch();
+    test_r23_host_foundation_layout();
     printf("GLSD301P_ZCL_DISPATCH_SEQ=PASS\n");
     fflush(stdout);
     if (r9_r16_run_matrix(argv[0]) != 0) {
