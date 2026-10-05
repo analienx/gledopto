@@ -1171,10 +1171,19 @@ static void test_r6_identify_valid(void)
                              ZCL_FRAME_CLIENT_SERVER_DIR, identify,
                              (u16)sizeof(identify)) == ZCL_STA_SUCCESS);
     assert(identify_calls == 1u);
+    /*
+     * R17 update: the exact-2 Trigger Effect still parses (P3) and
+     * reaches the callback, but every effect is unsupported in this
+     * scope, so the verdict is a truthful rejection with no state
+     * change — not the old SUCCESS-with-program.
+     */
     assert(dispatch_identify(ZCL_CMD_TRIGGER_EFFECT,
                              ZCL_FRAME_CLIENT_SERVER_DIR, effect,
-                             (u16)sizeof(effect)) == ZCL_STA_SUCCESS);
+                             (u16)sizeof(effect)) == ZCL_STA_INVALID_FIELD);
     assert(identify_calls == 2u);
+    assert(t_identify_time == 5u);
+    assert(!glsd301p_timer_level_registered());
+    assert(!g_runtime.logical_output_enabled);
     /*
      * Query solicits a response through the real send path while the
      * device is identifying; the handler reports CMD_HAS_RESP and the
