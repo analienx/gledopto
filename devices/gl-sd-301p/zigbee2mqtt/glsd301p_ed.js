@@ -1,0 +1,44 @@
+/*
+ * Zigbee2MQTT external converter for the independently authored GL-SD-301P
+ * End Device firmware (Basic modelId "GL-SD-301P-ED", manufacturerName
+ * "analienx").
+ *
+ * Why this exists: after the custom image boots, any re-interview (including
+ * re-pairing after a factory-new boot) reports the custom identity, which no
+ * upstream definition matches. A generated definition is not guaranteed to
+ * enable OTA, and OTA is the only wireless path back to the vendor image.
+ * This definition keeps `ota: true` so the recovery request in the release
+ * plan stays deliverable.
+ *
+ * Install: copy to <z2m data>/external_converters/ and restart Zigbee2MQTT.
+ * CommonJS on purpose, matching the converters already proven on this
+ * installation (tuya-zigbee-switch/zigbee2mqtt/converters).
+ *
+ * Firmware facts mirrored here (firmware/glsd301p-ed/glsd301p_telink_target.c):
+ *   - endpoint 11, HA dimmable light, OnOff + Level + Identify + Groups;
+ *   - minLevel 2 / maxLevel 254;
+ *   - StartUpOnOff / StartUpCurrentLevel are read-only (always boots OFF at
+ *     254), so no power-on-behavior control is exposed;
+ *   - Identify Trigger Effect is rejected, so no effect control is exposed;
+ *   - Basic:0xFF10 is a read-only 48-byte health snapshot (decode with
+ *     tools/glsd301p_health_decode.py); it is never reported.
+ */
+const {light, identify} = require("zigbee-herdsman-converters/lib/modernExtend");
+
+const definition = {
+    zigbeeModel: ["GL-SD-301P-ED"],
+    model: "GL-SD-301P-ED",
+    vendor: "analienx",
+    description: "GL-SD-301P dimmer running independent RX-on-when-idle End Device firmware",
+    extend: [
+        light({
+            configureReporting: true,
+            effect: false,
+            powerOnBehavior: false,
+        }),
+        identify(),
+    ],
+    ota: true,
+};
+
+module.exports = definition;

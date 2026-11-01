@@ -1,5 +1,14 @@
 # Agent instructions — `analienx/gledopto`
 
+## Standing Muse interaction authorization
+
+The user authorizes the managed local Muse Code launcher to create/open/resume
+visible Muse sessions, inspect their exact console/window state, and submit native
+goals and bounded follow-ups for requested engineering work without asking again.
+Preserve drafts, exact session/workspace binding, and verified handoff receipts.
+This is Muse interaction authority; implementation, hosted validation, publication
+and live-device authority still follow the task and the boundaries below.
+
 ## Source locality
 
 This is a LOCAL checkout. Canonical Supervisor ↔ Executor authority is the

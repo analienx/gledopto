@@ -1,5 +1,58 @@
 # STATUS — GL-SD-301P
 
+## 2026-11-01 (latest) — third review round: "dormant" withdrawn
+
+A third independent review showed that every way of keeping a removed unit
+quiet also created a path where it never comes back on its own. Dormant is
+gone, and a CI gate forbids it. A removed unit re-joins on the next
+permit-join; use the Zigbee2MQTT `blocklist` to keep it out. Also added:
+a rejoin-to-steering handover on a factory-new device and pinned SDK patch
+P7, which keeps the OTA client from sticking in "download in progress" (the
+round-3 timing watchdog was replaced by it after the fourth review). Identity unchanged (`GLSD-ED-007`,
+`0x7F080001`, never flashed); bind to the exact image hash in the review
+record.
+
+## 2026-11-01 (later) — two independent acceptance review rounds, fixes in
+
+The over-the-air identity is now **`GLSD-ED-007`, APP_BUILD `0x08`,
+fileVersion `0x7F080001`**, dateCode `20261101`. It supersedes
+`GLSD-ED-006` / `0x7F070001`, which was never flashed.
+
+- Round 1 (A1–A10) and round 2 (B1–B10) were done by separate reviewers,
+  each checked against the pinned SDK source. They found real recovery gaps:
+  a reboot loop after a failed TC link-key exchange, a device that could be
+  stranded off the network, an OTA re-query that silently did nothing, and
+  a Leave with rejoin wrongly treated as removal. All are fixed with tests.
+  Dispositions:
+  `HARDENING-FLASH-READINESS-REVIEW-20261101.md`.
+- Live read-only checks: Zigbee2MQTT is `2.14.2`, which is enough for URL
+  requests. The live tuple matches the preflight. The stock unit is a
+  **Router**, and up to 11 End Devices may use it as parent; they will
+  re-parent after the switch to End Device.
+- Still required: hosted CI on the final head, the external converter
+  installed, and explicit human authorization. No device action is
+  authorized.
+
+## 2026-11-01 — flash-readiness review: recovery surface fixed, not yet re-gated
+
+The active candidate is the PR #8 hardening branch
+(`codex/glsd301p-client-hardening`); PR #6 `760c141` stays frozen as the
+previous reviewed reference.
+
+A flash-readiness review of `109b6b1` found that a factory-new device could
+never commission again (no network steering, no reset path, no reboot on
+Leave). That would make vendor OTA recovery undeliverable after a Leave or an
+unrestorable stock NV. Fixed together with a planned recovery request,
+a Zigbee2MQTT external converter, read-only StartUp attributes, OTA query
+after join and a corrected over-the-air identity (`GLSD-ED-006`,
+`0x7F070001`). Details and local verification:
+`HARDENING-FLASH-READINESS-REVIEW-20261101.md`.
+
+Gate state: locally the host harnesses, architecture firewall and real TC32
+build pass; hosted CI, a fresh independent acceptance review and read-only
+Zigbee2MQTT downgrade verification are still required. No device action is
+authorized.
+
 ## 2026-09-18 — execution model and durable project state reconciled
 
 The project now follows Supervisor ↔ Executor protocol 2.2 execution

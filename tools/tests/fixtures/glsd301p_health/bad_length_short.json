@@ -1,0 +1,1 @@
+{"description": "47-byte payload must be rejected (short).", "expect_error": "must be 48 bytes, got 47", "hex": "0200000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000", "name": "bad_length_short"}
