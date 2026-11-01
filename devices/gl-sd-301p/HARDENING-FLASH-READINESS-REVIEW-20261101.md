@@ -122,17 +122,30 @@ build script fails if the Basic strings drift from the declared identity.
   `INTEROP_BOUNDARY_GUARD=PASS`; `tools/tests` 22/22 PASS.
 - Real TC32 build with the hash-pinned toolchain
   (`33b854be…b430`): compile/link/finalize PASS, no warnings,
-  final image 141 540 bytes, `TELINK_FINAL_IMAGE=PASS fileVersion=0x7f070001`;
-  new symbols present in the linked ELF; OTA wrapper packaging PASS.
+  `TELINK_FINAL_IMAGE=PASS fileVersion=0x7f070001`; new symbols present in
+  the linked ELF; OTA wrapper packaging PASS.
 - Not run locally (no 32-bit multilib): the `-m32` ZCL dispatch, mutant and
-  original-body legs. They must pass in hosted CI.
+  original-body legs; covered by hosted CI below.
+
+## Hosted CI and reproducibility (head `048d2f1`)
+
+- `cleanroom-guard.yml`: all legs PASS, including `-m32` ZCL dispatch,
+  R25/R26 mutants KILLED and the original-body reproduction.
+- `glsd301p-final-readiness.yml`: `NO_SPARE_FINAL_PREFLIGHT_POLICY=PASS_AUTH_FALSE`,
+  `EXACT_IEEE_INERT_RELEASE_PLAN=PASS_AUTH_FALSE_RECOVERY_PLANNED`.
+- `z2m-converter.yml`: PASS against zigbee-herdsman-converters 26.125.0 and
+  latest.
+- Fixed a latent CI flake on the way: `tc32-elf-nm | grep -q` under
+  `pipefail` could report a present symbol as missing (SIGPIPE).
+- Byte-identical across PR run 41289086530, dispatch rebuild 41289174940 and
+  the local WSL build: `glsd301p-ed.final.bin` 141 572 bytes, SHA-256
+  `adb252bcb6db81c0d2352f167b8daaa2a05a3085059ab2e151c2dc3ed2fe6492`.
 
 ## Still required before any canary
 
-1. Hosted CI green on the new head (both workflows).
-2. Fresh independent acceptance review of the new head.
-3. Read the installed Zigbee2MQTT version (must be >= 2.9.0 for URL
+1. Fresh independent acceptance review of the new head.
+2. Read the installed Zigbee2MQTT version (must be >= 2.9.0 for URL
    requests) and install the external converter; verify served bytes
    against the plan's SHA-512 values immediately before each request.
-4. Existing preflight gates (live tuple, shadow probes, explicit risk
+3. Existing preflight gates (live tuple, shadow probes, explicit risk
    acceptance) and explicit human authorization.
