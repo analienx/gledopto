@@ -27,3 +27,5 @@
 # belongs under the vendor-firmware/reference-analysis zone instead.
 re-private/
 analysis-private/
+__pycache__/
+*.pyc
