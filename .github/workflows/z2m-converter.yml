@@ -1,0 +1,51 @@
+name: GL-SD-301P Zigbee2MQTT converter
+
+on:
+  push:
+    paths:
+      - devices/gl-sd-301p/zigbee2mqtt/**
+      - firmware/glsd301p-ed/glsd301p_telink_target.c
+      - tools/check_z2m_converter.js
+      - .github/workflows/z2m-converter.yml
+  pull_request:
+    paths:
+      - devices/gl-sd-301p/zigbee2mqtt/**
+      - firmware/glsd301p-ed/glsd301p_telink_target.c
+      - tools/check_z2m_converter.js
+      - .github/workflows/z2m-converter.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  converter:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # Pinned known-good release plus the newest one, so upstream API
+        # drift is visible before the converter is installed live.
+        zhc: ["26.125.0", "latest"]
+    steps:
+      - name: Checkout exact source head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Install zigbee-herdsman-converters ${{ matrix.zhc }} (throwaway prefix)
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/zhc"
+          cd "$RUNNER_TEMP/zhc"
+          npm init -y > /dev/null
+          npm install --no-audit --no-fund --ignore-scripts "zigbee-herdsman-converters@${{ matrix.zhc }}"
+          node -e "console.log('ZHC_VERSION=' + require('zigbee-herdsman-converters/package.json').version)"
+      - name: Load converter and check it against the firmware identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          NODE_PATH="$RUNNER_TEMP/zhc/node_modules" node tools/check_z2m_converter.js "$GITHUB_WORKSPACE"
