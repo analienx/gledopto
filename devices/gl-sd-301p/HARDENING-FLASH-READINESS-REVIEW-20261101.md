@@ -228,6 +228,20 @@ findings concerned the round-3 OTA stall watchdog:
 | D7 | Removing `note_own_leave` also removed the only place that cleared the join edge on a non-gesture Leave, so the next join was not counted in the health success counter. | Fixed: any successful non-gesture own Leave records not-joined. |
 | D8 | The watchdog had no behavioural test. | Resolved: the watchdog is removed. P7 is hash-pinned and anchor-checked. |
 
+### Current candidate: hosted CI and reproducibility (head `2765e36`)
+
+- All three workflows PASS on `2765e36`: `GLSD301P_SDK_PATCHES_APPLIED=8`,
+  with P7 at the pinned original and patched hashes in both the harness and
+  the TC32 build; `TARGET_OTA_STUCK_DOWNLOAD_FIXED_AT_SDK_SOURCE_P7=PASS`;
+  `TARGET_LEAVE_ONLY_GESTURE_REBOOTS_NO_DORMANT=PASS`;
+  `GLSD301P_REJOIN=PASS`; the preflight and release-plan policies are PASS
+  with authorization false.
+- The PR run 41316758236 and the dispatch rebuild 41316819468 are
+  byte-identical: **`glsd301p-ed.final.bin` is 142 212 bytes,
+  `fileVersion=0x7f080001`, SHA-256
+  `6553198eff28abffa728d0748cc38334a02bde473b157b7a822a78ab5279fec9`,
+  SHA-512 `40a058aa…f84a120b5`.** Any canary must bind to these bytes.
+
 ### Hosted CI and reproducibility for the round-3 changes (head `6b24ca9`, superseded)
 
 - All three workflows PASS on `6b24ca9`, including
