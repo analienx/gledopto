@@ -329,6 +329,18 @@ class FinalizationTests(unittest.TestCase):
             )
             self.assertTrue(plan["canaryDecisionReady"])
             self.assertTrue(plan["plannedRecoveryRequest"]["isDowngrade"])
+            # Z2M serves a lower version only through the /downgrade variant.
+            self.assertTrue(plan["plannedRecoveryRequest"]["topic"].endswith("/ota_update/update/downgrade"))
+            self.assertTrue(plan["plannedUpdateRequest"]["topic"].endswith("/ota_update/update"))
+            # Z2M does not hash-check direct URLs: the plan carries the hashes.
+            self.assertEqual(plan["plannedUpdateRequest"]["expectedServedSha512"], meta["sha512"])
+            self.assertTrue(plan["zigbee2mqtt"]["operatorMustVerifyServedBytesSha512"])
+            # A .json URL would be read as an index, never as the image.
+            with self.assertRaises(release_plan.ReleasePlanError):
+                release_plan.build_plan(
+                    candidate, sidecar, pf, "https://example.invalid/candidate.ota",
+                    "https://example.invalid/index.json",
+                )
             self.assertEqual(plan["plannedRecoveryRequest"]["payload"],
                              {"id": wrapper.TARGET_IEEE, "url": "https://example.invalid/vendor.ota"})
             self.assertEqual(plan["targetIeee"], wrapper.TARGET_IEEE)

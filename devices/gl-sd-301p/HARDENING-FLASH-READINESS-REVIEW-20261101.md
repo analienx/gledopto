@@ -78,14 +78,23 @@ the NV uncertainty explicitly.
 
 - `devices/gl-sd-301p/zigbee2mqtt/glsd301p_ed.js`: external converter for
   `GL-SD-301P-ED` / `analienx` with `ota: true` (light + identify, no
-  power-on-behavior or effect controls). Load-tested against
-  zigbee-herdsman-converters 26.125.0 (`findByDevice` resolves it).
+  power-on-behavior or effect controls). Gated in CI by
+  `tools/check_z2m_converter.js` (`z2m-converter.yml`, pinned
+  zigbee-herdsman-converters 26.125.0 and latest), which also checks it
+  against the Basic identity parsed from the firmware source.
 - `tools/glsd301p_release_plan.py`: `--recovery-url`; the plan is never
-  decision-ready without a recovery request. The recovery request uses the
-  same `{"id","url"}` shape proven by the BSEED targeted runner and is marked
-  `isDowngrade` / `requiresZ2mDowngradeVerificationBeforeCanary`: whether the
-  installed Zigbee2MQTT serves a lower version for an explicit URL must be
-  verified read-only before the canary.
+  decision-ready without a recovery request.
+- Zigbee2MQTT semantics, verified from the published sources of
+  zigbee2mqtt 2.1.3-2.14.3 and zigbee-herdsman 11.2.0 (not assumed):
+  the request `url` is honoured from 2.9.0; a URL ending in `.json` is read
+  as an OTA index, anything else as the image itself; a direct image is
+  served only if newer, or older via the `ota_update/update/downgrade` topic;
+  direct images are not hash-checked and bypass the definition's `ota` flag.
+  The first plan draft used the plain update topic for recovery, which
+  Zigbee2MQTT would have answered with "no image available". The plan now
+  uses the `/downgrade` topic for recovery, rejects `.json` URLs, records
+  the minimum version, and carries the expected SHA-512 of the served bytes
+  for operator verification.
 
 ### F5 — StartUp attributes accepted writes that were ignored (low)
 
@@ -122,7 +131,8 @@ build script fails if the Basic strings drift from the declared identity.
 
 1. Hosted CI green on the new head (both workflows).
 2. Fresh independent acceptance review of the new head.
-3. Read-only verification that the installed Zigbee2MQTT serves the vendor
-   downgrade for an explicit URL; install the external converter first.
+3. Read the installed Zigbee2MQTT version (must be >= 2.9.0 for URL
+   requests) and install the external converter; verify served bytes
+   against the plan's SHA-512 values immediately before each request.
 4. Existing preflight gates (live tuple, shadow probes, explicit risk
    acceptance) and explicit human authorization.

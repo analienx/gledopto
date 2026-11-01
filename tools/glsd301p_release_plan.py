@@ -18,6 +18,22 @@ class ReleasePlanError(ValueError):
     pass
 
 
+# Zigbee2MQTT OTA request semantics, verified from the published sources of
+# zigbee2mqtt 2.1.3 .. 2.14.3 and zigbee-herdsman 11.2.0:
+#  - the request payload `url` is honoured from 2.9.0 (ignored before);
+#  - a URL ending in ".json" is read as an OTA *index*; anything else is the
+#    firmware file itself, so these plans always point at the .ota file;
+#  - a direct firmware URL is served only if newer than the running version,
+#    or older when the `/downgrade` topic variant is used (vendor recovery);
+#  - a direct firmware URL is NOT hash-checked by Zigbee2MQTT and bypasses the
+#    device definition's `ota` flag. The operator must therefore verify that
+#    the served bytes match the expected SHA-512 immediately before sending.
+Z2M_MIN_VERSION_FOR_URL = "2.9.0"
+Z2M_SEMANTICS_SOURCE = "zigbee2mqtt 2.1.3-2.14.3 / zigbee-herdsman 11.2.0 (published dist)"
+UPDATE_TOPIC = "zigbee2mqtt/bridge/request/device/ota_update/update"
+DOWNGRADE_TOPIC = UPDATE_TOPIC + "/downgrade"
+
+
 def _valid_url(url: str) -> bool:
     parsed = urlparse(url)
     return parsed.scheme in {"http", "https"} and bool(parsed.netloc)
@@ -36,6 +52,11 @@ def build_plan(
         raise ReleasePlanError("recovery URL must be explicit http(s), not a file/global-index path")
     if recovery_url is not None and recovery_url == url:
         raise ReleasePlanError("recovery URL must differ from the candidate URL")
+    for name, value in (("candidate", url), ("recovery", recovery_url)):
+        if value is not None and urlparse(value).path.lower().endswith(".json"):
+            raise ReleasePlanError(
+                f"{name} URL ends in .json; Zigbee2MQTT would read it as an OTA index, not the image"
+            )
     data = candidate.read_bytes()
     sidecar = json.loads(sidecar_path.read_text(encoding="utf-8"))
     preflight = json.loads(preflight_path.read_text(encoding="utf-8"))
@@ -61,22 +82,24 @@ def build_plan(
     request = None
     if decision_ready:
         request = {
-            "topic": "zigbee2mqtt/bridge/request/device/ota_update/update",
+            "topic": UPDATE_TOPIC,
             "payload": {"id": TARGET_IEEE, "url": url},
+            "expectedServedSha512": digest512,
+            "z2mVerifiesImageHash": False,
         }
     recovery_request = None
     if recovery_planned:
-        # Same request shape as the forward update. The vendor image
-        # (0x28013001) is LOWER than the custom file version, i.e. a
-        # downgrade: the custom OTA client accepts it (WWAH off), but whether
-        # the installed Zigbee2MQTT/herdsman serves a lower version for an
-        # explicit URL must be verified read-only before the canary.
+        vendor = preflight.get("vendorRecovery", {})
+        # The vendor image (0x28013001) is LOWER than the custom file version:
+        # Zigbee2MQTT serves it only through the /downgrade topic variant.
+        # The custom OTA client accepts the downgrade (WWAH off).
         recovery_request = {
-            "topic": "zigbee2mqtt/bridge/request/device/ota_update/update",
+            "topic": DOWNGRADE_TOPIC,
             "payload": {"id": TARGET_IEEE, "url": recovery_url},
             "isDowngrade": True,
-            "requiresZ2mDowngradeVerificationBeforeCanary": True,
-            "requiresExternalConverter": "devices/gl-sd-301p/zigbee2mqtt/glsd301p_ed.js",
+            "expectedServedSha512": vendor.get("sha512"),
+            "expectedFileVersion": vendor.get("fileVersion"),
+            "z2mVerifiesImageHash": False,
         }
     return {
         "schema": 1,
@@ -98,6 +121,13 @@ def build_plan(
         "plannedUpdateRequest": request,
         "plannedRecoveryRequest": recovery_request,
         "recoveryPlanned": recovery_planned,
+        "zigbee2mqtt": {
+            "minimumVersionForUrlRequests": Z2M_MIN_VERSION_FOR_URL,
+            "semanticsVerifiedFrom": Z2M_SEMANTICS_SOURCE,
+            "operatorMustVerifyServedBytesSha512": True,
+            "externalConverterRecommended": "devices/gl-sd-301p/zigbee2mqtt/glsd301p_ed.js",
+            "externalConverterRequiredForUrlRequests": False,
+        },
         "authorizationGranted": False,
         "AUTHORIZATION_GRANTED": False,
         "executionPermitted": False,

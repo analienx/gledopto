@@ -105,8 +105,12 @@ itself, so the application owns it:
 
 Re-joining a factory-new device requires Zigbee2MQTT permit-join. It then
 re-interviews as `GL-SD-301P-ED` / `analienx`; install
-`devices/gl-sd-301p/zigbee2mqtt/glsd301p_ed.js` as an external converter so
-the device keeps `ota: true` and the recovery request stays deliverable.
+`devices/gl-sd-301p/zigbee2mqtt/glsd301p_ed.js` as an external converter for
+normal control and OTA checks. The vendor recovery itself is an explicit-URL
+request on the `ota_update/update/downgrade` topic (Zigbee2MQTT >= 2.9.0),
+which does not depend on the device definition; Zigbee2MQTT does not
+hash-check such images, so the served bytes must be verified against the
+manifest SHA-512 first.
 
 None of these paths touches the output guard; a reboot always returns to the
 boot-locked OFF state.

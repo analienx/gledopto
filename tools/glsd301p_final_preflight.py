@@ -262,7 +262,8 @@ def evaluate(
             "wirelessly; wired/open-device recovery or replacement is the contingency. Stock network NV "
             "compatibility is unproven: if the custom stack cannot restore it, the device boots factory "
             "new and re-commissions only while Zigbee2MQTT permit-join is open (then re-interviews as "
-            "GL-SD-301P-ED, which needs the repository's external converter for OTA)."
+            "GL-SD-301P-ED; explicit-URL OTA requests still work on Zigbee2MQTT >= 2.9.0, and the "
+            "repository's external converter keeps normal control and OTA checks)."
         ),
     }
 
