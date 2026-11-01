@@ -284,6 +284,11 @@ static status_t glsd_identify_cb(zclIncomingAddrInfo_t *addr, u8 cmd_id, void *p
     return ZCL_STA_INVALID_FIELD;
 }
 
+/* Set by the OTA callback, consumed by the 1 s maintenance tick. */
+static bool g_ota_requery_pending;
+
+static void glsd_arm_reboot(u8 delay_s);
+
 static void glsd_ota_event(u8 evt, u8 status)
 {
     if (evt != OTA_EVT_COMPLETE) {
@@ -291,16 +296,24 @@ static void glsd_ota_event(u8 evt, u8 status)
     }
     if (status == ZCL_STA_SUCCESS) {
         ota_mcuReboot();
+        /*
+         * Still here: the SDK refused to switch images (new image invalid
+         * or boot-flag write failed). Reboot onto the current valid image
+         * so no RAM resume state survives; the OTA NV module was already
+         * reset, so the next server-initiated transfer starts clean.
+         */
+        glsd_arm_reboot(1u);
         return;
     }
     /*
-     * Failed/aborted download: the transfer took over the shared otaTimer
-     * and it is gone now. Re-arm the periodic query like the SDK samples so
-     * an interrupted recovery transfer is retried without a rejoin/reboot.
-     * Safe here: the SDK defers block-timeout completion via
-     * TL_SCHEDULE_TASK for exactly this re-arm (ota.c).
+     * Failed/aborted transfer: the shared otaTimer was taken over by the
+     * transfer and is gone (or is the very timer whose callback is running
+     * now, e.g. the IEEE-address wait, where ota_queryStart would be a
+     * no-op). Re-arm the periodic query from the next maintenance tick.
+     * This keeps the client's own periodic query alive; with Zigbee2MQTT
+     * an aborted recovery is retried by re-sending the same request.
      */
-    ota_queryStart(GLSD301P_OTA_QUERY_INTERVAL_S);
+    g_ota_requery_pending = true;
 }
 
 static ota_callBack_t g_ota_cb = {glsd_ota_event};
@@ -457,11 +470,17 @@ static void glsd_maintenance_tick(void)
         }
     }
 
+    if (g_ota_requery_pending) {
+        g_ota_requery_pending = false;
+        ota_queryStart(GLSD301P_OTA_QUERY_INTERVAL_S);
+    }
+
     action = glsd301p_bdb_tick(&g_rejoin, joined, factory_new);
     if (action.stop_retry) {
         glsd301p_timer_retry_stop();
     }
     if (action.joined) {
+        glsd301p_health_note_network(&g_health, GLSD301P_HEALTH_NET_JOINED);
         glsd_note_joined();
     }
     if (action.start_attempt) {
@@ -500,6 +519,11 @@ static void glsd_rejoin_start_attempt(bool from_retry_fire)
     u8 rc;
     bool accepted;
 
+    if (g_reset_to_fn) {
+        /* Reset gesture accepted: never rejoin during the reboot
+         * countdown (no NV write, no brief reappearance). */
+        return;
+    }
     /*
      * Documented contract (zb_api.h): RET_ILLEGAL_REQUEST or zdo_status_t.
      * Anything but ZDO_SUCCESS is a rejected start and takes the owned 5 s
@@ -634,16 +658,17 @@ static void glsd_bdb_commission_cb(u8 status, void *arg)
 }
 
 /*
- * Own Leave completed. Three origins, three outcomes:
+ * Own Leave completed. Never a reboot unless the gesture asked for it:
  *  - reset gesture: reboot cleanly into a factory-new boot (the reboot path
  *    clears any NV the stack kept);
- *  - BDB itself during steering (TC link-key exchange failed, bdb.c sends
- *    nlme leave): NO reboot -- the TCLK_EX_FAILURE commissioning status
- *    follows and the steering backoff (RAM, lost on reboot) handles it;
- *  - otherwise the coordinator removed the device: go dormant (no
- *    application-started steering or rejoin) until the reset gesture or a
- *    power cycle, so a removed device does not re-join on the next
- *    unrelated permit-join.
+ *  - otherwise glsd301p_rejoin_note_own_leave() decides. During steering it
+ *    is presumed BDB's own TCLK-failure Leave (bdb.c) and only becomes a
+ *    removal if no terminal steering failure follows within the settle
+ *    time; outside steering the coordinator removed the device. A removal
+ *    makes the device dormant: no factory-new steering until the gesture or
+ *    a power cycle. Rejoin is never blocked, so a Leave with rejoin=1 (no
+ *    rejoin flag in the confirm) cannot strand a device holding network
+ *    state.
  */
 static void glsd_leave_cnf_cb(nlme_leave_cnf_t *cnf)
 {
@@ -654,12 +679,7 @@ static void glsd_leave_cnf_cb(nlme_leave_cnf_t *cnf)
         glsd_arm_reboot(GLSD301P_LEAVE_REBOOT_DELAY_S);
         return;
     }
-    if (glsd301p_rejoin_state(&g_rejoin) == GLSD301P_REJOIN_STEERING) {
-        return;
-    }
-    glsd301p_timer_retry_stop();
-    glsd301p_rejoin_note_removed(&g_rejoin);
-    glsd301p_health_note_network(&g_health, GLSD301P_HEALTH_NET_DISCONNECTED);
+    glsd301p_rejoin_note_own_leave(&g_rejoin);
 }
 
 static bdb_appCb_t g_bdb_callbacks = {
@@ -797,6 +817,7 @@ void user_init(bool isRetention)
     g_reboot_countdown_s = 0u;
     g_reboot_uart_waits = 0u;
     g_reset_to_fn = false;
+    g_ota_requery_pending = false;
     glsd301p_health_init(&g_health);
     glsd_health_snapshot_now(glsd301p_timebase_now_ms());
     glsd_ensure_maintenance_timer();

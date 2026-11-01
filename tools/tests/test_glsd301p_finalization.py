@@ -58,7 +58,7 @@ def target_manifest(path: Path, inner_path: Path) -> None:
         "ADC_FLASH_SAFETY_PIN": "GPIO_PB3_VENDOR_FIRMWARE_CONFIRMED",
         "UART": "9600_8N1_PB1_TX_PA0_RX",
         "REACHABLE_TARGET_RUNTIME_CHAIN": "PASS",
-        "COMMISSIONING": "FACTORY_NEW_STEER_TICK_1S_BACKOFF_5_TO_300S_WATCHDOG_180S_TCLK_SAFE_STRANDED_REJOIN_60S_DORMANT_AFTER_REMOVAL",
+        "COMMISSIONING": "FACTORY_NEW_STEER_TICK_1S_BACKOFF_5_TO_300S_WATCHDOG_180S_TCLK_SAFE_STRANDED_REJOIN_60S_REJOIN_WATCHDOG_900S_DORMANT_STEER_ONLY_AFTER_REMOVAL",
         "RESET_GESTURE": "PUSH_10_SHORT_PRESSES_GAP_1000MS_LEAVE_THEN_REBOOT_FACTORY_NEW_VERIFIED",
         "OTA_CLIENT_QUERY": "AFTER_JOIN_AND_FAILED_TRANSFER_43200S",
         "FINAL_BINARY_SIZE": str(len(inner)),
@@ -302,7 +302,7 @@ class FinalizationTests(unittest.TestCase):
                 "SOFTWARE_PREFLIGHT_PASS": True,
                 "CANARY_DECISION_READY": True,
                 "firstValidCustomBootRiskAccepted": True,
-                "candidate": {"sha256": meta["sha256"]},
+                "candidate": {"sha256": meta["sha256"], "fileVersion": preflight.CUSTOM_FILE_VERSION},
                 "vendorRecovery": {
                     "sameModelVendorRecoveryAvailable": True,
                     "fileVersion": preflight.VENDOR_RECOVERY_FILE_VERSION,
@@ -369,6 +369,18 @@ class FinalizationTests(unittest.TestCase):
                             "https://example.invalid/vendor.ota",
                         )
             pf.write_text(json.dumps(good))
+            # The downgrade ordering comes from the OTA header bytes; a JSON
+            # field that disagrees with them is refused, wherever it lives.
+            pf.write_text(json.dumps(dict(good, candidate=dict(good["candidate"], fileVersion=0x7F080002))))
+            with self.assertRaises(release_plan.ReleasePlanError):
+                release_plan.build_plan(candidate, sidecar, pf, "https://example.invalid/candidate.ota")
+            pf.write_text(json.dumps(good))
+            bad_sidecar = root / "bad_sidecar.json"
+            bad_sidecar.write_text(json.dumps(dict(meta, fileVersion=0x7F080002)))
+            with self.assertRaises(release_plan.ReleasePlanError):
+                release_plan.build_plan(candidate, bad_sidecar, pf, "https://example.invalid/candidate.ota")
+            self.assertEqual(plan["zigbee2mqtt"]["abortedTransferRecovery"], "RESEND_SAME_REQUEST")
+            self.assertFalse(plan["zigbee2mqtt"]["deviceSelfRetriesRecovery"])
             self.assertEqual(plan["targetIeee"], wrapper.TARGET_IEEE)
             self.assertFalse(plan["usesGlobalOverrideIndex"])
             self.assertFalse(plan["authorizationGranted"])

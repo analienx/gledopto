@@ -88,20 +88,54 @@ itself, so the application owns it:
   `bdb_networkSteerStart()` whenever BDB init has completed, the device is not
   joined, is factory new and no rejoin/steering operation is outstanding.
   Failed or refused attempts back off 5, 10, 20, ... s, capped at 300 s; an
-  attempt with no terminal status is abandoned after 180 s. A device that
+  attempt with no terminal status is abandoned after 180 s. An accepted
+  attempt ends only on a terminal commissioning status or that watchdog:
+  BDB already reports "joined" while the Trust Center link-key exchange is
+  running, and a failed exchange makes the stack leave and report
+  `TCLK_EX_FAILURE`, which backs off like any other failure. A device that
   still holds network state is never steered (rejoin owns it), so preserved
   network state is never overwritten.
-- **Leave.** A successful own-Leave confirm (coordinator remove or the reset
-  gesture) reboots cleanly after 2 s; the reboot re-runs the locked-OFF boot
-  sequence and the factory-new device steers again.
+- **Stranded network state.** A device that is neither joined nor factory
+  new, with no rejoin or steering outstanding, starts a rejoin attempt every
+  60 s. An accepted rejoin that still has not joined after 15 min is
+  abandoned, and that kick starts a fresh one, so a stalled stack backoff
+  cannot keep the device off the network.
+- **Leave.** Only the reset gesture reboots. For any other own Leave:
+  - during steering, it is first assumed to be BDB's own Leave after a
+    failed link-key exchange. If `TCLK_EX_FAILURE` follows within 10 s,
+    steering backs off normally. Otherwise it was a removal. Steering is
+    held during those 10 s;
+  - outside steering, the coordinator removed the device (Zigbee2MQTT
+    "remove").
+  A removal makes the device **dormant**: no factory-new steering until the
+  reset gesture or a power cycle, so a removed device does not re-join the
+  next time permit-join is opened for something else. Dormant **never
+  blocks a rejoin**: the Leave confirm does not say whether rejoin was
+  requested, and a device that kept its network state must always get back
+  on. Local PUSH control keeps working while dormant.
 - **Reset gesture.** Ten short PUSH activations, each at most 1000 ms after the
-  previous one, request a network reset: `zb_factoryReset()` (broadcast Leave,
-  drop network state) followed by a reboot within 10 s. On an already
-  factory-new device the gesture only restarts steering immediately. A hold
-  (dimming) or a longer pause restarts the count; each press still toggles the
-  output normally.
+  previous one, request a network reset. No rejoin is started during the
+  reboot countdown. Joined: `zb_factoryReset()`
+  (broadcast Leave) and a reboot within 10 s (2 s after the Leave confirm).
+  Not joined or dormant: a reboot after 1 s. Before that reboot, if the stack
+  still reports network state, the SDK's `nv_resetToFactoryNew()` clears it
+  (the outgoing NWK frame counter is kept), so the device always boots
+  factory new and steers. On an already factory-new, non-dormant device the
+  gesture only restarts steering immediately. A hold (dimming) or a longer
+  pause restarts the count; each press still toggles the output normally.
 - **OTA query.** After every join the OTA client queries the server every
-  12 h. Images are only delivered when the server answers with one.
+  12 h; a failed or aborted transfer re-arms that query (deferred to the
+  1 s tick, because the abort can come from inside the OTA timer itself).
+  Zigbee2MQTT only offers an image during an explicit request, so **an
+  aborted recovery transfer is retried by re-sending the same request**; the
+  device never retries a recovery by itself. If the SDK refuses to switch to
+  a fully received image (invalid image or failed boot-flag write), the
+  device reboots onto its current image so no stale RAM transfer state
+  survives.
+- **Observability.** Basic:0xFF10 byte 47 reports the connectivity state
+  (idle / rejoin active / rejoin retry pending / steering / steering
+  backoff), the dormant flag and the steering-failure count (saturating
+  at 15).
 
 Re-joining a factory-new device requires Zigbee2MQTT permit-join. It then
 re-interviews as `GL-SD-301P-ED` / `analienx`; install

@@ -215,8 +215,19 @@ require_source 'ota_queryStart\(GLSD301P_OTA_QUERY_INTERVAL_S\)' 'OTA query afte
 # - the gesture always ends factory new, clearing NV explicitly if needed;
 # - a failed/aborted OTA transfer re-arms the periodic query;
 # - the 1 s maintenance event is re-registered if registration failed.
-require_source 'glsd301p_rejoin_state\(&g_rejoin\) == GLSD301P_REJOIN_STEERING' 'no reboot on BDB-internal Leave during steering'
-require_source 'glsd301p_rejoin_note_removed\(&g_rejoin\)' 'coordinator removal makes the device dormant'
+# Follow-up review: Leave origin is decided in the tested rejoin module
+# (TCLK settle window, dormant never blocks rejoin); OTA re-query is
+# deferred out of the OTA timer callback; a refused image switch reboots;
+# no rejoin starts during the gesture's reboot countdown.
+require_source 'glsd301p_rejoin_note_own_leave\(&g_rejoin\)' 'own Leave origin decided by the rejoin module'
+if grep -Eq 'glsd301p_rejoin_note_removed\(&g_rejoin\)' "$TARGET_SRC"; then
+  echo 'ERROR: target must not force dormant directly; use note_own_leave' >&2; exit 1
+fi
+require_source 'g_ota_requery_pending = true;' 'OTA re-query deferred out of the OTA callback'
+require_source 'glsd_arm_reboot\(1u\);' 'reboot after refused OTA image switch'
+[[ "$(grep -c 'if (g_reset_to_fn) {' "$TARGET_SRC")" -ge 2 ]] || {
+  echo 'ERROR: rejoin start must be gated during the gesture reboot countdown' >&2; exit 1;
+}
 require_source 'if \(g_reset_to_fn && !zb_isDeviceFactoryNew\(\)\)' 'gesture reboot verifies factory new'
 [[ "$(grep -co 'nv_resetToFactoryNew' "$TARGET_SRC")" -eq 1 ]] || {
   echo 'ERROR: target must contain exactly one guarded NV factory-new reset site' >&2; exit 1;

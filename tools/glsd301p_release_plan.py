@@ -12,10 +12,11 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 from glsd301p_final_preflight import (
+    CUSTOM_FILE_VERSION,
     VENDOR_RECOVERY_FILE_VERSION,
     VENDOR_RECOVERY_SHA512,
 )
-from make_glsd301p_ed_ota import TARGET_IEEE
+from make_glsd301p_ed_ota import TARGET_IEEE, EndDeviceOtaError, validate_ota
 
 
 class ReleasePlanError(ValueError):
@@ -102,10 +103,24 @@ def build_plan(
         raise ReleasePlanError("preflight authorization must be literal false")
     if preflight.get("candidate", {}).get("sha256") != digest256:
         raise ReleasePlanError("preflight is not bound to these candidate bytes")
+    # The version ordering the /downgrade recovery relies on must come from
+    # the candidate bytes themselves, not from an unbound JSON field.
+    try:
+        header_version = validate_ota(data)["fileVersion"]
+    except EndDeviceOtaError as exc:
+        raise ReleasePlanError(f"candidate is not a valid End Device OTA: {exc}") from exc
+    if header_version != CUSTOM_FILE_VERSION:
+        raise ReleasePlanError("candidate OTA header fileVersion is not the allocated custom version")
+    for name, declared in (
+        ("sidecar", sidecar.get("fileVersion")),
+        ("preflight", preflight.get("candidate", {}).get("fileVersion")),
+    ):
+        if declared != header_version:
+            raise ReleasePlanError(f"{name} fileVersion does not match the candidate OTA header")
 
     recovery_planned = recovery_url is not None
     vendor = (
-        _validated_vendor_recovery(preflight, sidecar.get("fileVersion"))
+        _validated_vendor_recovery(preflight, header_version)
         if recovery_planned
         else None
     )
@@ -157,6 +172,12 @@ def build_plan(
             "operatorMustVerifyServedBytesSha512": True,
             "externalConverterRecommended": "devices/gl-sd-301p/zigbee2mqtt/glsd301p_ed.js",
             "externalConverterRequiredForUrlRequests": False,
+            # Z2M only offers an image during an explicit request; the
+            # device's own periodic query gets NO_IMAGE_AVAILABLE. After an
+            # aborted transfer, re-send the same request (it resumes or
+            # restarts); the device never retries a recovery by itself.
+            "abortedTransferRecovery": "RESEND_SAME_REQUEST",
+            "deviceSelfRetriesRecovery": False,
         },
         "authorizationGranted": False,
         "AUTHORIZATION_GRANTED": False,

@@ -44,10 +44,18 @@ extern "C" {
  * attempt) gets a rejoin attempt every GLSD301P_UNJOINED_REJOIN_KICK_S, so
  * it is never left off-network waiting for an event that never comes.
  *
+ * An accepted rejoin (SDK_ACTIVE) that has not joined after
+ * GLSD301P_REJOIN_ACTIVE_TIMEOUT_S is abandoned to IDLE, so the stranded
+ * kick starts a fresh one even if the stack-owned backoff stalled.
+ *
  * Dormant: after the coordinator removes the device (own Leave that the
- * application did not start), every application-started connectivity
- * attempt stops until the reset gesture or a power cycle, so a removed
- * device does not silently re-join on the next unrelated permit-join.
+ * application did not start), factory-new steering stops until the reset
+ * gesture or a power cycle, so a removed device does not silently re-join
+ * on the next unrelated permit-join. Dormant never blocks a REJOIN: a Leave
+ * with rejoin=1 keeps network state, and that device must get back on. An
+ * own Leave seen while steering is first assumed to be BDB's own TCLK-
+ * failure Leave; only if no terminal steering failure follows within
+ * GLSD301P_STEER_LEAVE_SETTLE_S is it treated as a removal.
  *
  * States: IDLE (no attempt outstanding), SDK_ACTIVE (an accepted attempt is
  * under stack-owned backoff; intermediate failures must not restart it),
@@ -60,6 +68,8 @@ extern "C" {
 #define GLSD301P_STEER_BACKOFF_MAX_S 300u
 #define GLSD301P_STEER_ACTIVE_TIMEOUT_S 180u
 #define GLSD301P_UNJOINED_REJOIN_KICK_S 60u
+#define GLSD301P_REJOIN_ACTIVE_TIMEOUT_S 900u
+#define GLSD301P_STEER_LEAVE_SETTLE_S 10u
 
 typedef enum {
     GLSD301P_REJOIN_IDLE = 0,
@@ -85,6 +95,8 @@ typedef struct {
     uint32_t steer_failures;
     uint16_t unjoined_idle_s;
     bool dormant;
+    uint16_t sdk_active_s;
+    uint8_t steer_leave_pending_s;
 } glsd301p_rejoin_t;
 
 /* What the 1 s maintenance tick asks the caller to do. */
@@ -170,10 +182,17 @@ bool glsd301p_rejoin_note_steer_failure(glsd301p_rejoin_t *rejoin);
 void glsd301p_rejoin_request_steer_now(glsd301p_rejoin_t *rejoin);
 
 /*
- * The coordinator removed the device (own Leave confirmed that the
- * application did not start, outside steering). Enter dormant: no
- * application-started steering or rejoin until reset gesture / power cycle.
- * A later join (e.g. stack-driven rejoin) clears dormant.
+ * Own Leave confirmed that the application did not start (i.e. not the
+ * reset gesture). Outside steering: the coordinator removed the device ->
+ * dormant now. During steering: dormant only if no terminal steering
+ * failure (BDB's own TCLK-failure Leave) follows within
+ * GLSD301P_STEER_LEAVE_SETTLE_S; steering is held meanwhile.
+ */
+void glsd301p_rejoin_note_own_leave(glsd301p_rejoin_t *rejoin);
+
+/*
+ * Enter dormant: no factory-new steering until reset gesture / power cycle.
+ * Rejoin is unaffected. A later join clears dormant.
  */
 void glsd301p_rejoin_note_removed(glsd301p_rejoin_t *rejoin);
 

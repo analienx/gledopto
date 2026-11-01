@@ -141,11 +141,99 @@ build script fails if the Basic strings drift from the declared identity.
   the local WSL build: `glsd301p-ed.final.bin` 141 572 bytes, SHA-256
   `adb252bcb6db81c0d2352f167b8daaa2a05a3085059ab2e151c2dc3ed2fe6492`.
 
+## Independent acceptance review of `109b6b1..cedf0d3`
+
+A separate reviewer, with no part in writing the code, reviewed the
+remediation against the pinned SDK source. Verdict: wireless recovery to the
+vendor image was **not yet guaranteed**. Every finding was re-checked against
+the SDK source before fixing (`defad51`). Identity bumped to `GLSD-ED-007` /
+APP_BUILD `0x08` / `0x7F080001` so the reviewed `0x7F070001` bytes and the
+fixed bytes can never be confused.
+
+| # | Finding | Disposition |
+|---|---|---|
+| A1 | The leave-confirm reboot also fired on the Leave BDB sends itself after a failed TC link-key exchange (`bdb.c` `bdb_retrieveTcLinkKeyTimeout`), so the RAM backoff was lost and the device could loop associate → leave → reboot. | Fixed. The Leave origin is now told apart: gesture → reboot; during STEERING → no reboot; otherwise → coordinator removal. |
+| A2 | The tick treated `joined` as success during the TCLK window, so the later `TCLK_EX_FAILURE` was ignored and the backoff never grew. | Fixed. An accepted attempt ends only on a terminal status or the watchdog. New test `test_steer_tclk_window_failure_backs_off`. |
+| A3 | Network state that was neither joined nor factory new, with nothing outstanding, was never driven back onto a network. | Fixed. A rejoin attempt is started every 60 s. New test `test_stranded_network_state_rejoin_kick`. |
+| A4 | When the device was not joined, the gesture relied on library-only `zb_factoryReset()` behaviour, so it could reboot still non-factory-new. | Fixed. When not joined, the gesture reboots immediately. Before any gesture reboot, `nv_resetToFactoryNew()` (SDK source, the same routine as `tl_bdbReset2FN`) runs if the stack still reports network state. |
+| A5 | A failed or aborted OTA transfer never re-armed the periodic query. | Fixed, as in the SDK sample (`ota_queryStart` on a non-success `OTA_EVT_COMPLETE`). |
+| A6 | The 1 s event now carries recovery behaviour, but its registration result was discarded. | Fixed. Registration is retried from every BDB callback. |
+| A7 | The missed-callback reconciliation did not run the join side effects (OTA query). | Fixed. The tick returns `JOINED` → `stop_retry` + `glsd_note_joined()`. |
+| A8 | The release plan copied the vendor SHA-512 and fileVersion unchecked, so it could plan recovery with a null hash. | Fixed. A recovery request needs the pinned vendor SHA-512 and fileVersion and a strict downgrade. Six negative test variants. |
+| A9 | After a coordinator removal the device steered forever and re-joined on the next unrelated permit-join. | Fixed. It goes dormant until the gesture or a power cycle (see SAFETY.md). |
+| A10 | The steering counters and state were not observable on the device. | Fixed. Basic:0xFF10 byte 47 (formerly reserved, zero) carries the state, the dormant flag and steering failures; the decoder and fixtures were updated. |
+
+`zb_factoryReset()` and the exact moment the stack becomes factory new are
+inside the binary-only `libzb_ed.a` and cannot be checked offline. A4 is
+designed so the outcome does not depend on them.
+
+## Second independent review of the fixes (`cedf0d3..8b05a11`)
+
+A second separate reviewer checked the A1–A10 fixes. Every finding was
+re-checked against the SDK source, and the fixes below came after the
+`8b05a11` build.
+
+| # | Finding | Disposition |
+|---|---|---|
+| B1 | Any non-gesture own Leave outside steering made the device dormant, and dormant blocked rejoin. The Leave confirm carries no rejoin flag, so a Leave with rejoin=1 could strand a device that kept its network state. | Fixed. Dormant now only stops factory-new steering and never blocks a rejoin (parent-lost, retry, stranded kick). |
+| B2 | A real removal during STEERING (joined, before the success callback) was taken for BDB's TCLK Leave, so the device re-steered. | Fixed. `glsd301p_rejoin_note_own_leave()`: an own Leave during steering is a removal unless a terminal steering failure follows within 10 s. Steering is held in between. |
+| B3 | When the abort came from inside an `otaTimer` callback (`ota_ieeeAddrRspWait`), the OTA re-query did nothing: `ev_timer_exist` was still true, and the timer was unregistered right after. | Fixed. The re-query is deferred to the next 1 s tick (`g_ota_requery_pending`). |
+| B4 | When `ota_mcuReboot()` returned without switching (invalid image or failed flag write), the device was left with stale RAM transfer state. | Fixed. It reboots onto the current valid image (`glsd_arm_reboot(1u)`). |
+| B5 | SDK_ACTIVE had no exit if the stack's backoff stalled. | Fixed. A 900 s watchdog moves it to IDLE, and the stranded kick starts a fresh attempt. |
+| B6 | A rejoin could start during the gesture's reboot countdown. | Fixed. `glsd_rejoin_start_attempt` is gated on `g_reset_to_fn`. |
+| B7 | The release plan's downgrade check trusted the unbound sidecar `fileVersion`. | Fixed. The version is parsed from the candidate OTA header, and both the sidecar and the preflight must match it. |
+| B8 | A join reconciled by the tick left the health network state at JOINING. | Fixed. |
+| B9 | The docs implied the device retries an aborted recovery by itself, but Zigbee2MQTT only offers images on explicit requests. | Fixed: SAFETY.md and the comments corrected. The plan now records `abortedTransferRecovery = RESEND_SAME_REQUEST` and `deviceSelfRetriesRecovery = false`. |
+| B10 | STATUS.md still gave the old identity. | Fixed. |
+
+### Hosted CI and reproducibility for the round-1 fixes (head `8b05a11`, superseded)
+
+- All three workflows PASS, including `GLSD301P_REJOIN=PASS` with the new
+  cases, `TARGET_LEAVE_ORIGIN_AND_DORMANT=PASS`,
+  `TARGET_OTA_QUERY_REARM_AFTER_FAILURE=PASS`, R25/R26 mutants KILLED,
+  `NO_SPARE_FINAL_PREFLIGHT_POLICY=PASS_AUTH_FALSE` and
+  `EXACT_IEEE_INERT_RELEASE_PLAN=PASS_AUTH_FALSE_RECOVERY_PLANNED`.
+- The PR run 41312768731 and the dispatch rebuild 41312905477 are
+  byte-identical: `glsd301p-ed.final.bin` is 142 084 bytes,
+  `fileVersion=0x7f080001`, SHA-256
+  `a7df748a5f9bd4fdd30a02f5d83f24c526cb98ff08444b0804879aa4bdc80ed5`,
+  SHA-512 `9171d2ad…5d12128`.
+
+## Live environment, read only (2026-11-01)
+
+Only read-only checks were made, through the canonical `home-assistant-readonly`
+access path. No device or coordinator state was changed.
+
+- Zigbee2MQTT add-on `2.14.2-1` (latest `2.14.3-1`): meets the >= 2.9.0
+  needed for URL requests.
+- The live record of `0xa4c13850cfcdb3a4` matches the preflight tuple:
+  `GL-SD-301P` / `GLEDOPTO`, swBuildId `20651203`, dateCode `20240704`,
+  hwVersion 2, appVersion 1, stackVersion 2, interview complete, mains.
+  Endpoint 11 has 2 binds; endpoint 242 has Green Power.
+- **The stock unit is a Router; the candidate is an End Device.** The network
+  has 59 routers and 47 End Devices (most of them battery). A read-only raw
+  network map shows eight routers listing the dimmer as a neighbour, and one
+  (`TS011F_plug_1_2`) lists it as its child (that plug is its parent).
+  The stock firmware does not answer Mgmt_Lqi_req; this failed on two
+  separate scans (`failed: ['lqi']`). Checked from the other side: 36 of
+  the 47 End Devices are claimed as children by routers that answered. The
+  other 11 (E2201 ×3, ZG-204ZL ×2, TH01 ×2, 929002398602, TS0201, ZP01,
+  ZG-106Z) belong to one of the 8 non-answering routers, and the dimmer is
+  one of them. So **up to 11 End Devices may currently use the dimmer as
+  parent**; none is confirmed. When the dimmer becomes an End Device, such
+  children lose their parent and rejoin through another router. That is
+  standard Zigbee behaviour, but sleepy sensors only notice on their next
+  poll, so expect a short gap in their reports.
+
 ## Still required before any canary
 
-1. Fresh independent acceptance review of the new head.
-2. Read the installed Zigbee2MQTT version (must be >= 2.9.0 for URL
-   requests) and install the external converter; verify served bytes
-   against the plan's SHA-512 values immediately before each request.
-3. Existing preflight gates (live tuple, shadow probes, explicit risk
+1. Hosted CI green on the new head, and a fresh independent review of the
+   A1–A10 fixes.
+2. Accept the router-to-End-Device role change: up to 11 End Devices (listed
+   above) may have to re-parent. Their parent cannot be read, because the
+   stock firmware does not answer LQI requests. After the canary, check that
+   those 11 report again.
+3. Install the external converter; verify the served bytes against the
+   plan's SHA-512 values immediately before each request.
+4. Existing preflight gates (live tuple, shadow probes, explicit risk
    acceptance) and explicit human authorization.

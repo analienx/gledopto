@@ -584,26 +584,42 @@ static void test_removed_device_goes_dormant(void)
     glsd301p_bdb_action_t a;
     unsigned i;
 
+    /* Own Leave outside steering = coordinator removal: dormant at once. */
     glsd301p_rejoin_init(&r);
     (void)glsd301p_bdb_handle_event(&r, GLSD301P_BDB_INIT_JOINED, false);
-    glsd301p_rejoin_note_removed(&r);
+    glsd301p_rejoin_note_own_leave(&r);
     assert(r.dormant == true);
     assert(glsd301p_rejoin_state(&r) == GLSD301P_REJOIN_IDLE);
-    for (i = 0u; i < 2u * GLSD301P_UNJOINED_REJOIN_KICK_S; i++) {
-        a = glsd301p_bdb_tick(&r, false, (i & 1u) != 0u);
+    /* Factory new after the Leave: never steers while dormant. */
+    for (i = 0u; i < 1000u; i++) {
+        a = glsd301p_bdb_tick(&r, false, true);
         assert(!a.start_steer && !a.start_attempt && !a.joined);
     }
-    assert(glsd301p_rejoin_note_parent_lost(&r, false) == false);
-    assert(glsd301p_rejoin_note_rejoin_failure(&r, false) == false);
-    assert(glsd301p_rejoin_note_init_failure(&r, false) == false);
 
-    /* Removal during a pending retry also cancels it. */
+    /*
+     * Follow-up review B1: dormant never blocks a rejoin. A Leave with
+     * rejoin=1 keeps network state (not factory new); the device must get
+     * back on through every rejoin path.
+     */
+    assert(glsd301p_rejoin_note_parent_lost(&r, false) == true);
+    glsd301p_rejoin_note_start_result(&r, false);
+    assert(glsd301p_rejoin_note_retry_fire(&r) == true);
+    glsd301p_rejoin_init(&r);
+    glsd301p_rejoin_note_bdb_ready(&r);
+    glsd301p_rejoin_note_own_leave(&r);
+    for (i = 1u; i < GLSD301P_UNJOINED_REJOIN_KICK_S; i++) {
+        assert(glsd301p_bdb_tick(&r, false, false).start_attempt == false);
+    }
+    assert(glsd301p_bdb_tick(&r, false, false).start_attempt == true);
+
+    /* Removal while a rejoin is outstanding leaves the rejoin alone. */
     glsd301p_rejoin_init(&r);
     glsd301p_rejoin_note_bdb_ready(&r);
     assert(glsd301p_rejoin_note_parent_lost(&r, false) == true);
     glsd301p_rejoin_note_start_result(&r, false);
     glsd301p_rejoin_note_removed(&r);
-    assert(glsd301p_rejoin_note_retry_fire(&r) == false);
+    assert(glsd301p_rejoin_state(&r) == GLSD301P_REJOIN_RETRY_PENDING);
+    assert(glsd301p_rejoin_note_retry_fire(&r) == true);
 
     /* Removal during a steering backoff ends it. */
     glsd301p_rejoin_init(&r);
@@ -617,6 +633,107 @@ static void test_removed_device_goes_dormant(void)
     a = glsd301p_bdb_handle_event(&r, GLSD301P_BDB_COMMISSION_JOINED, false);
     assert(a.joined == true);
     assert(r.dormant == false);
+}
+
+/*
+ * Follow-up review B2: an own Leave during steering is BDB's TCLK-failure
+ * Leave only if the terminal failure follows within the settle time;
+ * otherwise it was a removal. Steering is held meanwhile.
+ */
+static void test_own_leave_during_steering(void)
+{
+    glsd301p_rejoin_t r;
+    glsd301p_bdb_action_t a;
+    unsigned i;
+
+    /* Explained by TCLK_EX_FAILURE a few seconds later: normal backoff. */
+    glsd301p_rejoin_init(&r);
+    glsd301p_rejoin_note_bdb_ready(&r);
+    assert(glsd301p_bdb_tick(&r, false, true).start_steer == true);
+    glsd301p_rejoin_note_steer_start_result(&r, true);
+    glsd301p_rejoin_note_own_leave(&r);
+    assert(r.dormant == false);
+    for (i = 0u; i < 3u; i++) {
+        a = glsd301p_bdb_tick(&r, false, true);
+        assert(!a.start_steer && !a.start_attempt);
+    }
+    (void)glsd301p_bdb_handle_event(&r, GLSD301P_BDB_STEER_FAILURE, true);
+    assert(r.dormant == false);
+    assert(glsd301p_rejoin_state(&r) == GLSD301P_REJOIN_STEER_WAIT);
+    assert(ticks_until_steer(&r, 1000u) == 5u);
+
+    /* Unexplained (coordinator removed it mid-commissioning): dormant. */
+    glsd301p_rejoin_init(&r);
+    glsd301p_rejoin_note_bdb_ready(&r);
+    assert(glsd301p_bdb_tick(&r, false, true).start_steer == true);
+    glsd301p_rejoin_note_steer_start_result(&r, true);
+    glsd301p_rejoin_note_own_leave(&r);
+    for (i = 0u; i < GLSD301P_STEER_LEAVE_SETTLE_S; i++) {
+        a = glsd301p_bdb_tick(&r, false, true);
+        assert(!a.start_steer && !a.start_attempt && !a.joined);
+        assert(r.dormant == false);
+    }
+    a = glsd301p_bdb_tick(&r, false, true);
+    assert(!a.start_steer);
+    assert(r.dormant == true);
+    assert(glsd301p_rejoin_state(&r) == GLSD301P_REJOIN_IDLE);
+    assert(ticks_until_steer(&r, 1000u) == 0u);
+
+    /* Even the steering watchdog cannot restart steering in the window. */
+    glsd301p_rejoin_init(&r);
+    glsd301p_rejoin_note_bdb_ready(&r);
+    assert(glsd301p_bdb_tick(&r, false, true).start_steer == true);
+    glsd301p_rejoin_note_steer_start_result(&r, true);
+    r.steer_active_s = GLSD301P_STEER_ACTIVE_TIMEOUT_S - 1u;
+    glsd301p_rejoin_note_own_leave(&r);
+    for (i = 0u; i <= GLSD301P_STEER_LEAVE_SETTLE_S; i++) {
+        assert(glsd301p_bdb_tick(&r, false, true).start_steer == false);
+    }
+    assert(r.dormant == true);
+}
+
+/* Follow-up review B5: a stalled stack-owned rejoin is abandoned. */
+static void test_sdk_active_watchdog(void)
+{
+    glsd301p_rejoin_t r;
+    glsd301p_bdb_action_t a;
+    unsigned i;
+    uint32_t failures;
+
+    glsd301p_rejoin_init(&r);
+    glsd301p_rejoin_note_bdb_ready(&r);
+    assert(glsd301p_rejoin_note_parent_lost(&r, false) == true);
+    glsd301p_rejoin_note_start_result(&r, true);
+    failures = r.failures;
+    for (i = 1u; i < GLSD301P_REJOIN_ACTIVE_TIMEOUT_S; i++) {
+        /* Intermediate failures keep it stack-owned. */
+        if (i % 100u == 0u) {
+            assert(glsd301p_rejoin_note_rejoin_failure(&r, false) == false);
+        }
+        a = glsd301p_bdb_tick(&r, false, false);
+        assert(!a.start_attempt && !a.start_steer);
+        assert(glsd301p_rejoin_state(&r) == GLSD301P_REJOIN_SDK_ACTIVE);
+    }
+    (void)glsd301p_bdb_tick(&r, false, false);
+    assert(glsd301p_rejoin_state(&r) == GLSD301P_REJOIN_IDLE);
+    assert(r.failures > failures);
+    /* The stranded kick then starts a fresh attempt. */
+    for (i = 1u; i < GLSD301P_UNJOINED_REJOIN_KICK_S; i++) {
+        assert(glsd301p_bdb_tick(&r, false, false).start_attempt == false);
+    }
+    assert(glsd301p_bdb_tick(&r, false, false).start_attempt == true);
+
+    /* A join before the timeout ends it normally. */
+    glsd301p_rejoin_init(&r);
+    glsd301p_rejoin_note_bdb_ready(&r);
+    assert(glsd301p_rejoin_note_parent_lost(&r, false) == true);
+    glsd301p_rejoin_note_start_result(&r, true);
+    for (i = 0u; i < 100u; i++) {
+        (void)glsd301p_bdb_tick(&r, false, false);
+    }
+    a = glsd301p_bdb_handle_event(&r, GLSD301P_BDB_COMMISSION_JOINED, false);
+    assert(a.joined && a.stop_retry);
+    assert(r.sdk_active_s == 0u);
 }
 
 static void test_health_byte(void)
@@ -665,6 +782,8 @@ int main(void)
     test_steer_tclk_window_failure_backs_off();
     test_stranded_network_state_rejoin_kick();
     test_removed_device_goes_dormant();
+    test_own_leave_during_steering();
+    test_sdk_active_watchdog();
     test_health_byte();
     printf("GLSD301P_REJOIN=PASS\n");
     return 0;

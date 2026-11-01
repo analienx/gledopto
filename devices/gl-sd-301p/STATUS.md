@@ -1,5 +1,26 @@
 # STATUS — GL-SD-301P
 
+## 2026-11-01 (later) — two independent acceptance review rounds, fixes in
+
+The over-the-air identity is now **`GLSD-ED-007`, APP_BUILD `0x08`,
+fileVersion `0x7F080001`**, dateCode `20261101`. It supersedes
+`GLSD-ED-006` / `0x7F070001`, which was never flashed.
+
+- Round 1 (A1–A10) and round 2 (B1–B10) were done by separate reviewers,
+  each checked against the pinned SDK source. They found real recovery gaps:
+  a reboot loop after a failed TC link-key exchange, a device that could be
+  stranded off the network, an OTA re-query that silently did nothing, and
+  a Leave with rejoin wrongly treated as removal. All are fixed with tests.
+  Dispositions:
+  `HARDENING-FLASH-READINESS-REVIEW-20261101.md`.
+- Live read-only checks: Zigbee2MQTT is `2.14.2`, which is enough for URL
+  requests. The live tuple matches the preflight. The stock unit is a
+  **Router**, and up to 11 End Devices may use it as parent; they will
+  re-parent after the switch to End Device.
+- Still required: hosted CI on the final head, the external converter
+  installed, and explicit human authorization. No device action is
+  authorized.
+
 ## 2026-11-01 — flash-readiness review: recovery surface fixed, not yet re-gated
 
 The active candidate is the PR #8 hardening branch
