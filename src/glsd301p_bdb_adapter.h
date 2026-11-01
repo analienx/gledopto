@@ -29,7 +29,10 @@ typedef enum {
     GLSD301P_BDB_COMMISSION_NOT_JOINED,
     GLSD301P_BDB_PARENT_LOST,
     GLSD301P_BDB_REJOIN_FAILURE,
-    GLSD301P_BDB_COMMISSION_OTHER
+    GLSD301P_BDB_COMMISSION_OTHER,
+    /* Any terminal non-success BDB commissioning status other than
+     * PARENT_LOST / REJOIN_FAILURE (NO_NETWORK, TCLK_EX_FAILURE, ...). */
+    GLSD301P_BDB_STEER_FAILURE
 } glsd301p_bdb_event_t;
 
 typedef struct {
@@ -38,11 +41,24 @@ typedef struct {
     bool start_attempt;
     /* Caller must stop the owned 5 s retry event (idempotent). */
     bool stop_retry;
+    /* Caller must invoke bdb_networkSteerStart now and report the outcome
+     * through glsd301p_rejoin_note_steer_start_result(). */
+    bool start_steer;
+    /* Device joined: caller may start the periodic OTA server query. */
+    bool joined;
 } glsd301p_bdb_action_t;
 
 glsd301p_bdb_action_t glsd301p_bdb_handle_event(glsd301p_rejoin_t *rejoin,
                                                glsd301p_bdb_event_t event,
                                                bool factory_new);
+
+/*
+ * 1 s maintenance tick: level-triggered factory-new commissioning (see
+ * glsd301p_rejoin.h). Only start_steer is ever set.
+ */
+glsd301p_bdb_action_t glsd301p_bdb_tick(glsd301p_rejoin_t *rejoin,
+                                       bool joined,
+                                       bool factory_new);
 
 #ifdef __cplusplus
 }

@@ -1,5 +1,25 @@
 # STATUS — GL-SD-301P
 
+## 2026-11-01 — flash-readiness review: recovery surface fixed, not yet re-gated
+
+The active candidate is the PR #8 hardening branch
+(`codex/glsd301p-client-hardening`); PR #6 `760c141` stays frozen as the
+previous reviewed reference.
+
+A flash-readiness review of `109b6b1` found that a factory-new device could
+never commission again (no network steering, no reset path, no reboot on
+Leave). That would make vendor OTA recovery undeliverable after a Leave or an
+unrestorable stock NV. Fixed together with a planned recovery request,
+a Zigbee2MQTT external converter, read-only StartUp attributes, OTA query
+after join and a corrected over-the-air identity (`GLSD-ED-006`,
+`0x7F070001`). Details and local verification:
+`HARDENING-FLASH-READINESS-REVIEW-20261101.md`.
+
+Gate state: locally the host harnesses, architecture firewall and real TC32
+build pass; hosted CI, a fresh independent acceptance review and read-only
+Zigbee2MQTT downgrade verification are still required. No device action is
+authorized.
+
 ## 2026-09-18 — execution model and durable project state reconciled
 
 The project now follows Supervisor ↔ Executor protocol 2.2 execution

@@ -58,6 +58,9 @@ def target_manifest(path: Path, inner_path: Path) -> None:
         "ADC_FLASH_SAFETY_PIN": "GPIO_PB3_VENDOR_FIRMWARE_CONFIRMED",
         "UART": "9600_8N1_PB1_TX_PA0_RX",
         "REACHABLE_TARGET_RUNTIME_CHAIN": "PASS",
+        "COMMISSIONING": "FACTORY_NEW_STEER_TICK_1S_BACKOFF_5_TO_300S_WATCHDOG_180S",
+        "RESET_GESTURE": "PUSH_10_SHORT_PRESSES_GAP_1000MS_LEAVE_THEN_REBOOT",
+        "OTA_CLIENT_QUERY": "AFTER_JOIN_43200S",
         "FINAL_BINARY_SIZE": str(len(inner)),
         "TEXT_VMA": "0x00001560",
         "PHYSICAL_BANK_B_END_EXCLUSIVE": hex(0x40000 + len(inner)),
@@ -175,7 +178,7 @@ class FinalizationTests(unittest.TestCase):
             parsed = wrapper.validate_ota(ota.read_bytes())
             self.assertEqual(parsed["manufacturerCode"], 0x124F)
             self.assertEqual(parsed["imageType"], 0x1416)
-            self.assertEqual(parsed["fileVersion"], 0x7F060001)
+            self.assertEqual(parsed["fileVersion"], 0x7F070001)
             self.assertEqual((parsed["hardwareVersionMin"], parsed["hardwareVersionMax"]), (2, 2))
             self.assertTrue(meta["bankNeutral"])
             self.assertEqual(meta["physicalBootTargets"], [0, 0x40000])
@@ -194,6 +197,53 @@ class FinalizationTests(unittest.TestCase):
             )
             with self.assertRaises(wrapper.EndDeviceOtaError):
                 wrapper.validate_target_manifest(manifest, inner)
+
+    def test_wrapper_rejects_manifest_without_commissioning(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            inner = root / "glsd301p-ed.final.bin"
+            inner.write_bytes(finalized_inner(wrapper.DEFAULT_FILE_VERSION))
+            manifest = root / "manifest.txt"
+            target_manifest(manifest, inner)
+            text = manifest.read_text()
+            manifest.write_text(
+                "\n".join(l for l in text.splitlines() if not l.startswith("COMMISSIONING=")) + "\n"
+            )
+            with self.assertRaises(wrapper.EndDeviceOtaError):
+                wrapper.validate_target_manifest(manifest, inner)
+
+    def test_preflight_blocks_sidecar_without_commissioning(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            candidate, sidecar = self._candidate(root)
+            meta = json.loads(sidecar.read_text())
+            self.assertTrue(meta["architecture"]["factoryNewCommissioning"])
+            meta["architecture"]["factoryNewCommissioning"] = False
+            sidecar.write_text(json.dumps(meta))
+            vendor, vendor_manifest, vv = self._vendor(root)
+            recovery = root / "recovery.json"
+            recovery.write_text(json.dumps({
+                "pass": True,
+                "firstValidCustomBootRecoveryProven": False,
+                "authorizationGranted": False,
+            }))
+            live = root / "live.json"
+            live.write_text(json.dumps(stock_live_tuple()))
+            patches = {
+                "VENDOR_RECOVERY_BYTES": vv["bytes"],
+                "VENDOR_RECOVERY_SHA256": vv["sha256"],
+                "VENDOR_RECOVERY_SHA512": vv["sha512"],
+            }
+            with mock.patch.multiple(preflight, **patches):
+                result = preflight.evaluate(
+                    candidate, sidecar, vendor, vendor_manifest, recovery, live,
+                    expected_source_head="0" * 40,
+                    full_size_shadow_passed=True,
+                    post_rejection_power_cycle_passed=True,
+                    accept_first_valid_custom_boot_risk=True,
+                )
+            self.assertIn("FACTORY_NEW_COMMISSIONING", result["blockers"])
+            self.assertFalse(result["CANARY_DECISION_READY"])
 
     def test_preflight_passes_only_with_explicit_irreducible_risk_acceptance(self) -> None:
         with tempfile.TemporaryDirectory() as td:
@@ -261,7 +311,26 @@ class FinalizationTests(unittest.TestCase):
                 "postBootVendorRecoverySourceGate": {"pass": True},
                 "residualRisk": "test residual risk",
             }))
-            plan = release_plan.build_plan(candidate, sidecar, pf, "https://example.invalid/candidate.ota")
+            no_recovery = release_plan.build_plan(
+                candidate, sidecar, pf, "https://example.invalid/candidate.ota"
+            )
+            # Without a planned recovery path the plan is never decision-ready.
+            self.assertFalse(no_recovery["canaryDecisionReady"])
+            self.assertIsNone(no_recovery["plannedUpdateRequest"])
+            self.assertIsNone(no_recovery["plannedRecoveryRequest"])
+            with self.assertRaises(release_plan.ReleasePlanError):
+                release_plan.build_plan(
+                    candidate, sidecar, pf, "https://example.invalid/candidate.ota",
+                    "https://example.invalid/candidate.ota",
+                )
+            plan = release_plan.build_plan(
+                candidate, sidecar, pf, "https://example.invalid/candidate.ota",
+                "https://example.invalid/vendor.ota",
+            )
+            self.assertTrue(plan["canaryDecisionReady"])
+            self.assertTrue(plan["plannedRecoveryRequest"]["isDowngrade"])
+            self.assertEqual(plan["plannedRecoveryRequest"]["payload"],
+                             {"id": wrapper.TARGET_IEEE, "url": "https://example.invalid/vendor.ota"})
             self.assertEqual(plan["targetIeee"], wrapper.TARGET_IEEE)
             self.assertFalse(plan["usesGlobalOverrideIndex"])
             self.assertFalse(plan["authorizationGranted"])

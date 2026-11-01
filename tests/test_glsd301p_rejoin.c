@@ -94,7 +94,7 @@ static void test_joined_reconciliation(void)
     assert(glsd301p_rejoin_note_parent_lost(&r, false) == true);
 }
 
-static void test_factory_new_keeps_stock_startup(void)
+static void test_factory_new_never_rejoins(void)
 {
     glsd301p_rejoin_t r;
 
@@ -249,18 +249,244 @@ static void test_adapter_startup_factory_and_other(void)
     assert(action.stop_retry == false);
 }
 
+/* ---- Factory-new commissioning (network steering) ---- */
+
+/* Drive the 1 s tick until it asks to steer; returns ticks consumed. */
+static unsigned ticks_until_steer(glsd301p_rejoin_t *r, unsigned limit)
+{
+    unsigned n;
+
+    for (n = 1u; n <= limit; n++) {
+        if (glsd301p_bdb_tick(r, false, true).start_steer) {
+            return n;
+        }
+    }
+    return 0u;
+}
+
+static void test_steer_waits_for_bdb_init(void)
+{
+    glsd301p_rejoin_t r;
+    glsd301p_bdb_action_t a;
+
+    glsd301p_rejoin_init(&r);
+    /* Before any BDB init report, never steer (bdb_init still running). */
+    assert(glsd301p_bdb_tick(&r, false, true).start_steer == false);
+    a = glsd301p_bdb_handle_event(&r, GLSD301P_BDB_INIT_NOT_JOINED, true);
+    assert(a.start_attempt == false && a.start_steer == false);
+    assert(r.bdb_ready == true);
+    /* First tick after init: factory new and unjoined -> steer. */
+    assert(glsd301p_bdb_tick(&r, false, true).start_steer == true);
+
+    /* Init failure also completes init. */
+    glsd301p_rejoin_init(&r);
+    (void)glsd301p_bdb_handle_event(&r, GLSD301P_BDB_INIT_FAILURE, true);
+    assert(glsd301p_bdb_tick(&r, false, true).start_steer == true);
+}
+
+static void test_steer_never_on_joined_or_non_factory_new(void)
+{
+    glsd301p_rejoin_t r;
+
+    glsd301p_rejoin_init(&r);
+    glsd301p_rejoin_note_bdb_ready(&r);
+    /* Joined: never steer, regardless of the FN flag. */
+    assert(glsd301p_bdb_tick(&r, true, true).start_steer == false);
+    assert(glsd301p_bdb_tick(&r, true, false).start_steer == false);
+    /* Unjoined but holding network state: rejoin's job, never steering
+     * over preserved state. */
+    assert(glsd301p_bdb_tick(&r, false, false).start_steer == false);
+    assert(glsd301p_rejoin_state(&r) == GLSD301P_REJOIN_IDLE);
+
+    /* Rejoin in progress is never overlapped by steering. */
+    assert(glsd301p_rejoin_note_parent_lost(&r, false) == true);
+    glsd301p_rejoin_note_start_result(&r, true);
+    assert(glsd301p_bdb_tick(&r, false, true).start_steer == false);
+    assert(glsd301p_rejoin_state(&r) == GLSD301P_REJOIN_SDK_ACTIVE);
+    glsd301p_rejoin_init(&r);
+    glsd301p_rejoin_note_bdb_ready(&r);
+    assert(glsd301p_rejoin_note_parent_lost(&r, false) == true);
+    glsd301p_rejoin_note_start_result(&r, false);
+    assert(glsd301p_bdb_tick(&r, false, true).start_steer == false);
+    assert(glsd301p_rejoin_state(&r) == GLSD301P_REJOIN_RETRY_PENDING);
+}
+
+static void test_steer_accepted_success(void)
+{
+    glsd301p_rejoin_t r;
+    glsd301p_bdb_action_t a;
+
+    glsd301p_rejoin_init(&r);
+    (void)glsd301p_bdb_handle_event(&r, GLSD301P_BDB_INIT_NOT_JOINED, true);
+    assert(glsd301p_bdb_tick(&r, false, true).start_steer == true);
+    glsd301p_rejoin_note_steer_start_result(&r, true);
+    assert(glsd301p_rejoin_state(&r) == GLSD301P_REJOIN_STEERING);
+    assert(r.steer_starts == 1u);
+    /* While steering, the tick never starts another attempt. */
+    assert(glsd301p_bdb_tick(&r, false, true).start_steer == false);
+    a = glsd301p_bdb_handle_event(&r, GLSD301P_BDB_COMMISSION_JOINED, false);
+    assert(a.stop_retry == true);
+    assert(a.joined == true);
+    assert(glsd301p_rejoin_state(&r) == GLSD301P_REJOIN_IDLE);
+    assert(r.successes == 1u);
+    assert(glsd301p_bdb_tick(&r, true, false).start_steer == false);
+}
+
+static void test_steer_failure_backoff_and_cap(void)
+{
+    static const unsigned expected[] = {5u, 10u, 20u, 40u, 80u, 160u, 300u, 300u};
+    glsd301p_rejoin_t r;
+    unsigned i;
+
+    glsd301p_rejoin_init(&r);
+    (void)glsd301p_bdb_handle_event(&r, GLSD301P_BDB_INIT_NOT_JOINED, true);
+    assert(glsd301p_bdb_tick(&r, false, true).start_steer == true);
+    for (i = 0u; i < sizeof(expected) / sizeof(expected[0]); i++) {
+        glsd301p_rejoin_note_steer_start_result(&r, true);
+        (void)glsd301p_bdb_handle_event(&r, GLSD301P_BDB_STEER_FAILURE, true);
+        assert(glsd301p_rejoin_state(&r) == GLSD301P_REJOIN_STEER_WAIT);
+        assert(ticks_until_steer(&r, 1000u) == expected[i]);
+    }
+    assert(r.steer_failures == sizeof(expected) / sizeof(expected[0]));
+
+    /* Joining resets the backoff: the next failure waits 5 s again. */
+    glsd301p_rejoin_note_steer_start_result(&r, true);
+    (void)glsd301p_bdb_handle_event(&r, GLSD301P_BDB_COMMISSION_JOINED, false);
+    (void)glsd301p_bdb_handle_event(&r, GLSD301P_BDB_INIT_NOT_JOINED, true);
+    assert(glsd301p_bdb_tick(&r, false, true).start_steer == true);
+    glsd301p_rejoin_note_steer_start_result(&r, true);
+    (void)glsd301p_bdb_handle_event(&r, GLSD301P_BDB_STEER_FAILURE, true);
+    assert(ticks_until_steer(&r, 1000u) == 5u);
+}
+
+static void test_steer_refused_and_not_joined_success(void)
+{
+    glsd301p_rejoin_t r;
+
+    glsd301p_rejoin_init(&r);
+    glsd301p_rejoin_note_bdb_ready(&r);
+    assert(glsd301p_bdb_tick(&r, false, true).start_steer == true);
+    /* SDK busy: refused start backs off like a failure. */
+    glsd301p_rejoin_note_steer_start_result(&r, false);
+    assert(glsd301p_rejoin_state(&r) == GLSD301P_REJOIN_STEER_WAIT);
+    assert(ticks_until_steer(&r, 1000u) == 5u);
+
+    /* SUCCESS status without joined evidence ends the attempt too. */
+    glsd301p_rejoin_note_steer_start_result(&r, true);
+    (void)glsd301p_bdb_handle_event(&r, GLSD301P_BDB_COMMISSION_NOT_JOINED, true);
+    assert(glsd301p_rejoin_state(&r) == GLSD301P_REJOIN_STEER_WAIT);
+
+    /* A steer failure outside STEERING changes nothing. */
+    glsd301p_rejoin_init(&r);
+    assert(glsd301p_rejoin_note_steer_failure(&r) == false);
+    assert(glsd301p_rejoin_state(&r) == GLSD301P_REJOIN_IDLE);
+}
+
+static void test_steer_watchdog(void)
+{
+    glsd301p_rejoin_t r;
+    unsigned i;
+
+    glsd301p_rejoin_init(&r);
+    glsd301p_rejoin_note_bdb_ready(&r);
+    assert(glsd301p_bdb_tick(&r, false, true).start_steer == true);
+    glsd301p_rejoin_note_steer_start_result(&r, true);
+    for (i = 1u; i < GLSD301P_STEER_ACTIVE_TIMEOUT_S; i++) {
+        assert(glsd301p_bdb_tick(&r, false, true).start_steer == false);
+        assert(glsd301p_rejoin_state(&r) == GLSD301P_REJOIN_STEERING);
+    }
+    /* No terminal status ever arrived: abandon and back off. */
+    assert(glsd301p_bdb_tick(&r, false, true).start_steer == false);
+    assert(glsd301p_rejoin_state(&r) == GLSD301P_REJOIN_STEER_WAIT);
+    assert(r.steer_failures == 1u);
+    assert(ticks_until_steer(&r, 1000u) == 5u);
+}
+
+static void test_steer_missed_join_callback_reconciles(void)
+{
+    glsd301p_rejoin_t r;
+
+    glsd301p_rejoin_init(&r);
+    glsd301p_rejoin_note_bdb_ready(&r);
+    assert(glsd301p_bdb_tick(&r, false, true).start_steer == true);
+    glsd301p_rejoin_note_steer_start_result(&r, true);
+    /* Joined observed by the tick without a commissioning callback. */
+    assert(glsd301p_bdb_tick(&r, true, false).start_steer == false);
+    assert(glsd301p_rejoin_state(&r) == GLSD301P_REJOIN_IDLE);
+    assert(r.successes == 1u);
+
+    /* Network state appearing during the wait hands back to rejoin. */
+    glsd301p_rejoin_init(&r);
+    glsd301p_rejoin_note_bdb_ready(&r);
+    assert(glsd301p_bdb_tick(&r, false, true).start_steer == true);
+    glsd301p_rejoin_note_steer_start_result(&r, false);
+    assert(glsd301p_bdb_tick(&r, false, false).start_steer == false);
+    assert(glsd301p_rejoin_state(&r) == GLSD301P_REJOIN_IDLE);
+}
+
+static void test_steer_now_request(void)
+{
+    glsd301p_rejoin_t r;
+    unsigned i;
+
+    glsd301p_rejoin_init(&r);
+    glsd301p_rejoin_note_bdb_ready(&r);
+    assert(glsd301p_bdb_tick(&r, false, true).start_steer == true);
+    for (i = 0u; i < 6u; i++) {
+        glsd301p_rejoin_note_steer_start_result(&r, false);
+        assert(ticks_until_steer(&r, 1000u) != 0u);
+    }
+    glsd301p_rejoin_note_steer_start_result(&r, false); /* long wait now */
+    glsd301p_rejoin_request_steer_now(&r);
+    assert(glsd301p_bdb_tick(&r, false, true).start_steer == true);
+    /* Backoff restarted from the base as well. */
+    glsd301p_rejoin_note_steer_start_result(&r, false);
+    assert(ticks_until_steer(&r, 1000u) == 5u);
+
+    glsd301p_rejoin_request_steer_now(NULL);
+    assert(glsd301p_bdb_tick(NULL, false, true).start_steer == false);
+    assert(glsd301p_rejoin_steer_tick(NULL, false, true) == false);
+    glsd301p_rejoin_note_steer_start_result(NULL, true);
+    glsd301p_rejoin_note_bdb_ready(NULL);
+}
+
+static void test_rejoin_paths_ignore_steering_state(void)
+{
+    glsd301p_rejoin_t r;
+
+    glsd301p_rejoin_init(&r);
+    glsd301p_rejoin_note_bdb_ready(&r);
+    assert(glsd301p_bdb_tick(&r, false, true).start_steer == true);
+    glsd301p_rejoin_note_steer_start_result(&r, true);
+    /* Rejoin triggers during steering never start a rejoin attempt. */
+    assert(glsd301p_rejoin_note_parent_lost(&r, true) == false);
+    assert(glsd301p_rejoin_note_rejoin_failure(&r, false) == false);
+    assert(glsd301p_rejoin_note_init_failure(&r, false) == false);
+    assert(glsd301p_rejoin_note_retry_fire(&r) == false);
+    assert(glsd301p_rejoin_state(&r) == GLSD301P_REJOIN_STEERING);
+}
+
 int main(void)
 {
     test_init();
     test_single_outstanding_attempt();
     test_rejected_start_paced_retry();
     test_joined_reconciliation();
-    test_factory_new_keeps_stock_startup();
+    test_factory_new_never_rejoins();
     test_null_safety();
     test_adapter_two_accepted_cycles();
     test_adapter_rejected_then_external_success();
     test_adapter_duplicate_success_dedup();
     test_adapter_startup_factory_and_other();
+    test_steer_waits_for_bdb_init();
+    test_steer_never_on_joined_or_non_factory_new();
+    test_steer_accepted_success();
+    test_steer_failure_backoff_and_cap();
+    test_steer_refused_and_not_joined_success();
+    test_steer_watchdog();
+    test_steer_missed_join_callback_reconciles();
+    test_steer_now_request();
+    test_rejoin_paths_ignore_steering_state();
     printf("GLSD301P_REJOIN=PASS\n");
     return 0;
 }

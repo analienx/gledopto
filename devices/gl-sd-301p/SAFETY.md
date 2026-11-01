@@ -67,13 +67,49 @@ The Telink integration should initialize in this order:
 1. initialize GPIO/UART without emitting a non-zero frame;
 2. initialize `glsd301p_output_guard_t` (locked/not-ready);
 3. transmit one confirmed OFF frame through the guard;
-4. restore and validate persisted Zigbee/application state;
+4. restore application state: the boot state is fixed (logical OFF, level
+   `0xFE`, minimum `0x02`); no output state is persisted, and the ZCL
+   `StartUpOnOff`/`StartUpCurrentLevel` attributes are read-only and report
+   exactly this behavior;
 5. arm the guard only if restored level/minimum state is valid;
 6. apply the desired restored logical state through the guard;
 7. route subsequent Zigbee, PUSH and PB4 output requests through the same guard.
 
 Watchdog/reset/brownout restart naturally returns to step 1, so stale RAM or a
 partial application initialization cannot immediately re-energize the load.
+
+## Network commissioning and recovery surface
+
+Vendor-firmware OTA recovery is only deliverable while the device is on a
+Zigbee network. The pinned Telink SDK never starts network steering by
+itself, so the application owns it:
+
+- **Factory-new steering.** A 1 s maintenance tick starts
+  `bdb_networkSteerStart()` whenever BDB init has completed, the device is not
+  joined, is factory new and no rejoin/steering operation is outstanding.
+  Failed or refused attempts back off 5, 10, 20, ... s, capped at 300 s; an
+  attempt with no terminal status is abandoned after 180 s. A device that
+  still holds network state is never steered (rejoin owns it), so preserved
+  network state is never overwritten.
+- **Leave.** A successful own-Leave confirm (coordinator remove or the reset
+  gesture) reboots cleanly after 2 s; the reboot re-runs the locked-OFF boot
+  sequence and the factory-new device steers again.
+- **Reset gesture.** Ten short PUSH activations, each at most 1000 ms after the
+  previous one, request a network reset: `zb_factoryReset()` (broadcast Leave,
+  drop network state) followed by a reboot within 10 s. On an already
+  factory-new device the gesture only restarts steering immediately. A hold
+  (dimming) or a longer pause restarts the count; each press still toggles the
+  output normally.
+- **OTA query.** After every join the OTA client queries the server every
+  12 h. Images are only delivered when the server answers with one.
+
+Re-joining a factory-new device requires Zigbee2MQTT permit-join. It then
+re-interviews as `GL-SD-301P-ED` / `analienx`; install
+`devices/gl-sd-301p/zigbee2mqtt/glsd301p_ed.js` as an external converter so
+the device keeps `ota: true` and the recovery request stays deliverable.
+
+None of these paths touches the output guard; a reboot always returns to the
+boot-locked OFF state.
 
 ## PB4 policy
 

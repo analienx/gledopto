@@ -196,6 +196,26 @@ if grep -q 'GPIO_PB3' "$TARGET_SRC"; then
   exit 1
 fi
 
+
+# Recovery surface: a factory-new device (after Leave, reset gesture or NV the
+# stack cannot restore) must commission again or OTA recovery is unreachable.
+require_source 'bdb_networkSteerStart\(\)' 'factory-new network steering start'
+[[ "$(grep -co 'bdb_networkSteerStart' "$TARGET_SRC")" -eq 1 ]] || {
+  echo 'ERROR: target must contain exactly one steering start site' >&2; exit 1;
+}
+require_source 'glsd301p_bdb_tick\(' 'level-triggered commissioning tick'
+require_source 'glsd301p_rejoin_note_steer_start_result' 'steering outcome ownership'
+require_source 'GLSD301P_BDB_STEER_FAILURE' 'terminal commissioning failure mapping'
+require_source 'glsd_leave_cnf_cb,' 'own-Leave confirm registered'
+require_source 'glsd301p_control_take_network_reset_request' 'PUSH reset gesture consumed'
+require_source 'ota_queryStart\(GLSD301P_OTA_QUERY_INTERVAL_S\)' 'OTA query after join'
+if grep -q 'ACCESS_CONTROL_WRITE, (u8 \*)&g_startup' "$TARGET_SRC"; then
+  echo 'ERROR: StartUp attributes must be read-only (behavior is fixed, nothing persisted)' >&2
+  exit 1
+fi
+echo 'TARGET_FACTORY_NEW_COMMISSIONING=PASS'
+echo 'TARGET_RESET_GESTURE_AND_LEAVE_REBOOT=PASS'
+
 echo 'TARGET_ADC_FLASH_SAFETY_PIN_GPIO_PB3=PASS'
 echo 'TARGET_PRODUCTION_SDK_PIN_ASSERTIONS=ENABLED'
 echo 'TARGET_UART_PIN_ROLE_PB1_PA0=PASS'

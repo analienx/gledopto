@@ -1,5 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
+# Note: never pipe tc32-elf-nm into `grep -q` under pipefail. grep -q exits
+# on the first match, nm then dies of SIGPIPE on large symbol tables and the
+# pipeline reports failure (flaky false "missing", or a false "absent" in
+# negative checks). Let grep consume all input and discard it instead.
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 TARGET="$ROOT/firmware/glsd301p-ed"
@@ -20,7 +24,7 @@ APP_SLOT_SIZE=0x34000
 BANK_B_BASE=0x40000
 BANK_B_SLOT_END=0x74000
 MAC_REGION_START=0x76000
-FILE_VERSION=0x7F060001
+FILE_VERSION=0x7F070001
 
 [[ -f "$SDK/platform/boot/8258/boot_8258.link" ]] || { echo 'ERROR: pinned TLSR8258 SDK fixture incomplete' >&2; exit 2; }
 [[ -f "$SDK/zigbee/lib/tc32/libzb_ed.a" ]] || { echo 'ERROR: libzb_ed.a missing' >&2; exit 2; }
@@ -207,9 +211,18 @@ grep -q 'glsd301p_timer_retry_start_oneshot' "$TARGET/glsd301p_telink_target.c" 
 grep -q 'glsd301p_rejoin_init' "$TARGET/glsd301p_telink_target.c" || {
   echo 'ERROR: rejoin ownership state is never initialized' >&2; exit 1;
 }
+[[ "$(grep -co 'bdb_networkSteerStart' "$TARGET/glsd301p_telink_target.c")" -eq 1 ]] || {
+  echo 'ERROR: target must contain exactly one factory-new steering start site' >&2; exit 1;
+}
+grep -q 'glsd301p_bdb_tick(' "$TARGET/glsd301p_telink_target.c" || {
+  echo 'ERROR: factory-new commissioning is never ticked' >&2; exit 1;
+}
+grep -q 'glsd_leave_cnf_cb,' "$TARGET/glsd301p_telink_target.c" || {
+  echo 'ERROR: own-Leave confirm handler is not registered' >&2; exit 1;
+}
 
 # M5: RAM-only v2 health snapshot on Basic:0xFF10, read-only, refreshed by
-# the owned 1 s event; development identity GLSD-ED-005 / 0x7F060001.
+# the owned 1 s event; development identity GLSD-ED-006 / 0x7F070001.
 grep -q 'GLSD301P_HEALTH_ATTR_ID, ZCL_DATA_TYPE_OCTET_STR, ACCESS_CONTROL_READ, g_basic_health' \
   "$TARGET/glsd301p_telink_target.c" || {
   echo 'ERROR: Basic:0xFF10 health attribute entry missing or not read-only' >&2; exit 1;
@@ -226,13 +239,23 @@ grep -q 'glsd301p_health_note_bdb_status' "$TARGET/glsd301p_telink_target.c" || 
 if grep -q 'nv_\|zcl_nv\|reportAttr\|zcl_report' "$CORE/glsd301p_health.c"; then
   echo 'ERROR: health snapshot must not touch NVM or reporting' >&2; exit 1;
 fi
-grep -q '#define FILE_VERSION[[:space:]]*0x7F060001' "$TARGET/version_cfg.h" || {
-  echo 'ERROR: FILE_VERSION must be the allocated 0x7F060001' >&2; exit 1;
+grep -q '#define FILE_VERSION[[:space:]]*0x7F070001' "$TARGET/version_cfg.h" || {
+  echo 'ERROR: FILE_VERSION must be the allocated 0x7F070001' >&2; exit 1;
 }
-grep -q '#define APP_BUILD[[:space:]]*0x06' "$TARGET/version_cfg.h" || {
-  echo 'ERROR: APP_BUILD must be the allocated 06' >&2; exit 1;
+grep -q '#define APP_BUILD[[:space:]]*0x07' "$TARGET/version_cfg.h" || {
+  echo 'ERROR: APP_BUILD must be the allocated 07' >&2; exit 1;
 }
-[[ "$FILE_VERSION" == '0x7F060001' ]] || {
+# The over-the-air Basic identity must match the declared DEV_IDENTITY.
+grep -Fq "g_basic_sw_build_id[] = {11,'G','L','S','D','-','E','D','-','0','0','6'};"   "$TARGET/glsd301p_telink_target.c" || {
+  echo 'ERROR: Basic swBuildId must report GLSD-ED-006' >&2; exit 1;
+}
+grep -Fq "g_basic_date_code[] = {8,'2','0','2','6','1','1','0','1'};"   "$TARGET/glsd301p_telink_target.c" || {
+  echo 'ERROR: Basic dateCode must report 20261101' >&2; exit 1;
+}
+grep -Fq "g_basic_app_version = 0x07u;" "$TARGET/glsd301p_telink_target.c" || {
+  echo 'ERROR: Basic appVersion must report APP_BUILD 0x07' >&2; exit 1;
+}
+[[ "$FILE_VERSION" == '0x7F070001' ]] || {
   echo 'ERROR: build FILE_VERSION drifted from allocated identity' >&2; exit 1;
 }
 
@@ -428,55 +451,55 @@ app_obj="$DIR/obj/app/glsd301p_telink_target.o"
 control_obj="$DIR/obj/app/glsd301p_control.o"
 service_obj="$DIR/obj/app/glsd301p_uart_service.o"
 timers_obj="$DIR/obj/app/glsd301p_timer_events.o"
-"$TC32_NM" "$app_obj" | grep -Eq ' T user_init$' || { echo 'ERROR: target user_init missing' >&2; exit 1; }
-"$TC32_NM" "$app_obj" | grep -Eq ' T glsd301p_hw_uart_send_frame$' || { echo 'ERROR: static-DMA UART wrapper missing' >&2; exit 1; }
-"$TC32_NM" -u "$app_obj" | grep -Eq ' U uart_dma_send$' || { echo 'ERROR: nonblocking runtime UART dependency missing' >&2; exit 1; }
-if "$TC32_NM" -u "$app_obj" | grep -Eq ' U drv_uart_tx_start$'; then
+"$TC32_NM" "$app_obj" | grep -E ' T user_init$' >/dev/null || { echo 'ERROR: target user_init missing' >&2; exit 1; }
+"$TC32_NM" "$app_obj" | grep -E ' T glsd301p_hw_uart_send_frame$' >/dev/null || { echo 'ERROR: static-DMA UART wrapper missing' >&2; exit 1; }
+"$TC32_NM" -u "$app_obj" | grep -E ' U uart_dma_send$' >/dev/null || { echo 'ERROR: nonblocking runtime UART dependency missing' >&2; exit 1; }
+if "$TC32_NM" -u "$app_obj" | grep -E ' U drv_uart_tx_start$' >/dev/null; then
   echo 'ERROR: blocking boot UART dependency must be gone' >&2; exit 1;
 fi
 # M4: the target reaches control emit through the shared ZCL command policy
 # (target -> glsd301p_zcl_*_command -> glsd301p_control_emit); the two M4
 # nm gates below pin both edges of that chain instead of a direct edge.
-"$TC32_NM" -u "$app_obj" | grep -Eq ' U glsd301p_timer_io_start$' || {
+"$TC32_NM" -u "$app_obj" | grep -E ' U glsd301p_timer_io_start$' >/dev/null || {
   echo 'ERROR: target is not wired through owned timer events' >&2; exit 1;
 }
-"$TC32_NM" -u "$control_obj" | grep -Eq ' U glsd301p_runtime_core_(apply_state|poll_push_ex|poll_pb4)' || {
+"$TC32_NM" -u "$control_obj" | grep -E ' U glsd301p_runtime_core_(apply_state|poll_push_ex|poll_pb4)' >/dev/null || {
   echo 'ERROR: control plane is not wired through guarded runtime core' >&2; exit 1;
 }
-"$TC32_NM" -u "$service_obj" | grep -Eq ' U glsd301p_hw_uart_send_frame$' || {
+"$TC32_NM" -u "$service_obj" | grep -E ' U glsd301p_hw_uart_send_frame$' >/dev/null || {
   echo 'ERROR: UART service is not wired through nonblocking HW wrapper' >&2; exit 1;
 }
-"$TC32_NM" -u "$timers_obj" | grep -Eq ' U ev_on_timer$' || {
+"$TC32_NM" -u "$timers_obj" | grep -E ' U ev_on_timer$' >/dev/null || {
   echo 'ERROR: owned events are not wired through direct ev_on_timer' >&2; exit 1;
 }
 zclcmd_obj="$DIR/obj/app/glsd301p_zcl_commands.o"
 rejoin_obj="$DIR/obj/app/glsd301p_rejoin.o"
 adapter_obj="$DIR/obj/app/glsd301p_bdb_adapter.o"
-"$TC32_NM" -u "$app_obj" | grep -Eq ' U glsd301p_zcl_(onoff|level)_command$' || {
+"$TC32_NM" -u "$app_obj" | grep -E ' U glsd301p_zcl_(onoff|level)_command$' >/dev/null || {
   echo 'ERROR: target is not wired through shared ZCL command policy' >&2; exit 1;
 }
-"$TC32_NM" -u "$app_obj" | grep -Eq ' U glsd301p_bdb_handle_event$' || {
+"$TC32_NM" -u "$app_obj" | grep -E ' U glsd301p_bdb_handle_event$' >/dev/null || {
   echo 'ERROR: target is not wired through the shared BDB adapter' >&2; exit 1;
 }
 for sym in glsd301p_rejoin_note_joined glsd301p_rejoin_note_parent_lost glsd301p_rejoin_note_rejoin_failure glsd301p_rejoin_note_init_failure; do
-  "$TC32_NM" -u "$adapter_obj" | grep -Eq " U $sym\$" || {
+  "$TC32_NM" -u "$adapter_obj" | grep -E " U $sym\$" >/dev/null || {
     echo "ERROR: BDB adapter does not drive rejoin ownership ($sym)" >&2; exit 1;
   }
 done
-"$TC32_NM" -u "$zclcmd_obj" | grep -Eq ' U glsd301p_control_(emit|level_start_target|level_start_move|level_cancel)$' || {
+"$TC32_NM" -u "$zclcmd_obj" | grep -E ' U glsd301p_control_(emit|level_start_target|level_start_move|level_cancel)$' >/dev/null || {
   echo 'ERROR: ZCL command policy is not wired through guarded control plane' >&2; exit 1;
 }
-"$TC32_NM" -u "$rejoin_obj" | grep -Eq ' U glsd301p_sat_inc_u32$' || {
+"$TC32_NM" -u "$rejoin_obj" | grep -E ' U glsd301p_sat_inc_u32$' >/dev/null || {
   echo 'ERROR: rejoin counters are not wired through saturating increment' >&2; exit 1;
 }
-"$TC32_NM" -u "$app_obj" | grep -Eq ' U glsd301p_health_snapshot$' || {
+"$TC32_NM" -u "$app_obj" | grep -E ' U glsd301p_health_snapshot$' >/dev/null || {
   echo 'ERROR: target never refreshes the RAM health snapshot' >&2; exit 1;
 }
-"$TC32_NM" -u "$app_obj" | grep -Eq ' U T_evtExcept$' || {
+"$TC32_NM" -u "$app_obj" | grep -E ' U T_evtExcept$' >/dev/null || {
   echo 'ERROR: health exception record is not wired to SDK ev.c' >&2; exit 1;
 }
 for obj in "$DIR"/obj/app/*.o; do
-  if "$TC32_NM" -u "$obj" 2>/dev/null | grep -Eq ' U ev_timer_task(Post|Cancel)$'; then
+  if "$TC32_NM" -u "$obj" 2>/dev/null | grep -E ' U ev_timer_task(Post|Cancel)$' >/dev/null; then
     echo "ERROR: pooled timer API referenced by application object: $obj" >&2; exit 1;
   fi
 done
@@ -565,7 +588,7 @@ for sym in \
   glsd301p_timer_health_start \
   glsd301p_hw_uart_send_frame \
   glsd301p_uart_transport_offer; do
-  "$TC32_NM" "$elf" | grep -Eq " [Tt] ${sym}$" || {
+  "$TC32_NM" "$elf" | grep -E " [Tt] ${sym}$" >/dev/null || {
     echo "ERROR: required reachable runtime symbol missing: $sym" >&2
     exit 1
   }
@@ -607,8 +630,11 @@ grep -q 'libzb_ed' "$map" || { echo 'ERROR: End Device stack archive absent from
   echo UART_BOOT=STATIC_DMA_SINGLE_ATTEMPT_DEFERRED_ARM
   echo ZCL_COMMAND_POLICY=SHARED_DISPATCH_HARNESSED
   echo REJOIN=OWNED_SINGLE_ATTEMPT_ZDO_SUCCESS_MAPPED_ONESHOT_RETRY_5S
+  echo COMMISSIONING=FACTORY_NEW_STEER_TICK_1S_BACKOFF_5_TO_300S_WATCHDOG_180S
+  echo RESET_GESTURE=PUSH_10_SHORT_PRESSES_GAP_1000MS_LEAVE_THEN_REBOOT
+  echo OTA_CLIENT_QUERY=AFTER_JOIN_43200S
   echo HEALTH_SNAPSHOT=RAM_V2_48B_BASIC_0xFF10_READONLY_1S_OWNED
-  echo DEV_IDENTITY=GLSD-ED-005_APP_BUILD_06_FILE_VERSION_0x7F060001_DATE_20261005
+  echo DEV_IDENTITY=GLSD-ED-006_APP_BUILD_07_FILE_VERSION_0x7F070001_DATE_20261101
   python3 - "$DIR/sdk-patches.json" <<'PY'
 import json, sys
 report = json.load(open(sys.argv[1]))

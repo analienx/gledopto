@@ -731,6 +731,101 @@ static void test_r4_short_and_replace(void)
     assert(g_level.remaining_time == 0u);
 }
 
+/* ---- Network-reset gesture (10 short presses, <= 1 s apart) ---- */
+
+static void test_reset_gesture_ten_presses(void)
+{
+    unsigned i;
+
+    fixture_init();
+    boot_via_pump();
+    for (i = 0u; i < GLSD301P_RESET_GESTURE_PRESSES - 1u; i++) {
+        push_short_press();
+        assert(!g_ctx.network_reset_requested);
+    }
+    push_short_press();
+    assert(glsd301p_control_take_network_reset_request(&g_ctx));
+    /* Consumed exactly once. */
+    assert(!glsd301p_control_take_network_reset_request(&g_ctx));
+    /* Every press still toggled normally: an even count ends where it began. */
+    assert(g_onoff == 0u);
+    assert(g_ctx.reset_press_count == 0u);
+}
+
+static void test_reset_gesture_pause_restarts_count(void)
+{
+    unsigned i;
+
+    fixture_init();
+    boot_via_pump();
+    for (i = 0u; i < GLSD301P_RESET_GESTURE_PRESSES - 1u; i++) {
+        push_short_press();
+    }
+    pump_ms(GLSD301P_RESET_GESTURE_GAP_MS + 100u);
+    for (i = 0u; i < GLSD301P_RESET_GESTURE_PRESSES - 1u; i++) {
+        push_short_press();
+        assert(!g_ctx.network_reset_requested);
+    }
+    push_short_press();
+    assert(glsd301p_control_take_network_reset_request(&g_ctx));
+}
+
+static void test_reset_gesture_event_rules(void)
+{
+    unsigned i;
+    uint32_t t = 1000u;
+
+    fixture_init();
+    /* A hold (LEVEL_STEP) breaks the sequence. */
+    for (i = 0u; i < GLSD301P_RESET_GESTURE_PRESSES - 1u; i++) {
+        glsd301p_control_note_push_event(&g_ctx, GLSD301P_PUSH_EVENT_TOGGLE, t);
+        t += 200u;
+    }
+    glsd301p_control_note_push_event(&g_ctx, GLSD301P_PUSH_EVENT_LEVEL_STEP, t);
+    glsd301p_control_note_push_event(&g_ctx, GLSD301P_PUSH_EVENT_TOGGLE, t);
+    assert(!g_ctx.network_reset_requested);
+    assert(g_ctx.reset_press_count == 1u);
+
+    /* NONE never disturbs the count. */
+    glsd301p_control_note_push_event(&g_ctx, GLSD301P_PUSH_EVENT_NONE, t);
+    assert(g_ctx.reset_press_count == 1u);
+
+    /* Gap boundary: exactly GAP_MS still counts, GAP_MS + 1 restarts. */
+    t += GLSD301P_RESET_GESTURE_GAP_MS;
+    glsd301p_control_note_push_event(&g_ctx, GLSD301P_PUSH_EVENT_TOGGLE, t);
+    assert(g_ctx.reset_press_count == 2u);
+    t += GLSD301P_RESET_GESTURE_GAP_MS + 1u;
+    glsd301p_control_note_push_event(&g_ctx, GLSD301P_PUSH_EVENT_TOGGLE, t);
+    assert(g_ctx.reset_press_count == 1u);
+
+    /* Wrap-safe: the sequence may straddle the u32 millisecond wrap. */
+    fixture_init();
+    t = 0xFFFFFFFFu - 450u;
+    for (i = 0u; i < GLSD301P_RESET_GESTURE_PRESSES; i++) {
+        glsd301p_control_note_push_event(&g_ctx, GLSD301P_PUSH_EVENT_TOGGLE, t);
+        t += 100u;
+    }
+    assert(glsd301p_control_take_network_reset_request(&g_ctx));
+
+    /* NULL safety. */
+    glsd301p_control_note_push_event(NULL, GLSD301P_PUSH_EVENT_TOGGLE, 0u);
+    assert(!glsd301p_control_take_network_reset_request(NULL));
+}
+
+static void test_reset_gesture_hold_does_not_count(void)
+{
+    fixture_init();
+    boot_via_pump();
+    push_short_press();
+    assert(g_ctx.reset_press_count == 1u);
+    /* Sustained activation decodes LEVEL_STEP and restarts the count. */
+    glsd301p_control_note_push_event(&g_ctx, GLSD301P_PUSH_EVENT_LEVEL_STEP,
+                                     glsd301p_timebase_now_ms());
+    assert(g_ctx.reset_press_count == 0u);
+    assert(g_runtime.last_push_event == GLSD301P_PUSH_EVENT_NONE ||
+           g_runtime.last_push_event == GLSD301P_PUSH_EVENT_TOGGLE);
+}
+
 int main(void)
 {
     test_boot_arms_after_off_completion();
@@ -756,5 +851,9 @@ int main(void)
     test_r4_move_rate_elapsed();
     test_r4_move_wrap();
     test_r4_short_and_replace();
+    test_reset_gesture_ten_presses();
+    test_reset_gesture_pause_restarts_count();
+    test_reset_gesture_event_rules();
+    test_reset_gesture_hold_does_not_count();
     return 0;
 }

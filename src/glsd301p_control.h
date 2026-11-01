@@ -86,7 +86,23 @@ typedef struct {
     glsd301p_identify_t identify;
     uint16_t *identify_store;
     uint8_t identify_ep;
+
+    /*
+     * Network-reset gesture: GLSD301P_RESET_GESTURE_PRESSES consecutive
+     * short PUSH activations (TOGGLE events), each no more than
+     * GLSD301P_RESET_GESTURE_GAP_MS after the previous one. Any hold
+     * (LEVEL_STEP) or a longer pause restarts the count. The gesture only
+     * raises a request flag; the target consumes it from main-loop
+     * context. Each press still toggles the output normally, so an even
+     * count leaves the load as it was.
+     */
+    uint8_t reset_press_count;
+    uint32_t reset_last_press_ms;
+    bool network_reset_requested;
 } glsd301p_control_ctx_t;
+
+#define GLSD301P_RESET_GESTURE_PRESSES 10u
+#define GLSD301P_RESET_GESTURE_GAP_MS 1000u
 
 void glsd301p_control_init(glsd301p_control_ctx_t *ctx,
                            glsd301p_runtime_core_t *runtime,
@@ -122,6 +138,17 @@ void glsd301p_control_io_step(glsd301p_control_ctx_t *ctx,
 
 /* Owned static 1 ms IO event callback. data must be the control context. */
 int glsd301p_control_io_cb(void *data);
+
+/*
+ * Feed one decoded PUSH event (glsd301p_push_event_t) into the reset
+ * gesture recognizer. Called by the IO step; exposed for hosted tests.
+ */
+void glsd301p_control_note_push_event(glsd301p_control_ctx_t *ctx,
+                                      uint8_t event,
+                                      uint32_t now_ms);
+
+/* Returns true once per completed reset gesture and clears the request. */
+bool glsd301p_control_take_network_reset_request(glsd301p_control_ctx_t *ctx);
 
 /*
  * Level transition calls. Each start validates readiness first and returns

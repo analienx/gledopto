@@ -29,6 +29,11 @@ typedef struct {
     uint8_t current_level;
     uint8_t minimum_output;
     bool allow_below_min;
+
+    /* Most recent decoded PUSH event (glsd301p_push_event_t), NONE when the
+     * last poll decoded nothing. Read-only for callers; lets the control
+     * plane recognize multi-press gestures without re-decoding PC2. */
+    uint8_t last_push_event;
 } glsd301p_runtime_core_t;
 
 /** Initialize the runtime in a locked-OFF, state-unknown condition. */

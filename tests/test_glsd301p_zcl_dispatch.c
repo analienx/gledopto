@@ -79,7 +79,7 @@ static u8 t_startup_onoff = 0u;
 static u8 t_min_level = DISPATCH_MIN_LEVEL;
 static u8 t_max_level = DISPATCH_MAX_LEVEL;
 static u8 t_level_options;
-static u8 t_startup_current_level = 0xFFu;
+static u8 t_startup_current_level = 0xFEu;
 static u8 t_ota_upgrade_status;
 static u16 t_cluster_revision = 3u;
 
@@ -113,7 +113,7 @@ static const zclAttrInfo_t t_onoff_attrs[] = {
     {ZCL_ATTRID_GLOBAL_SCENE_CONTROL, ZCL_DATA_TYPE_BOOLEAN, ACCESS_CONTROL_READ, (u8 *)&t_global_scene_control},
     {ZCL_ATTRID_ON_TIME, ZCL_DATA_TYPE_UINT16, ACCESS_CONTROL_READ | ACCESS_CONTROL_WRITE, (u8 *)&t_on_time},
     {ZCL_ATTRID_OFF_WAIT_TIME, ZCL_DATA_TYPE_UINT16, ACCESS_CONTROL_READ | ACCESS_CONTROL_WRITE, (u8 *)&t_off_wait_time},
-    {ZCL_ATTRID_START_UP_ONOFF, ZCL_DATA_TYPE_ENUM8, ACCESS_CONTROL_READ | ACCESS_CONTROL_WRITE, (u8 *)&t_startup_onoff},
+    {ZCL_ATTRID_START_UP_ONOFF, ZCL_DATA_TYPE_ENUM8, ACCESS_CONTROL_READ, (u8 *)&t_startup_onoff},
     {ZCL_ATTRID_GLOBAL_CLUSTER_REVISION, ZCL_DATA_TYPE_UINT16, ACCESS_CONTROL_READ, (u8 *)&t_cluster_revision},
 };
 
@@ -123,7 +123,7 @@ static const zclAttrInfo_t t_level_attrs[] = {
     {ZCL_ATTRID_LEVEL_MIN_LEVEL, ZCL_DATA_TYPE_UINT8, ACCESS_CONTROL_READ, (u8 *)&t_min_level},
     {ZCL_ATTRID_LEVEL_MAX_LEVEL, ZCL_DATA_TYPE_UINT8, ACCESS_CONTROL_READ, (u8 *)&t_max_level},
     {ZCL_ATTRID_LEVEL_OPTIONS, ZCL_DATA_TYPE_BITMAP8, ACCESS_CONTROL_READ | ACCESS_CONTROL_WRITE, (u8 *)&t_level_options},
-    {ZCL_ATTRID_LEVEL_START_UP_CURRENT_LEVEL, ZCL_DATA_TYPE_UINT8, ACCESS_CONTROL_READ | ACCESS_CONTROL_WRITE, (u8 *)&t_startup_current_level},
+    {ZCL_ATTRID_LEVEL_START_UP_CURRENT_LEVEL, ZCL_DATA_TYPE_UINT8, ACCESS_CONTROL_READ, (u8 *)&t_startup_current_level},
     {ZCL_ATTRID_GLOBAL_CLUSTER_REVISION, ZCL_DATA_TYPE_UINT16, ACCESS_CONTROL_READ, (u8 *)&t_cluster_revision},
 };
 
@@ -472,7 +472,7 @@ static void fixture_init(zcl_hookFn_t hook)
     t_min_level = DISPATCH_MIN_LEVEL;
     t_max_level = DISPATCH_MAX_LEVEL;
     t_level_options = 0u;
-    t_startup_current_level = 0xFFu;
+    t_startup_current_level = 0xFEu;
     t_ota_upgrade_status = 0u;
     memset(t_basic_health, 0, sizeof(t_basic_health));
     t_basic_health[0] = 48u;

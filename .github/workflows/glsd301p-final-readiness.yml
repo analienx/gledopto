@@ -196,8 +196,9 @@ jobs:
             "$root/glsd301p-ed.quarantined.ota.quarantine.json" \
             "$RUNNER_TEMP/final-preflight.json" \
             --url 'https://example.invalid/glsd301p-ed.quarantined.ota' \
+            --recovery-url 'https://example.invalid/GL-SD-301P_V20851203_20251230.ota' \
             --out "$RUNNER_TEMP/release-plan.json" > /dev/null
-          python3 -c "import json,sys; p=json.load(open(sys.argv[1])); assert p['targetIeee']=='0xa4c13850cfcdb3a4'; assert p['usesGlobalOverrideIndex'] is False; assert p['authorizationGranted'] is False and p['executionPermitted'] is False; assert p['plannedUpdateRequest']['payload']['id']=='0xa4c13850cfcdb3a4'; print('EXACT_IEEE_INERT_RELEASE_PLAN=PASS_AUTH_FALSE')" "$RUNNER_TEMP/release-plan.json"
+          python3 -c "import json,sys; p=json.load(open(sys.argv[1])); assert p['targetIeee']=='0xa4c13850cfcdb3a4'; assert p['usesGlobalOverrideIndex'] is False; assert p['authorizationGranted'] is False and p['executionPermitted'] is False; assert p['plannedUpdateRequest']['payload']['id']=='0xa4c13850cfcdb3a4'; r=p['plannedRecoveryRequest']; assert r['payload']['id']=='0xa4c13850cfcdb3a4' and r['isDowngrade'] is True and r['requiresZ2mDowngradeVerificationBeforeCanary'] is True; print('EXACT_IEEE_INERT_RELEASE_PLAN=PASS_AUTH_FALSE_RECOVERY_PLANNED')" "$RUNNER_TEMP/release-plan.json"
       - name: Enforce quarantine/no publication
         shell: bash
         run: |

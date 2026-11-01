@@ -184,6 +184,9 @@ def evaluate(
         "PM_DISABLED": sidecar.get("architecture", {}).get("powerManagementEnabled") is False,
         "ENDPOINT_11": sidecar.get("architecture", {}).get("endpoint") == 11,
         "MAINS_POWER": sidecar.get("architecture", {}).get("powerSource") == "MAINS",
+        # A device that ends up factory new must be able to commission again,
+        # otherwise vendor OTA recovery becomes unreachable.
+        "FACTORY_NEW_COMMISSIONING": sidecar.get("architecture", {}).get("factoryNewCommissioning") is True,
         "CANDIDATE_SHA256_BOUND": sidecar.get("sha256") == hashlib.sha256(candidate).hexdigest(),
         "CANDIDATE_SHA512_BOUND": sidecar.get("sha512") == hashlib.sha512(candidate).hexdigest(),
         "CANDIDATE_SIZE_BOUND": sidecar.get("bytes") == len(candidate),
@@ -256,7 +259,10 @@ def evaluate(
         "residualRisk": (
             "Irreducible no-spare first-valid-custom-boot risk remains: if the new image is activated "
             "but fails before Zigbee/OTA is reachable, the vendor recovery OTA cannot be delivered "
-            "wirelessly; wired/open-device recovery or replacement is the contingency."
+            "wirelessly; wired/open-device recovery or replacement is the contingency. Stock network NV "
+            "compatibility is unproven: if the custom stack cannot restore it, the device boots factory "
+            "new and re-commissions only while Zigbee2MQTT permit-join is open (then re-interviews as "
+            "GL-SD-301P-ED, which needs the repository's external converter for OTA)."
         ),
     }
 

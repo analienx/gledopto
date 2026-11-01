@@ -87,6 +87,11 @@ def validate_target_manifest(manifest_path: Path, inner_path: Path) -> dict:
         "ADC_FLASH_SAFETY_PIN": "GPIO_PB3_VENDOR_FIRMWARE_CONFIRMED",
         "UART": "9600_8N1_PB1_TX_PA0_RX",
         "REACHABLE_TARGET_RUNTIME_CHAIN": "PASS",
+        # Recovery surface: without these a factory-new device (Leave,
+        # reset, unrestorable NV) can never rejoin and OTA recovery is lost.
+        "COMMISSIONING": "FACTORY_NEW_STEER_TICK_1S_BACKOFF_5_TO_300S_WATCHDOG_180S",
+        "RESET_GESTURE": "PUSH_10_SHORT_PRESSES_GAP_1000MS_LEAVE_THEN_REBOOT",
+        "OTA_CLIENT_QUERY": "AFTER_JOIN_43200S",
     }
     missing = sorted(k for k in expected if k not in fields)
     if missing:
@@ -146,6 +151,9 @@ def validate_target_manifest(manifest_path: Path, inner_path: Path) -> dict:
             "powerSource": "MAINS",
             "stackArchive": "libzb_ed.a",
             "routerArchiveLinked": False,
+            "factoryNewCommissioning": True,
+            "resetGesture": fields["RESET_GESTURE"],
+            "otaClientQuery": fields["OTA_CLIENT_QUERY"],
         },
         "hardwareContract": {
             "adcFlashSafetyPin": "PB3",

@@ -60,6 +60,9 @@ void glsd301p_control_init(glsd301p_control_ctx_t *ctx,
     glsd301p_identify_init(&ctx->identify);
     ctx->identify_store = NULL;
     ctx->identify_ep = 0u;
+    ctx->reset_press_count = 0u;
+    ctx->reset_last_press_ms = 0u;
+    ctx->network_reset_requested = false;
 
     if (level != NULL) {
         level->mode = GLSD301P_LEVEL_IDLE;
@@ -541,6 +544,8 @@ void glsd301p_control_io_step(glsd301p_control_ctx_t *ctx,
                                                 &took_control, frame);
     if (took_control) {
         glsd301p_control_level_cancel(ctx);
+        glsd301p_control_note_push_event(ctx, ctx->runtime->last_push_event,
+                                         now_ms);
     }
     if (result != GLSD301P_RUNTIME_NO_FRAME) {
         (void)glsd301p_control_emit(ctx, result, frame, now_ms);
@@ -581,6 +586,46 @@ void glsd301p_control_io_step(glsd301p_control_ctx_t *ctx,
             glsd301p_control_sync_from_runtime(ctx);
         }
     }
+}
+
+void glsd301p_control_note_push_event(glsd301p_control_ctx_t *ctx,
+                                      uint8_t event,
+                                      uint32_t now_ms)
+{
+    if (ctx == NULL) {
+        return;
+    }
+    if (event != (uint8_t)GLSD301P_PUSH_EVENT_TOGGLE) {
+        /* A hold (dimming) or anything else is never part of the gesture. */
+        if (event != (uint8_t)GLSD301P_PUSH_EVENT_NONE) {
+            ctx->reset_press_count = 0u;
+        }
+        return;
+    }
+    if (ctx->reset_press_count != 0u &&
+        glsd301p_timebase_age_ms(ctx->reset_last_press_ms, now_ms) <=
+            GLSD301P_RESET_GESTURE_GAP_MS) {
+        ctx->reset_press_count++;
+    } else {
+        ctx->reset_press_count = 1u;
+    }
+    ctx->reset_last_press_ms = now_ms;
+    if (ctx->reset_press_count >= GLSD301P_RESET_GESTURE_PRESSES) {
+        ctx->reset_press_count = 0u;
+        ctx->network_reset_requested = true;
+    }
+}
+
+bool glsd301p_control_take_network_reset_request(glsd301p_control_ctx_t *ctx)
+{
+    bool requested;
+
+    if (ctx == NULL) {
+        return false;
+    }
+    requested = ctx->network_reset_requested;
+    ctx->network_reset_requested = false;
+    return requested;
 }
 
 int glsd301p_control_io_cb(void *data)

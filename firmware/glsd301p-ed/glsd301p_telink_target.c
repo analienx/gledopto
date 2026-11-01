@@ -26,6 +26,15 @@
 #define GLSD301P_MAX_LEVEL                    0xFEu
 #define GLSD301P_UART_RX_BUFFER_SIZE          16u
 #define GLSD301P_UART_TX_DMA_SIZE              (4u + GLSD301P_CONTROL_FRAME_SIZE)
+/* Periodic OTA server query once joined (u16 seconds; 12 h). Updates are
+ * still only delivered when the server chooses to answer with an image. */
+#define GLSD301P_OTA_QUERY_INTERVAL_S          43200u
+/* Delay between an observed own-Leave confirm and the clean reboot. */
+#define GLSD301P_LEAVE_REBOOT_DELAY_S          2u
+/* Fallback reboot after a gesture-initiated factory reset. */
+#define GLSD301P_GESTURE_REBOOT_DELAY_S        10u
+/* Upper bound on extra 1 s ticks a pending reboot waits for UART idle. */
+#define GLSD301P_REBOOT_UART_WAIT_MAX_S        3u
 
 /*
  * Thin target glue. All IO/Level/UART policy lives in the shared control
@@ -46,15 +55,15 @@ static u8 g_zcl_online;
 
 /* Independent implementation identity; hardware/stack lineage remains explicit. */
 static u8 g_basic_zcl_version = 0x03u;
-static u8 g_basic_app_version = 0x01u;
+static u8 g_basic_app_version = 0x07u;
 static u8 g_basic_stack_version = 0x02u;
 static u8 g_basic_hw_version = 0x02u;
 static u8 g_basic_power_source = POWER_SOURCE_MAINS_1_PHASE;
 static u8 g_basic_device_enabled = TRUE;
 static u8 g_basic_mfr_name[] = {8,'a','n','a','l','i','e','n','x'};
 static u8 g_basic_model_id[] = {13,'G','L','-','S','D','-','3','0','1','P','-','E','D'};
-static u8 g_basic_date_code[] = {8,'2','0','2','6','1','0','0','3'};
-static u8 g_basic_sw_build_id[] = {11,'G','L','S','D','-','E','D','-','0','0','2'};
+static u8 g_basic_date_code[] = {8,'2','0','2','6','1','1','0','1'};
+static u8 g_basic_sw_build_id[] = {11,'G','L','S','D','-','E','D','-','0','0','6'};
 
 /*
  * RAM-only v2 health snapshot body for Basic:0xFF10. The length prefix is
@@ -74,12 +83,18 @@ static u8 g_onoff = ZCL_ONOFF_STATUS_OFF;
 static u8 g_global_scene_control = TRUE;
 static u16 g_on_time;
 static u16 g_off_wait_time;
+/*
+ * Startup behavior is fixed by the safety contract (SAFETY.md: boot locked
+ * OFF, restore OFF at GLSD301P_MAX_LEVEL; nothing is persisted). Both
+ * StartUp attributes are therefore read-only and report exactly what the
+ * device does, instead of accepting writes that would be silently ignored.
+ */
 static u8 g_startup_onoff = ZCL_START_UP_ONOFF_SET_ONOFF_TO_OFF;
 
 static u8 g_min_level = GLSD301P_MIN_LEVEL;
 static u8 g_max_level = GLSD301P_MAX_LEVEL;
 static u8 g_level_options;
-static u8 g_startup_current_level = ZCL_START_UP_CURRENT_LEVEL_TO_PREVIOUS;
+static u8 g_startup_current_level = GLSD301P_MAX_LEVEL;
 
 static const zclAttrInfo_t g_basic_attr_table[] = {
     {ZCL_ATTRID_BASIC_ZCL_VER, ZCL_DATA_TYPE_UINT8, ACCESS_CONTROL_READ, (u8 *)&g_basic_zcl_version},
@@ -111,7 +126,7 @@ static const zclAttrInfo_t g_onoff_attr_table[] = {
     {ZCL_ATTRID_GLOBAL_SCENE_CONTROL, ZCL_DATA_TYPE_BOOLEAN, ACCESS_CONTROL_READ, (u8 *)&g_global_scene_control},
     {ZCL_ATTRID_ON_TIME, ZCL_DATA_TYPE_UINT16, ACCESS_CONTROL_READ | ACCESS_CONTROL_WRITE, (u8 *)&g_on_time},
     {ZCL_ATTRID_OFF_WAIT_TIME, ZCL_DATA_TYPE_UINT16, ACCESS_CONTROL_READ | ACCESS_CONTROL_WRITE, (u8 *)&g_off_wait_time},
-    {ZCL_ATTRID_START_UP_ONOFF, ZCL_DATA_TYPE_ENUM8, ACCESS_CONTROL_READ | ACCESS_CONTROL_WRITE, (u8 *)&g_startup_onoff},
+    {ZCL_ATTRID_START_UP_ONOFF, ZCL_DATA_TYPE_ENUM8, ACCESS_CONTROL_READ, (u8 *)&g_startup_onoff},
     {ZCL_ATTRID_GLOBAL_CLUSTER_REVISION, ZCL_DATA_TYPE_UINT16, ACCESS_CONTROL_READ, (u8 *)&zcl_attr_global_clusterRevision},
 };
 
@@ -121,7 +136,7 @@ static const zclAttrInfo_t g_level_attr_table[] = {
     {ZCL_ATTRID_LEVEL_MIN_LEVEL, ZCL_DATA_TYPE_UINT8, ACCESS_CONTROL_READ, (u8 *)&g_min_level},
     {ZCL_ATTRID_LEVEL_MAX_LEVEL, ZCL_DATA_TYPE_UINT8, ACCESS_CONTROL_READ, (u8 *)&g_max_level},
     {ZCL_ATTRID_LEVEL_OPTIONS, ZCL_DATA_TYPE_BITMAP8, ACCESS_CONTROL_READ | ACCESS_CONTROL_WRITE, (u8 *)&g_level_options},
-    {ZCL_ATTRID_LEVEL_START_UP_CURRENT_LEVEL, ZCL_DATA_TYPE_UINT8, ACCESS_CONTROL_READ | ACCESS_CONTROL_WRITE, (u8 *)&g_startup_current_level},
+    {ZCL_ATTRID_LEVEL_START_UP_CURRENT_LEVEL, ZCL_DATA_TYPE_UINT8, ACCESS_CONTROL_READ, (u8 *)&g_startup_current_level},
     {ZCL_ATTRID_GLOBAL_CLUSTER_REVISION, ZCL_DATA_TYPE_UINT16, ACCESS_CONTROL_READ, (u8 *)&zcl_attr_global_clusterRevision},
 };
 
@@ -284,6 +299,27 @@ static ota_callBack_t g_ota_cb = {glsd_ota_event};
  */
 static glsd301p_rejoin_t g_rejoin;
 
+/*
+ * Main-loop maintenance owned by the 1 s event: factory-new steering,
+ * reset-gesture consumption and deferred reboot. Pending reboot countdown
+ * in seconds; 0 means none.
+ */
+static u8 g_reboot_countdown_s;
+static u8 g_reboot_uart_waits;
+
+static void glsd_arm_reboot(u8 delay_s)
+{
+    if (g_reboot_countdown_s == 0u || delay_s < g_reboot_countdown_s) {
+        g_reboot_countdown_s = delay_s;
+    }
+}
+
+static void glsd_note_joined(void)
+{
+    /* Idempotent: the SDK only arms its query timer when none exists. */
+    ota_queryStart(GLSD301P_OTA_QUERY_INTERVAL_S);
+}
+
 /* Wrap-safe oldest-stamp tracking for the pending/in-flight UART age. */
 static void glsd_health_track_oldest(bool *has_oldest, uint32_t *oldest,
                                      uint32_t stamp, uint32_t now_ms)
@@ -342,10 +378,55 @@ static void glsd_health_snapshot_now(uint32_t now_ms)
     glsd301p_health_snapshot(&g_health, &in, g_basic_health + 1u);
 }
 
+static void glsd_maintenance_tick(void)
+{
+    bool factory_new = zb_isDeviceFactoryNew() ? true : false;
+    bool joined = zb_isDeviceJoinedNwk() ? true : false;
+    glsd301p_bdb_action_t action;
+
+    if (g_reboot_countdown_s != 0u) {
+        if (g_reboot_countdown_s > 1u) {
+            g_reboot_countdown_s--;
+            return;
+        }
+        /*
+         * Never cut a power-stage frame mid-DMA; wait a bounded number of
+         * extra ticks for the UART to go idle. Clean restart: boot re-runs
+         * the locked-OFF sequence first.
+         */
+        if (glsd301p_hw_uart_busy() &&
+            g_reboot_uart_waits < GLSD301P_REBOOT_UART_WAIT_MAX_S) {
+            g_reboot_uart_waits++;
+            return;
+        }
+        zb_resetDevice();
+        return;
+    }
+
+    if (glsd301p_control_take_network_reset_request(&g_control)) {
+        if (factory_new) {
+            /* Nothing to leave: just steer again without waiting. */
+            glsd301p_rejoin_request_steer_now(&g_rejoin);
+        } else {
+            glsd301p_timer_retry_stop();
+            zb_factoryReset();
+            glsd_arm_reboot(GLSD301P_GESTURE_REBOOT_DELAY_S);
+            return;
+        }
+    }
+
+    action = glsd301p_bdb_tick(&g_rejoin, joined, factory_new);
+    if (action.start_steer) {
+        glsd301p_rejoin_note_steer_start_result(
+            &g_rejoin, bdb_networkSteerStart() == BDB_STATE_IDLE);
+    }
+}
+
 static int glsd_health_cb(void *data)
 {
     (void)data;
     glsd_health_snapshot_now(glsd301p_timebase_now_ms());
+    glsd_maintenance_tick();
     return 0;
 }
 
@@ -415,6 +496,9 @@ static void glsd_bdb_init_cb(u8 status, u8 joined_network)
         if (action.stop_retry) {
             glsd301p_timer_retry_stop();
         }
+        if (action.joined) {
+            glsd_note_joined();
+        }
         return;
     }
     action = glsd301p_bdb_handle_event(&g_rejoin,
@@ -447,6 +531,14 @@ static void glsd_bdb_commission_cb(u8 status, void *arg)
         if (action.stop_retry) {
             glsd301p_timer_retry_stop();
         }
+        if (action.joined) {
+            glsd_note_joined();
+        }
+        return;
+    }
+    if (status == BDB_COMMISSION_STA_IN_PROGRESS ||
+        status == BDB_COMMISSION_STA_FORMATION_DONE) {
+        /* Non-terminal / coordinator-only statuses. */
         return;
     }
     if (status == BDB_COMMISSION_STA_PARENT_LOST) {
@@ -465,6 +557,26 @@ static void glsd_bdb_commission_cb(u8 status, void *arg)
         if (action.start_attempt) {
             glsd_rejoin_start_attempt(false);
         }
+        return;
+    }
+    /*
+     * Every other status is a terminal commissioning failure (NO_NETWORK,
+     * TCLK_EX_FAILURE, NOT_PERMITTED, ...). It ends an in-progress
+     * steering attempt, which then backs off on the 1 s tick.
+     */
+    (void)glsd301p_bdb_handle_event(&g_rejoin, GLSD301P_BDB_STEER_FAILURE,
+                                    factory_new);
+}
+
+/*
+ * Own Leave completed (operator reset gesture or a coordinator Leave
+ * request): the stack has dropped its network state. Reboot cleanly like
+ * the SDK samples; the next boot is factory new and steers again.
+ */
+static void glsd_leave_cnf_cb(nlme_leave_cnf_t *cnf)
+{
+    if (cnf != NULL && cnf->status == SUCCESS) {
+        glsd_arm_reboot(GLSD301P_LEAVE_REBOOT_DELAY_S);
     }
 }
 
@@ -492,7 +604,7 @@ static const zdo_appIndCb_t g_zdo_callbacks = {
     NULL,
     NULL,
     NULL,
-    NULL,
+    glsd_leave_cnf_cb,
     NULL,
     NULL,
     NULL,
@@ -592,14 +704,18 @@ void user_init(bool isRetention)
         glsd301p_control_boot_failed(&g_control, glsd301p_timebase_now_ms());
     }
     /*
-     * Diagnostics only: one coherent v2 snapshot immediately so Basic:0xFF10
-     * is valid even if the 1 s event never runs, then best-effort periodic
-     * refresh. Health is never in the output path.
+     * One coherent v2 snapshot immediately so Basic:0xFF10 is valid even
+     * if the 1 s event never runs, then periodic refresh. The same owned
+     * 1 s event carries network maintenance (factory-new steering, reset
+     * gesture, deferred reboot). Neither is ever in the output path; a
+     * registration failure is visible as a timer registration fault.
      */
     glsd301p_health_init(&g_health);
     glsd_health_snapshot_now(glsd301p_timebase_now_ms());
     (void)glsd301p_timer_health_start(glsd_health_cb, NULL);
     glsd301p_rejoin_init(&g_rejoin);
+    g_reboot_countdown_s = 0u;
+    g_reboot_uart_waits = 0u;
     (void)bdb_init((af_simple_descriptor_t *)&g_simple_desc,
                    &g_bdb_settings, &g_bdb_callbacks, 1);
 }

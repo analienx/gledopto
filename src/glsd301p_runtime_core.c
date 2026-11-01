@@ -55,6 +55,7 @@ void glsd301p_runtime_core_init(glsd301p_runtime_core_t *core)
 
     glsd301p_output_guard_init(&core->output_guard);
     glsd301p_runtime_core_invalidate_state(core);
+    core->last_push_event = (uint8_t)GLSD301P_PUSH_EVENT_NONE;
 }
 
 glsd301p_runtime_result_t glsd301p_runtime_core_boot_off(
@@ -173,6 +174,7 @@ glsd301p_runtime_result_t glsd301p_runtime_core_poll_push_ex(
     }
 
     event = glsd301p_push_decoder_poll(&core->push_decoder, pc2_high);
+    core->last_push_event = (uint8_t)event;
     if (event == GLSD301P_PUSH_EVENT_NONE) {
         return GLSD301P_RUNTIME_NO_FRAME;
     }

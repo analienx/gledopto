@@ -23,9 +23,19 @@ def _valid_url(url: str) -> bool:
     return parsed.scheme in {"http", "https"} and bool(parsed.netloc)
 
 
-def build_plan(candidate: Path, sidecar_path: Path, preflight_path: Path, url: str) -> dict:
+def build_plan(
+    candidate: Path,
+    sidecar_path: Path,
+    preflight_path: Path,
+    url: str,
+    recovery_url: str | None = None,
+) -> dict:
     if not _valid_url(url):
         raise ReleasePlanError("candidate URL must be explicit http(s), not a file/global-index path")
+    if recovery_url is not None and not _valid_url(recovery_url):
+        raise ReleasePlanError("recovery URL must be explicit http(s), not a file/global-index path")
+    if recovery_url is not None and recovery_url == url:
+        raise ReleasePlanError("recovery URL must differ from the candidate URL")
     data = candidate.read_bytes()
     sidecar = json.loads(sidecar_path.read_text(encoding="utf-8"))
     preflight = json.loads(preflight_path.read_text(encoding="utf-8"))
@@ -46,12 +56,27 @@ def build_plan(candidate: Path, sidecar_path: Path, preflight_path: Path, url: s
     if preflight.get("candidate", {}).get("sha256") != digest256:
         raise ReleasePlanError("preflight is not bound to these candidate bytes")
 
-    decision_ready = preflight.get("CANARY_DECISION_READY") is True
+    recovery_planned = recovery_url is not None
+    decision_ready = preflight.get("CANARY_DECISION_READY") is True and recovery_planned
     request = None
     if decision_ready:
         request = {
             "topic": "zigbee2mqtt/bridge/request/device/ota_update/update",
             "payload": {"id": TARGET_IEEE, "url": url},
+        }
+    recovery_request = None
+    if recovery_planned:
+        # Same request shape as the forward update. The vendor image
+        # (0x28013001) is LOWER than the custom file version, i.e. a
+        # downgrade: the custom OTA client accepts it (WWAH off), but whether
+        # the installed Zigbee2MQTT/herdsman serves a lower version for an
+        # explicit URL must be verified read-only before the canary.
+        recovery_request = {
+            "topic": "zigbee2mqtt/bridge/request/device/ota_update/update",
+            "payload": {"id": TARGET_IEEE, "url": recovery_url},
+            "isDowngrade": True,
+            "requiresZ2mDowngradeVerificationBeforeCanary": True,
+            "requiresExternalConverter": "devices/gl-sd-301p/zigbee2mqtt/glsd301p_ed.js",
         }
     return {
         "schema": 1,
@@ -71,6 +96,8 @@ def build_plan(candidate: Path, sidecar_path: Path, preflight_path: Path, url: s
         "canaryDecisionReady": decision_ready,
         "firstValidCustomBootRiskAccepted": preflight.get("firstValidCustomBootRiskAccepted") is True,
         "plannedUpdateRequest": request,
+        "plannedRecoveryRequest": recovery_request,
+        "recoveryPlanned": recovery_planned,
         "authorizationGranted": False,
         "AUTHORIZATION_GRANTED": False,
         "executionPermitted": False,
@@ -100,10 +127,15 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("sidecar", type=Path)
     p.add_argument("preflight", type=Path)
     p.add_argument("--url", required=True)
+    p.add_argument(
+        "--recovery-url",
+        help="explicit http(s) URL of the byte-identical vendor recovery OTA; "
+        "without it the plan is never decision-ready",
+    )
     p.add_argument("--out", type=Path, required=True)
     a = p.parse_args(argv)
     try:
-        plan = build_plan(a.candidate, a.sidecar, a.preflight, a.url)
+        plan = build_plan(a.candidate, a.sidecar, a.preflight, a.url, a.recovery_url)
     except ReleasePlanError as exc:
         p.error(str(exc))
     a.out.write_text(json.dumps(plan, indent=2, sort_keys=True) + "\n", encoding="utf-8")
