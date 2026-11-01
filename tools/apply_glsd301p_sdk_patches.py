@@ -1362,6 +1362,55 @@ PATCHES = [
             },
         ],
     },
+    {
+        # The OTA client sets IMAGE_UPGRADE_STATUS_DOWNLOAD_IN_PROGRESS and
+        # stops otaTimer before two early returns in the Query Next Image
+        # Response handler (boot-address re-check, buffer allocation
+        # failure). Neither path completes the upgrade, so the status never
+        # returns to NORMAL and every later Image Notify -- including the
+        # vendor recovery -- is refused until a power cycle. Complete the
+        # upgrade as ABORT on both paths (restores NORMAL, frees state,
+        # reports OTA_EVT_COMPLETE so the application re-arms its query).
+        "id": "P7-ota-client-no-stuck-download",
+        "relpath": "zigbee/ota/ota.c",
+        "original_sha256": (
+            "8e1a92ec8ccc605c92aff20eb6aac68ebb8ab75b30c10dc709a85ced829f5848"
+        ),
+        "patched_sha256": "36b18b578a4a5f60d4db8e947b41676eef2548d43d1860b9fe1ad4d224f7fa0b",
+        "marker": "GLSD301P P7",
+        "edits": [
+            {
+                "anchor": (
+                    "            ZB_EXCEPTION_POST(SYS_EXCEPTTION_COMMON_BOOT_ADDR_ERROR);\n"
+                    "            return ZCL_STA_ABORT;\n"
+                ),
+                "replacement": (
+                    "            ZB_EXCEPTION_POST(SYS_EXCEPTTION_COMMON_BOOT_ADDR_ERROR);\n"
+                    "            /* GLSD301P P7: never leave DOWNLOAD_IN_PROGRESS behind. */\n"
+                    "            ota_upgradeComplete(ZCL_STA_ABORT);\n"
+                    "            return ZCL_STA_ABORT;\n"
+                ),
+            },
+            {
+                "anchor": (
+                    "        if (!pOtaUpdateInfo) {\n"
+                    "#if FLASH_PROTECT_ENABLE\n"
+                    "            flash_lock();\n"
+                    "#endif\n"
+                    "            return ZCL_STA_INSUFFICIENT_SPACE;\n"
+                ),
+                "replacement": (
+                    "        if (!pOtaUpdateInfo) {\n"
+                    "#if FLASH_PROTECT_ENABLE\n"
+                    "            flash_lock();\n"
+                    "#endif\n"
+                    "            /* GLSD301P P7: never leave DOWNLOAD_IN_PROGRESS behind. */\n"
+                    "            ota_upgradeComplete(ZCL_STA_ABORT);\n"
+                    "            return ZCL_STA_INSUFFICIENT_SPACE;\n"
+                ),
+            },
+        ],
+    },
 ]
 
 

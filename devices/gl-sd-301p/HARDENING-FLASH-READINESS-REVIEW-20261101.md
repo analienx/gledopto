@@ -204,12 +204,39 @@ state.
 | C1 | A BDB Leave confirm that arrived after `TCLK_EX_FAILURE` was taken for a removal, leaving the device permanently dormant. | Resolved by removing dormant. Only the gesture's Leave reboots; nothing else reacts to a Leave. |
 | C2 | Timing-window classification instead of `g_bdbCtx.leaveDoing`. | Moot: no classification is needed anymore. |
 | C3 | A real mid-commissioning removal could be "explained" by a later TCLK failure. | Moot: removal is not special-cased. |
-| C4 | The SDK can stay in DOWNLOAD_IN_PROGRESS without a completion event (`ota.c` buffer allocation failure), refusing every Image Notify. | Confirmed in source and fixed: a download with no offset progress for 300 s is aborted via the public `ota_upgradeAbort()`, which restores NORMAL and re-arms the query. CI gate added. |
+| C4 | The SDK can stay in DOWNLOAD_IN_PROGRESS without a completion event (`ota.c` buffer allocation failure), refusing every Image Notify. | Confirmed in source. The first fix (a 300 s no-progress watchdog) was replaced in round 4 by SDK patch P7 at the source. |
 | C5 | The 900 s SDK_ACTIVE watchdog may restart a stack backoff that is still running. | Kept on purpose. Whether the stack backoff ever ends is decided inside the closed library. The worst case of the watchdog is a refused start retried every 5 s, which is harmless; the worst case without it is a stranded device. |
 | C6 | RETRY_PENDING/SDK_ACTIVE never yield to steering if the device became factory new. | Fixed: both states hand over to steering on a factory-new device. Tests added. |
 | C7 | Use `TL_SCHEDULE_TASK` instead of the re-query flag. | Not adopted: the repo avoids pooled SDK scheduling; the flag runs on the owned 1 s event. |
 | C8 | Redundant `CUSTOM_FILE_VERSION` check in the release plan (`validate_ota` already pins it). | Removed. |
 | C9 | The plan reported `candidate.fileVersion` from the sidecar, not from the header. | Fixed: it reports the header value. |
+
+## Fourth independent review (`403df5a..6b24ca9`)
+
+The reviewer found no reboot loop, no flash-wear loop and no permanently
+off-network path, and confirmed that removing dormant was safe. The
+findings concerned the round-3 OTA stall watchdog:
+
+| # | Finding | Disposition |
+|---|---|---|
+| D1 | `ota_upgradeAbort()` leaves `otaTimer` armed, so the same-tick re-query did nothing and the periodic query could be lost; stale block-request chains could continue. | Resolved: the watchdog is removed. |
+| D2 | Server-paced transfers (WAIT_FOR_DATA) legitimately hold the offset still for more than 300 s, so a healthy recovery could be aborted. | Resolved: the watchdog is removed. |
+| D3 | The SDK_ACTIVE → steering handover does not stop a stack backoff that may still be running, so steering can be refused for a while; the handover also counted as a failure. | Accepted residual: there is no public API to stop it (`zb_api.h` has only `zb_rejoinReqWithBackOff`). A refused steer backs off to at most 300 s and retries, so it always converges. The counter is made consistent (a handover is not a failure). |
+| D4 | The stall abort sends no Upgrade End (ABORT) to the server. | Resolved: the watchdog is removed. |
+| D5 | The stall counter carried over between back-to-back transfers. | Resolved: the watchdog is removed. |
+| D6 | Fix the root cause in the SDK instead of using a heuristic. | **Adopted.** Pinned SDK patch **P7-ota-client-no-stuck-download** (`zigbee/ota/ota.c`, original `8e1a92ec…5848`, patched `36b18b57…fa0b`) calls `ota_upgradeComplete(ZCL_STA_ABORT)` on both early returns of the Query Next Image Response handler. That restores NORMAL, frees the state and reports completion, so the app re-queries. A CI gate requires P7 and forbids application abort heuristics. |
+| D7 | Removing `note_own_leave` also removed the only place that cleared the join edge on a non-gesture Leave, so the next join was not counted in the health success counter. | Fixed: any successful non-gesture own Leave records not-joined. |
+| D8 | The watchdog had no behavioural test. | Resolved: the watchdog is removed. P7 is hash-pinned and anchor-checked. |
+
+### Hosted CI and reproducibility for the round-3 changes (head `6b24ca9`, superseded)
+
+- All three workflows PASS on `6b24ca9`, including
+  `TARGET_LEAVE_ONLY_GESTURE_REBOOTS_NO_DORMANT=PASS` and
+  `TARGET_OTA_STALL_WATCHDOG=PASS`. The PR run 41315955219 and the dispatch
+  rebuild 41316013968 are byte-identical: `glsd301p-ed.final.bin` is
+  142 340 bytes, `fileVersion=0x7f080001`, SHA-256
+  `1175959e8692d23006d59b8a95e39695aa7ec0ddcd3949403353dd63aec4254b`,
+  SHA-512 `b10f704c…6a5be31e`.
 
 ### Hosted CI and reproducibility for the round-2 fixes (head `403df5a`, superseded)
 

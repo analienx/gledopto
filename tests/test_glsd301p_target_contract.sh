@@ -224,10 +224,15 @@ require_source 'ota_queryStart\(GLSD301P_OTA_QUERY_INTERVAL_S\)' 'OTA query afte
 if grep -Eqi 'dormant' "$TARGET_SRC" "$ROOT/src/glsd301p_rejoin.c"; then
   echo 'ERROR: dormant/suppressed connectivity states are forbidden (recovery must stay reachable)' >&2; exit 1
 fi
-[[ "$(grep -c 'ota_upgradeAbort()' "$TARGET_SRC")" -eq 1 ]] || {
-  echo 'ERROR: OTA download stall watchdog (single ota_upgradeAbort site) missing' >&2; exit 1;
+# Fourth review: the stuck DOWNLOAD_IN_PROGRESS state is fixed at its SDK
+# source (pinned patch P7), not by a timing heuristic in the application
+# that could abort healthy server-paced transfers.
+grep -q '"id": "P7-ota-client-no-stuck-download"' "$ROOT/tools/apply_glsd301p_sdk_patches.py" || {
+  echo 'ERROR: SDK patch P7 (OTA client never stuck in DOWNLOAD_IN_PROGRESS) missing' >&2; exit 1;
 }
-require_source 'zcl_attr_imageUpgradeStatus == IMAGE_UPGRADE_STATUS_DOWNLOAD_IN_PROGRESS' 'OTA stall watchdog keyed on download state'
+if grep -q 'ota_upgradeAbort()' "$TARGET_SRC"; then
+  echo 'ERROR: application OTA abort heuristics are forbidden (use the SDK-source fix)' >&2; exit 1
+fi
 require_source 'g_ota_requery_pending = true;' 'OTA re-query deferred out of the OTA callback'
 require_source 'glsd_arm_reboot\(1u\);' 'reboot after refused OTA image switch'
 [[ "$(grep -c 'if (g_reset_to_fn) {' "$TARGET_SRC")" -ge 2 ]] || {
@@ -249,7 +254,7 @@ fi
 echo 'TARGET_FACTORY_NEW_COMMISSIONING=PASS'
 echo 'TARGET_RESET_GESTURE_AND_LEAVE_REBOOT=PASS'
 echo 'TARGET_LEAVE_ONLY_GESTURE_REBOOTS_NO_DORMANT=PASS'
-echo 'TARGET_OTA_STALL_WATCHDOG=PASS'
+echo 'TARGET_OTA_STUCK_DOWNLOAD_FIXED_AT_SDK_SOURCE_P7=PASS'
 echo 'TARGET_OTA_QUERY_REARM_AFTER_FAILURE=PASS'
 
 echo 'TARGET_ADC_FLASH_SAFETY_PIN_GPIO_PB3=PASS'

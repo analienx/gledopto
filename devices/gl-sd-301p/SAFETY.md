@@ -132,10 +132,12 @@ itself, so the application owns it:
   device never retries a recovery by itself. If the SDK refuses to switch to
   a fully received image (invalid image or failed boot-flag write), the
   device reboots onto its current image so no stale RAM transfer state
-  survives. A download whose offset makes no progress for 300 s is aborted
-  through the SDK's `ota_upgradeAbort()`: the SDK can otherwise stay in
-  "download in progress" for good (e.g. a failed buffer allocation) and
-  refuse every later Image Notify, which would block the recovery.
+  survives. The pinned SDK could also stay in "download in progress" for
+  good (two early returns in the Query Next Image Response handler, e.g. a
+  failed buffer allocation) and refuse every later Image Notify, which would
+  block the recovery. Pinned SDK patch P7 completes the upgrade as ABORT on
+  both paths. No timing heuristic aborts transfers, so slow or
+  server-paced recovery downloads are never cut off by the application.
 - **Observability.** Basic:0xFF10 byte 47 reports the connectivity state
   (idle / rejoin active / rejoin retry pending / steering / steering
   backoff) and the steering-failure count (saturating

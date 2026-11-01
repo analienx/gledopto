@@ -244,8 +244,8 @@ glsd301p_tick_t glsd301p_rejoin_tick(glsd301p_rejoin_t *rejoin, bool joined,
         return GLSD301P_TICK_STEER;
     case GLSD301P_REJOIN_SDK_ACTIVE:
         if (factory_new) {
-            /* No network state left to rejoin: hand over to steering. */
-            rejoin->failures = glsd301p_sat_inc_u32(rejoin->failures);
+            /* No network state left to rejoin: hand over to steering
+             * (a hand-over, not a rejoin failure; same as RETRY_PENDING). */
             rejoin->sdk_active_s = 0u;
             rejoin->unjoined_idle_s = 0u;
             rejoin->state = GLSD301P_REJOIN_IDLE;

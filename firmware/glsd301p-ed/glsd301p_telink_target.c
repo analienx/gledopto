@@ -36,9 +36,6 @@
 #define GLSD301P_GESTURE_REBOOT_DELAY_S        10u
 /* Reboot after a gesture when no Leave can be sent (not joined). */
 #define GLSD301P_GESTURE_LOCAL_REBOOT_DELAY_S  1u
-/* Abort an OTA download whose file offset has not moved for this long. A
- * healthy transfer's own block-response retries end far sooner. */
-#define GLSD301P_OTA_STALL_ABORT_S             300u
 /* Upper bound on extra 1 s ticks a pending reboot waits for UART idle. */
 #define GLSD301P_REBOOT_UART_WAIT_MAX_S        3u
 
@@ -289,9 +286,6 @@ static status_t glsd_identify_cb(zclIncomingAddrInfo_t *addr, u8 cmd_id, void *p
 
 /* Set by the OTA callback, consumed by the 1 s maintenance tick. */
 static bool g_ota_requery_pending;
-/* OTA download stall watchdog (seconds without file-offset progress). */
-static u16 g_ota_stall_s;
-static u32 g_ota_last_offset;
 
 static void glsd_arm_reboot(u8 delay_s);
 
@@ -474,27 +468,6 @@ static void glsd_maintenance_tick(void)
             }
             return;
         }
-    }
-
-    /*
-     * OTA stall watchdog. The SDK can enter DOWNLOAD_IN_PROGRESS and return
-     * without ever completing (ota.c: buffer allocation failure after the
-     * status is set), after which every Image Notify is refused -- i.e. the
-     * vendor recovery could never start. No offset progress for
-     * GLSD301P_OTA_STALL_ABORT_S: abort through the public API, which
-     * restores NORMAL and reports completion (-> query re-armed).
-     */
-    if (zcl_attr_imageUpgradeStatus == IMAGE_UPGRADE_STATUS_DOWNLOAD_IN_PROGRESS) {
-        if (zcl_attr_fileOffset != g_ota_last_offset) {
-            g_ota_last_offset = zcl_attr_fileOffset;
-            g_ota_stall_s = 0u;
-        } else if (++g_ota_stall_s >= GLSD301P_OTA_STALL_ABORT_S) {
-            g_ota_stall_s = 0u;
-            ota_upgradeAbort();
-        }
-    } else {
-        g_ota_stall_s = 0u;
-        g_ota_last_offset = zcl_attr_fileOffset;
     }
 
     if (g_ota_requery_pending) {
@@ -700,7 +673,10 @@ static void glsd_leave_cnf_cb(nlme_leave_cnf_t *cnf)
     }
     if (g_reset_to_fn) {
         glsd_arm_reboot(GLSD301P_LEAVE_REBOOT_DELAY_S);
+        return;
     }
+    /* No longer joined: the next join is a new edge (health success count). */
+    (void)glsd301p_rejoin_note_joined(&g_rejoin, false);
 }
 
 static bdb_appCb_t g_bdb_callbacks = {
@@ -839,8 +815,6 @@ void user_init(bool isRetention)
     g_reboot_uart_waits = 0u;
     g_reset_to_fn = false;
     g_ota_requery_pending = false;
-    g_ota_stall_s = 0u;
-    g_ota_last_offset = 0u;
     glsd301p_health_init(&g_health);
     glsd_health_snapshot_now(glsd301p_timebase_now_ms());
     glsd_ensure_maintenance_timer();
