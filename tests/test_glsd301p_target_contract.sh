@@ -209,12 +209,31 @@ require_source 'GLSD301P_BDB_STEER_FAILURE' 'terminal commissioning failure mapp
 require_source 'glsd_leave_cnf_cb,' 'own-Leave confirm registered'
 require_source 'glsd301p_control_take_network_reset_request' 'PUSH reset gesture consumed'
 require_source 'ota_queryStart\(GLSD301P_OTA_QUERY_INTERVAL_S\)' 'OTA query after join'
+# Acceptance-review fixes (2026-11-01):
+# - a BDB-internal Leave during steering (TCLK failure) must not reboot;
+# - a coordinator removal makes the device dormant instead of re-steering;
+# - the gesture always ends factory new, clearing NV explicitly if needed;
+# - a failed/aborted OTA transfer re-arms the periodic query;
+# - the 1 s maintenance event is re-registered if registration failed.
+require_source 'glsd301p_rejoin_state\(&g_rejoin\) == GLSD301P_REJOIN_STEERING' 'no reboot on BDB-internal Leave during steering'
+require_source 'glsd301p_rejoin_note_removed\(&g_rejoin\)' 'coordinator removal makes the device dormant'
+require_source 'if \(g_reset_to_fn && !zb_isDeviceFactoryNew\(\)\)' 'gesture reboot verifies factory new'
+[[ "$(grep -co 'nv_resetToFactoryNew' "$TARGET_SRC")" -eq 1 ]] || {
+  echo 'ERROR: target must contain exactly one guarded NV factory-new reset site' >&2; exit 1;
+}
+[[ "$(grep -co 'ota_queryStart(GLSD301P_OTA_QUERY_INTERVAL_S)' "$TARGET_SRC")" -eq 2 ]] || {
+  echo 'ERROR: OTA query must be armed after join and re-armed after a failed transfer' >&2; exit 1;
+}
+require_source 'glsd_ensure_maintenance_timer\(\);' 'maintenance event registration retried'
+require_source 'in\.connectivity = glsd301p_rejoin_health_byte' 'connectivity state exported in health snapshot'
 if grep -q 'ACCESS_CONTROL_WRITE, (u8 \*)&g_startup' "$TARGET_SRC"; then
   echo 'ERROR: StartUp attributes must be read-only (behavior is fixed, nothing persisted)' >&2
   exit 1
 fi
 echo 'TARGET_FACTORY_NEW_COMMISSIONING=PASS'
 echo 'TARGET_RESET_GESTURE_AND_LEAVE_REBOOT=PASS'
+echo 'TARGET_LEAVE_ORIGIN_AND_DORMANT=PASS'
+echo 'TARGET_OTA_QUERY_REARM_AFTER_FAILURE=PASS'
 
 echo 'TARGET_ADC_FLASH_SAFETY_PIN_GPIO_PB3=PASS'
 echo 'TARGET_PRODUCTION_SDK_PIN_ASSERTIONS=ENABLED'

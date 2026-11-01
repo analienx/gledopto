@@ -32,6 +32,23 @@ extern "C" {
  * terminal status is abandoned after GLSD301P_STEER_ACTIVE_TIMEOUT_S.
  * Rejoin and steering are mutually exclusive: one state field owns both.
  *
+ * An accepted steering attempt ends only through a terminal commissioning
+ * status or the watchdog. Joined observations do NOT end it early: BDB
+ * reports the device joined while the Trust Center link-key exchange is
+ * still running, and that exchange can still fail (the stack then leaves
+ * and reports TCLK_EX_FAILURE). If the watchdog expires while joined, the
+ * success callback was missed and the tick reconciles to joined.
+ *
+ * Stranded network state: a device that is neither joined nor factory new
+ * while no attempt is outstanding (partially restored NV, an abandoned
+ * attempt) gets a rejoin attempt every GLSD301P_UNJOINED_REJOIN_KICK_S, so
+ * it is never left off-network waiting for an event that never comes.
+ *
+ * Dormant: after the coordinator removes the device (own Leave that the
+ * application did not start), every application-started connectivity
+ * attempt stops until the reset gesture or a power cycle, so a removed
+ * device does not silently re-join on the next unrelated permit-join.
+ *
  * States: IDLE (no attempt outstanding), SDK_ACTIVE (an accepted attempt is
  * under stack-owned backoff; intermediate failures must not restart it),
  * RETRY_PENDING (a rejected start waits for the owned 5 s retry event),
@@ -42,6 +59,7 @@ extern "C" {
 #define GLSD301P_STEER_BACKOFF_BASE_S 5u
 #define GLSD301P_STEER_BACKOFF_MAX_S 300u
 #define GLSD301P_STEER_ACTIVE_TIMEOUT_S 180u
+#define GLSD301P_UNJOINED_REJOIN_KICK_S 60u
 
 typedef enum {
     GLSD301P_REJOIN_IDLE = 0,
@@ -65,7 +83,23 @@ typedef struct {
     uint16_t steer_active_s;
     uint32_t steer_starts;
     uint32_t steer_failures;
+    uint16_t unjoined_idle_s;
+    bool dormant;
 } glsd301p_rejoin_t;
+
+/* What the 1 s maintenance tick asks the caller to do. */
+typedef enum {
+    GLSD301P_TICK_NONE = 0,
+    /* Invoke bdb_networkSteerStart() now; report via
+     * glsd301p_rejoin_note_steer_start_result(). */
+    GLSD301P_TICK_STEER,
+    /* Invoke zb_rejoinReqWithBackOff() now; report via
+     * glsd301p_rejoin_note_start_result(). */
+    GLSD301P_TICK_REJOIN,
+    /* A join was reconciled without its callback: run join side effects
+     * (OTA query) and stop any application retry. */
+    GLSD301P_TICK_JOINED
+} glsd301p_tick_t;
 
 void glsd301p_rejoin_init(glsd301p_rejoin_t *rejoin);
 
@@ -111,13 +145,12 @@ uint8_t glsd301p_rejoin_state(const glsd301p_rejoin_t *rejoin);
 void glsd301p_rejoin_note_bdb_ready(glsd301p_rejoin_t *rejoin);
 
 /*
- * 1 s maintenance tick for factory-new commissioning. Returns true when the
- * caller must invoke bdb_networkSteerStart() now and report the outcome via
- * glsd301p_rejoin_note_steer_start_result(). Joined observations reconcile
- * any steering state to IDLE. Rejoin states are never touched here.
+ * 1 s maintenance tick: factory-new steering, steering backoff/watchdog,
+ * and the periodic rejoin kick for stranded network state. Rejoin states
+ * (SDK_ACTIVE / RETRY_PENDING) are never touched here.
  */
-bool glsd301p_rejoin_steer_tick(glsd301p_rejoin_t *rejoin, bool joined,
-                                bool factory_new);
+glsd301p_tick_t glsd301p_rejoin_tick(glsd301p_rejoin_t *rejoin, bool joined,
+                                     bool factory_new);
 
 /* Accepted -> STEERING; refused -> STEER_WAIT with backoff. */
 void glsd301p_rejoin_note_steer_start_result(glsd301p_rejoin_t *rejoin,
@@ -135,6 +168,20 @@ bool glsd301p_rejoin_note_steer_failure(glsd301p_rejoin_t *rejoin);
  * any pending steering backoff so the next tick steers immediately.
  */
 void glsd301p_rejoin_request_steer_now(glsd301p_rejoin_t *rejoin);
+
+/*
+ * The coordinator removed the device (own Leave confirmed that the
+ * application did not start, outside steering). Enter dormant: no
+ * application-started steering or rejoin until reset gesture / power cycle.
+ * A later join (e.g. stack-driven rejoin) clears dormant.
+ */
+void glsd301p_rejoin_note_removed(glsd301p_rejoin_t *rejoin);
+
+/*
+ * Compact connectivity byte for the health snapshot: bits 0-2 state,
+ * bit 3 dormant, bits 4-7 steering failures saturated at 15.
+ */
+uint8_t glsd301p_rejoin_health_byte(const glsd301p_rejoin_t *rejoin);
 
 #ifdef __cplusplus
 }

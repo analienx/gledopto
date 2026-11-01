@@ -20,7 +20,10 @@ Layout (offset, type, meaning):
    40  u32  rejoin-success count
    44  u16  SDK exception line
    46  u8   SDK exception code
-   47  u8   reserved, zero
+   47  u8   connectivity: bits 0-2 state (0 idle, 1 rejoin active,
+                2 rejoin retry pending, 3 steering, 4 steering backoff),
+                bit 3 dormant (removed by coordinator), bits 4-7
+                steering failures saturated at 15
 """
 from __future__ import annotations
 
@@ -33,6 +36,14 @@ HEALTH_SIZE = 48
 HEALTH_VERSION = 2
 
 NET_STATES = {0: "disconnected", 1: "joined", 2: "joining"}
+
+CONNECTIVITY_STATES = {
+    0: "idle",
+    1: "rejoin_active",
+    2: "rejoin_retry_pending",
+    3: "steering",
+    4: "steering_backoff",
+}
 
 FLAG_NAMES = (
     "runtime_ready",
@@ -88,7 +99,13 @@ def decode_health_snapshot(data: bytes) -> dict:
         "rejoin_successes": words[9],
         "exc_line": exc_line,
         "exc_code": data[46],
-        "reserved": data[47],
+        "connectivity": {
+            "state": CONNECTIVITY_STATES.get(
+                data[47] & 0x07, f"unknown_{data[47] & 0x07}"),
+            "dormant": bool(data[47] & 0x08),
+            "steer_failures": data[47] >> 4,
+        },
+        "connectivity_raw": data[47],
     }
 
 

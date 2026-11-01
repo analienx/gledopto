@@ -53,8 +53,10 @@ glsd301p_bdb_action_t glsd301p_bdb_handle_event(glsd301p_rejoin_t *rejoin,
                                                bool factory_new);
 
 /*
- * 1 s maintenance tick: level-triggered factory-new commissioning (see
- * glsd301p_rejoin.h). Only start_steer is ever set.
+ * 1 s maintenance tick (see glsd301p_rejoin.h): at most one of
+ * start_steer (factory-new commissioning), start_attempt (periodic rejoin
+ * kick for stranded network state) or joined+stop_retry (a join reconciled
+ * without its callback) is set.
  */
 glsd301p_bdb_action_t glsd301p_bdb_tick(glsd301p_rejoin_t *rejoin,
                                        bool joined,

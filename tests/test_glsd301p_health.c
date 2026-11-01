@@ -61,6 +61,7 @@ static void test_layout_and_endian(void)
     in.rejoin_successes = 0x00000006u;
     in.exc_line = 0xBEEFu;
     in.exc_code = 0x42u;
+    in.connectivity = 0x3Bu;
 
     glsd301p_health_snapshot(&h, &in, out);
     assert(out[0] == 2u);
@@ -84,7 +85,7 @@ static void test_layout_and_endian(void)
     assert(get_u32(out + 40u) == 0x00000006u);
     assert(out[44] == 0xEFu && out[45] == 0xBEu);
     assert(out[46] == 0x42u);
-    assert(out[47] == 0u);
+    assert(out[47] == 0x3Bu);
 }
 
 static void test_flag_bits(void)

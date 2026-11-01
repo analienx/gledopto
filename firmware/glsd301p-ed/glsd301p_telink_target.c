@@ -29,10 +29,13 @@
 /* Periodic OTA server query once joined (u16 seconds; 12 h). Updates are
  * still only delivered when the server chooses to answer with an image. */
 #define GLSD301P_OTA_QUERY_INTERVAL_S          43200u
-/* Delay between an observed own-Leave confirm and the clean reboot. */
+/* Delay between a gesture-initiated own-Leave confirm and the reboot. */
 #define GLSD301P_LEAVE_REBOOT_DELAY_S          2u
-/* Fallback reboot after a gesture-initiated factory reset. */
+/* Fallback reboot after a gesture-initiated factory reset while joined
+ * (the Leave confirm normally reboots sooner). */
 #define GLSD301P_GESTURE_REBOOT_DELAY_S        10u
+/* Reboot after a gesture when no Leave can be sent (not joined / dormant). */
+#define GLSD301P_GESTURE_LOCAL_REBOOT_DELAY_S  1u
 /* Upper bound on extra 1 s ticks a pending reboot waits for UART idle. */
 #define GLSD301P_REBOOT_UART_WAIT_MAX_S        3u
 
@@ -55,7 +58,7 @@ static u8 g_zcl_online;
 
 /* Independent implementation identity; hardware/stack lineage remains explicit. */
 static u8 g_basic_zcl_version = 0x03u;
-static u8 g_basic_app_version = 0x07u;
+static u8 g_basic_app_version = 0x08u;
 static u8 g_basic_stack_version = 0x02u;
 static u8 g_basic_hw_version = 0x02u;
 static u8 g_basic_power_source = POWER_SOURCE_MAINS_1_PHASE;
@@ -63,7 +66,7 @@ static u8 g_basic_device_enabled = TRUE;
 static u8 g_basic_mfr_name[] = {8,'a','n','a','l','i','e','n','x'};
 static u8 g_basic_model_id[] = {13,'G','L','-','S','D','-','3','0','1','P','-','E','D'};
 static u8 g_basic_date_code[] = {8,'2','0','2','6','1','1','0','1'};
-static u8 g_basic_sw_build_id[] = {11,'G','L','S','D','-','E','D','-','0','0','6'};
+static u8 g_basic_sw_build_id[] = {11,'G','L','S','D','-','E','D','-','0','0','7'};
 
 /*
  * RAM-only v2 health snapshot body for Basic:0xFF10. The length prefix is
@@ -283,9 +286,21 @@ static status_t glsd_identify_cb(zclIncomingAddrInfo_t *addr, u8 cmd_id, void *p
 
 static void glsd_ota_event(u8 evt, u8 status)
 {
-    if (evt == OTA_EVT_COMPLETE && status == ZCL_STA_SUCCESS) {
-        ota_mcuReboot();
+    if (evt != OTA_EVT_COMPLETE) {
+        return;
     }
+    if (status == ZCL_STA_SUCCESS) {
+        ota_mcuReboot();
+        return;
+    }
+    /*
+     * Failed/aborted download: the transfer took over the shared otaTimer
+     * and it is gone now. Re-arm the periodic query like the SDK samples so
+     * an interrupted recovery transfer is retried without a rejoin/reboot.
+     * Safe here: the SDK defers block-timeout completion via
+     * TL_SCHEDULE_TASK for exactly this re-arm (ota.c).
+     */
+    ota_queryStart(GLSD301P_OTA_QUERY_INTERVAL_S);
 }
 
 static ota_callBack_t g_ota_cb = {glsd_ota_event};
@@ -294,8 +309,10 @@ static ota_callBack_t g_ota_cb = {glsd_ota_event};
  * Application-owned rejoin attempt ownership. The stack owns backoff for an
  * accepted attempt; this layer owns single-outstanding-attempt gating, the
  * 5 s paced retry after a rejected start, and joined-state reconciliation.
- * Factory-new devices keep stock commissioning startup (triggers count but
- * never attempt). Polling policy is never touched here.
+ * Factory-new devices never rejoin; they commission through the steering
+ * path on the 1 s maintenance tick (see glsd301p_rejoin.h), which also
+ * kicks a rejoin for stranded network state and honours dormant after a
+ * coordinator removal. Polling policy is never touched here.
  */
 static glsd301p_rejoin_t g_rejoin;
 
@@ -306,6 +323,8 @@ static glsd301p_rejoin_t g_rejoin;
  */
 static u8 g_reboot_countdown_s;
 static u8 g_reboot_uart_waits;
+/* Reset gesture accepted: the pending reboot must come up factory new. */
+static bool g_reset_to_fn;
 
 static void glsd_arm_reboot(u8 delay_s)
 {
@@ -372,11 +391,14 @@ static void glsd_health_snapshot_now(uint32_t now_ms)
     in.rejoin_starts = g_rejoin.starts;
     in.rejoin_failures = g_rejoin.failures;
     in.rejoin_successes = g_rejoin.successes;
+    in.connectivity = glsd301p_rejoin_health_byte(&g_rejoin);
     in.exc_line = T_evtExcept[0];
     in.exc_code = (uint8_t)(T_evtExcept[1] & 0xFFu);
 
     glsd301p_health_snapshot(&g_health, &in, g_basic_health + 1u);
 }
+
+static void glsd_rejoin_start_attempt(bool from_retry_fire);
 
 static void glsd_maintenance_tick(void)
 {
@@ -399,23 +421,52 @@ static void glsd_maintenance_tick(void)
             g_reboot_uart_waits++;
             return;
         }
+        if (g_reset_to_fn && !zb_isDeviceFactoryNew()) {
+            /*
+             * The gesture promised a factory-new boot, but the stack still
+             * holds network state (no Leave could be sent or confirmed).
+             * Clear it explicitly with the SDK's own BDB reset-to-FN NV
+             * routine (keeps the outgoing NWK frame counter).
+             */
+            nv_resetToFactoryNew();
+        }
         zb_resetDevice();
         return;
     }
 
     if (glsd301p_control_take_network_reset_request(&g_control)) {
-        if (factory_new) {
+        if (factory_new && !g_rejoin.dormant) {
             /* Nothing to leave: just steer again without waiting. */
             glsd301p_rejoin_request_steer_now(&g_rejoin);
         } else {
+            /*
+             * Always end in a clean factory-new boot. Joined: broadcast the
+             * Leave first (its confirm reboots sooner). Not joined or
+             * dormant: no Leave can be delivered, reboot right away; the
+             * reboot path clears any remaining network NV.
+             */
+            g_reset_to_fn = true;
             glsd301p_timer_retry_stop();
-            zb_factoryReset();
-            glsd_arm_reboot(GLSD301P_GESTURE_REBOOT_DELAY_S);
+            if (joined) {
+                zb_factoryReset();
+                glsd_arm_reboot(GLSD301P_GESTURE_REBOOT_DELAY_S);
+            } else {
+                glsd_arm_reboot(GLSD301P_GESTURE_LOCAL_REBOOT_DELAY_S);
+            }
             return;
         }
     }
 
     action = glsd301p_bdb_tick(&g_rejoin, joined, factory_new);
+    if (action.stop_retry) {
+        glsd301p_timer_retry_stop();
+    }
+    if (action.joined) {
+        glsd_note_joined();
+    }
+    if (action.start_attempt) {
+        glsd_rejoin_start_attempt(false);
+    }
     if (action.start_steer) {
         glsd301p_rejoin_note_steer_start_result(
             &g_rejoin, bdb_networkSteerStart() == BDB_STATE_IDLE);
@@ -428,6 +479,18 @@ static int glsd_health_cb(void *data)
     glsd_health_snapshot_now(glsd301p_timebase_now_ms());
     glsd_maintenance_tick();
     return 0;
+}
+
+/*
+ * The 1 s event carries essential recovery behaviour (steering, gesture,
+ * reboot), not just diagnostics. If its registration ever failed, retry it
+ * from every BDB callback; init always reports at least once.
+ */
+static void glsd_ensure_maintenance_timer(void)
+{
+    if (!glsd301p_timer_health_registered()) {
+        (void)glsd301p_timer_health_start(glsd_health_cb, NULL);
+    }
 }
 
 static int glsd_retry_cb(void *data);
@@ -481,6 +544,7 @@ static void glsd_bdb_init_cb(u8 status, u8 joined_network)
     bool factory_new = zb_isDeviceFactoryNew() ? true : false;
     glsd301p_bdb_action_t action;
 
+    glsd_ensure_maintenance_timer();
     glsd301p_health_note_bdb_status(&g_health, status);
     glsd301p_health_note_network(
         &g_health,
@@ -516,6 +580,7 @@ static void glsd_bdb_commission_cb(u8 status, void *arg)
     glsd301p_bdb_action_t action;
 
     (void)arg;
+    glsd_ensure_maintenance_timer();
     glsd301p_health_note_bdb_status(&g_health, status);
     glsd301p_health_note_network(
         &g_health,
@@ -569,15 +634,32 @@ static void glsd_bdb_commission_cb(u8 status, void *arg)
 }
 
 /*
- * Own Leave completed (operator reset gesture or a coordinator Leave
- * request): the stack has dropped its network state. Reboot cleanly like
- * the SDK samples; the next boot is factory new and steers again.
+ * Own Leave completed. Three origins, three outcomes:
+ *  - reset gesture: reboot cleanly into a factory-new boot (the reboot path
+ *    clears any NV the stack kept);
+ *  - BDB itself during steering (TC link-key exchange failed, bdb.c sends
+ *    nlme leave): NO reboot -- the TCLK_EX_FAILURE commissioning status
+ *    follows and the steering backoff (RAM, lost on reboot) handles it;
+ *  - otherwise the coordinator removed the device: go dormant (no
+ *    application-started steering or rejoin) until the reset gesture or a
+ *    power cycle, so a removed device does not re-join on the next
+ *    unrelated permit-join.
  */
 static void glsd_leave_cnf_cb(nlme_leave_cnf_t *cnf)
 {
-    if (cnf != NULL && cnf->status == SUCCESS) {
-        glsd_arm_reboot(GLSD301P_LEAVE_REBOOT_DELAY_S);
+    if (cnf == NULL || cnf->status != SUCCESS) {
+        return;
     }
+    if (g_reset_to_fn) {
+        glsd_arm_reboot(GLSD301P_LEAVE_REBOOT_DELAY_S);
+        return;
+    }
+    if (glsd301p_rejoin_state(&g_rejoin) == GLSD301P_REJOIN_STEERING) {
+        return;
+    }
+    glsd301p_timer_retry_stop();
+    glsd301p_rejoin_note_removed(&g_rejoin);
+    glsd301p_health_note_network(&g_health, GLSD301P_HEALTH_NET_DISCONNECTED);
 }
 
 static bdb_appCb_t g_bdb_callbacks = {
@@ -708,14 +790,16 @@ void user_init(bool isRetention)
      * if the 1 s event never runs, then periodic refresh. The same owned
      * 1 s event carries network maintenance (factory-new steering, reset
      * gesture, deferred reboot). Neither is ever in the output path; a
-     * registration failure is visible as a timer registration fault.
+     * registration failure is counted and retried from every BDB callback
+     * (glsd_ensure_maintenance_timer).
      */
-    glsd301p_health_init(&g_health);
-    glsd_health_snapshot_now(glsd301p_timebase_now_ms());
-    (void)glsd301p_timer_health_start(glsd_health_cb, NULL);
     glsd301p_rejoin_init(&g_rejoin);
     g_reboot_countdown_s = 0u;
     g_reboot_uart_waits = 0u;
+    g_reset_to_fn = false;
+    glsd301p_health_init(&g_health);
+    glsd_health_snapshot_now(glsd301p_timebase_now_ms());
+    glsd_ensure_maintenance_timer();
     (void)bdb_init((af_simple_descriptor_t *)&g_simple_desc,
                    &g_bdb_settings, &g_bdb_callbacks, 1);
 }

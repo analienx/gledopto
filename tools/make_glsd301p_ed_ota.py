@@ -89,9 +89,9 @@ def validate_target_manifest(manifest_path: Path, inner_path: Path) -> dict:
         "REACHABLE_TARGET_RUNTIME_CHAIN": "PASS",
         # Recovery surface: without these a factory-new device (Leave,
         # reset, unrestorable NV) can never rejoin and OTA recovery is lost.
-        "COMMISSIONING": "FACTORY_NEW_STEER_TICK_1S_BACKOFF_5_TO_300S_WATCHDOG_180S",
-        "RESET_GESTURE": "PUSH_10_SHORT_PRESSES_GAP_1000MS_LEAVE_THEN_REBOOT",
-        "OTA_CLIENT_QUERY": "AFTER_JOIN_43200S",
+        "COMMISSIONING": "FACTORY_NEW_STEER_TICK_1S_BACKOFF_5_TO_300S_WATCHDOG_180S_TCLK_SAFE_STRANDED_REJOIN_60S_DORMANT_AFTER_REMOVAL",
+        "RESET_GESTURE": "PUSH_10_SHORT_PRESSES_GAP_1000MS_LEAVE_THEN_REBOOT_FACTORY_NEW_VERIFIED",
+        "OTA_CLIENT_QUERY": "AFTER_JOIN_AND_FAILED_TRANSFER_43200S",
     }
     missing = sorted(k for k in expected if k not in fields)
     if missing:

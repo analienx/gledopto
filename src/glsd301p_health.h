@@ -41,7 +41,10 @@ extern "C" {
  *  40  u32  rejoin-success count
  *  44  u16  SDK exception line
  *  46  u8   SDK exception code
- *  47  u8   reserved, zero
+ *  47  u8   connectivity: bits 0-2 state (0 idle, 1 rejoin active,
+ *               2 rejoin retry pending, 3 steering, 4 steering backoff),
+ *               bit 3 dormant (removed by coordinator), bits 4-7
+ *               steering failures saturated at 15; 0 at boot
  */
 
 #define GLSD301P_HEALTH_VERSION 2u
@@ -85,6 +88,7 @@ typedef struct {
     uint32_t rejoin_starts;
     uint32_t rejoin_failures;
     uint32_t rejoin_successes;
+    uint8_t connectivity;
     uint16_t exc_line;
     uint8_t exc_code;
 } glsd301p_health_inputs_t;

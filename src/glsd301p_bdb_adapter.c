@@ -64,10 +64,11 @@ glsd301p_bdb_action_t glsd301p_bdb_tick(glsd301p_rejoin_t *rejoin,
                                        bool factory_new)
 {
     glsd301p_bdb_action_t action;
+    glsd301p_tick_t tick = glsd301p_rejoin_tick(rejoin, joined, factory_new);
 
-    action.start_attempt = false;
-    action.stop_retry = false;
-    action.start_steer = glsd301p_rejoin_steer_tick(rejoin, joined, factory_new);
-    action.joined = false;
+    action.start_attempt = (tick == GLSD301P_TICK_REJOIN);
+    action.stop_retry = (tick == GLSD301P_TICK_JOINED);
+    action.start_steer = (tick == GLSD301P_TICK_STEER);
+    action.joined = (tick == GLSD301P_TICK_JOINED);
     return action;
 }

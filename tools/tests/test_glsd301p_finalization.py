@@ -58,9 +58,9 @@ def target_manifest(path: Path, inner_path: Path) -> None:
         "ADC_FLASH_SAFETY_PIN": "GPIO_PB3_VENDOR_FIRMWARE_CONFIRMED",
         "UART": "9600_8N1_PB1_TX_PA0_RX",
         "REACHABLE_TARGET_RUNTIME_CHAIN": "PASS",
-        "COMMISSIONING": "FACTORY_NEW_STEER_TICK_1S_BACKOFF_5_TO_300S_WATCHDOG_180S",
-        "RESET_GESTURE": "PUSH_10_SHORT_PRESSES_GAP_1000MS_LEAVE_THEN_REBOOT",
-        "OTA_CLIENT_QUERY": "AFTER_JOIN_43200S",
+        "COMMISSIONING": "FACTORY_NEW_STEER_TICK_1S_BACKOFF_5_TO_300S_WATCHDOG_180S_TCLK_SAFE_STRANDED_REJOIN_60S_DORMANT_AFTER_REMOVAL",
+        "RESET_GESTURE": "PUSH_10_SHORT_PRESSES_GAP_1000MS_LEAVE_THEN_REBOOT_FACTORY_NEW_VERIFIED",
+        "OTA_CLIENT_QUERY": "AFTER_JOIN_AND_FAILED_TRANSFER_43200S",
         "FINAL_BINARY_SIZE": str(len(inner)),
         "TEXT_VMA": "0x00001560",
         "PHYSICAL_BANK_B_END_EXCLUSIVE": hex(0x40000 + len(inner)),
@@ -178,7 +178,7 @@ class FinalizationTests(unittest.TestCase):
             parsed = wrapper.validate_ota(ota.read_bytes())
             self.assertEqual(parsed["manufacturerCode"], 0x124F)
             self.assertEqual(parsed["imageType"], 0x1416)
-            self.assertEqual(parsed["fileVersion"], 0x7F070001)
+            self.assertEqual(parsed["fileVersion"], 0x7F080001)
             self.assertEqual((parsed["hardwareVersionMin"], parsed["hardwareVersionMax"]), (2, 2))
             self.assertTrue(meta["bankNeutral"])
             self.assertEqual(meta["physicalBootTargets"], [0, 0x40000])
@@ -307,6 +307,7 @@ class FinalizationTests(unittest.TestCase):
                     "sameModelVendorRecoveryAvailable": True,
                     "fileVersion": preflight.VENDOR_RECOVERY_FILE_VERSION,
                     "sha256": "abc",
+                    "sha512": preflight.VENDOR_RECOVERY_SHA512,
                 },
                 "postBootVendorRecoverySourceGate": {"pass": True},
                 "residualRisk": "test residual risk",
@@ -343,6 +344,31 @@ class FinalizationTests(unittest.TestCase):
                 )
             self.assertEqual(plan["plannedRecoveryRequest"]["payload"],
                              {"id": wrapper.TARGET_IEEE, "url": "https://example.invalid/vendor.ota"})
+            self.assertEqual(plan["plannedRecoveryRequest"]["expectedServedSha512"],
+                             preflight.VENDOR_RECOVERY_SHA512)
+            self.assertEqual(plan["plannedRecoveryRequest"]["expectedFileVersion"],
+                             preflight.VENDOR_RECOVERY_FILE_VERSION)
+            # A recovery request is never planned on an unvalidated vendor
+            # identity: Z2M does not hash-check, so the plan's hash is the
+            # operator's only byte check.
+            good = json.loads(pf.read_text())
+            bad_variants = {
+                "unavailable": {"sameModelVendorRecoveryAvailable": False, "error": "x"},
+                "missing_sha512": {k: v for k, v in good["vendorRecovery"].items() if k != "sha512"},
+                "wrong_sha512": dict(good["vendorRecovery"], sha512="0" * 128),
+                "missing_version": {k: v for k, v in good["vendorRecovery"].items() if k != "fileVersion"},
+                "wrong_version": dict(good["vendorRecovery"], fileVersion=0x7F080001),
+                "string_version": dict(good["vendorRecovery"], fileVersion=str(preflight.VENDOR_RECOVERY_FILE_VERSION)),
+            }
+            for name, vendor in bad_variants.items():
+                with self.subTest(vendor=name):
+                    pf.write_text(json.dumps(dict(good, vendorRecovery=vendor)))
+                    with self.assertRaises(release_plan.ReleasePlanError):
+                        release_plan.build_plan(
+                            candidate, sidecar, pf, "https://example.invalid/candidate.ota",
+                            "https://example.invalid/vendor.ota",
+                        )
+            pf.write_text(json.dumps(good))
             self.assertEqual(plan["targetIeee"], wrapper.TARGET_IEEE)
             self.assertFalse(plan["usesGlobalOverrideIndex"])
             self.assertFalse(plan["authorizationGranted"])

@@ -11,6 +11,10 @@ import json
 from pathlib import Path
 from urllib.parse import urlparse
 
+from glsd301p_final_preflight import (
+    VENDOR_RECOVERY_FILE_VERSION,
+    VENDOR_RECOVERY_SHA512,
+)
 from make_glsd301p_ed_ota import TARGET_IEEE
 
 
@@ -37,6 +41,28 @@ DOWNGRADE_TOPIC = UPDATE_TOPIC + "/downgrade"
 def _valid_url(url: str) -> bool:
     parsed = urlparse(url)
     return parsed.scheme in {"http", "https"} and bool(parsed.netloc)
+
+
+def _validated_vendor_recovery(preflight: dict, candidate_file_version: object) -> dict:
+    """Return the preflight's vendor recovery identity, or raise.
+
+    Zigbee2MQTT does not hash-check direct URLs, so the plan's expected
+    SHA-512 is the operator's only byte check: it must be the pinned vendor
+    hash, never missing or taken on trust from an edited preflight.
+    """
+    vendor = preflight.get("vendorRecovery")
+    if not isinstance(vendor, dict) or vendor.get("sameModelVendorRecoveryAvailable") is not True:
+        raise ReleasePlanError("recovery requested but the preflight has no validated same-model vendor image")
+    if vendor.get("sha512") != VENDOR_RECOVERY_SHA512:
+        raise ReleasePlanError("preflight vendor recovery SHA-512 is missing or not the pinned vendor image")
+    version = vendor.get("fileVersion")
+    if type(version) is not int or version != VENDOR_RECOVERY_FILE_VERSION:
+        raise ReleasePlanError("preflight vendor recovery fileVersion is missing or not the pinned vendor version")
+    if type(candidate_file_version) is not int or not version < candidate_file_version:
+        raise ReleasePlanError(
+            "vendor recovery must be a strict downgrade from the candidate fileVersion"
+        )
+    return vendor
 
 
 def build_plan(
@@ -78,6 +104,11 @@ def build_plan(
         raise ReleasePlanError("preflight is not bound to these candidate bytes")
 
     recovery_planned = recovery_url is not None
+    vendor = (
+        _validated_vendor_recovery(preflight, sidecar.get("fileVersion"))
+        if recovery_planned
+        else None
+    )
     decision_ready = preflight.get("CANARY_DECISION_READY") is True and recovery_planned
     request = None
     if decision_ready:
@@ -88,8 +119,7 @@ def build_plan(
             "z2mVerifiesImageHash": False,
         }
     recovery_request = None
-    if recovery_planned:
-        vendor = preflight.get("vendorRecovery", {})
+    if vendor is not None:
         # The vendor image (0x28013001) is LOWER than the custom file version:
         # Zigbee2MQTT serves it only through the /downgrade topic variant.
         # The custom OTA client accepts the downgrade (WWAH off).
@@ -97,8 +127,8 @@ def build_plan(
             "topic": DOWNGRADE_TOPIC,
             "payload": {"id": TARGET_IEEE, "url": recovery_url},
             "isDowngrade": True,
-            "expectedServedSha512": vendor.get("sha512"),
-            "expectedFileVersion": vendor.get("fileVersion"),
+            "expectedServedSha512": vendor["sha512"],
+            "expectedFileVersion": vendor["fileVersion"],
             "z2mVerifiesImageHash": False,
         }
     return {

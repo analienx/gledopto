@@ -22,12 +22,8 @@ void glsd301p_rejoin_init(glsd301p_rejoin_t *rejoin)
     rejoin->steer_active_s = 0u;
     rejoin->steer_starts = 0u;
     rejoin->steer_failures = 0u;
-}
-
-static bool glsd301p_rejoin_is_steer_state(uint8_t state)
-{
-    return state == GLSD301P_REJOIN_STEERING ||
-           state == GLSD301P_REJOIN_STEER_WAIT;
+    rejoin->unjoined_idle_s = 0u;
+    rejoin->dormant = false;
 }
 
 /* Backoff for the n-th consecutive failure: 5 s << n, capped at 300 s. */
@@ -59,7 +55,7 @@ static void glsd301p_rejoin_enter_steer_wait(glsd301p_rejoin_t *rejoin)
 static bool glsd301p_rejoin_decide_attempt(glsd301p_rejoin_t *rejoin,
                                            bool factory_new)
 {
-    if (rejoin == NULL || factory_new) {
+    if (rejoin == NULL || factory_new || rejoin->dormant) {
         return false;
     }
     return rejoin->state == GLSD301P_REJOIN_IDLE;
@@ -94,10 +90,7 @@ bool glsd301p_rejoin_note_rejoin_failure(glsd301p_rejoin_t *rejoin,
         rejoin->failures = glsd301p_sat_inc_u32(rejoin->failures);
         return false;
     }
-    if (factory_new) {
-        return false;
-    }
-    return rejoin->state == GLSD301P_REJOIN_IDLE;
+    return glsd301p_rejoin_decide_attempt(rejoin, factory_new);
 }
 
 bool glsd301p_rejoin_note_init_failure(glsd301p_rejoin_t *rejoin,
@@ -115,7 +108,7 @@ bool glsd301p_rejoin_note_init_failure(glsd301p_rejoin_t *rejoin,
 
 bool glsd301p_rejoin_note_retry_fire(glsd301p_rejoin_t *rejoin)
 {
-    if (rejoin == NULL) {
+    if (rejoin == NULL || rejoin->dormant) {
         return false;
     }
     return rejoin->state == GLSD301P_REJOIN_RETRY_PENDING;
@@ -159,6 +152,8 @@ bool glsd301p_rejoin_note_joined(glsd301p_rejoin_t *rejoin, bool joined)
     rejoin->steer_backoff_exp = 0u;
     rejoin->steer_wait_s = 0u;
     rejoin->steer_active_s = 0u;
+    rejoin->unjoined_idle_s = 0u;
+    rejoin->dormant = false;
     if (edge) {
         rejoin->successes = glsd301p_sat_inc_u32(rejoin->successes);
     }
@@ -181,50 +176,79 @@ void glsd301p_rejoin_note_bdb_ready(glsd301p_rejoin_t *rejoin)
     }
 }
 
-bool glsd301p_rejoin_steer_tick(glsd301p_rejoin_t *rejoin, bool joined,
-                                bool factory_new)
+glsd301p_tick_t glsd301p_rejoin_tick(glsd301p_rejoin_t *rejoin, bool joined,
+                                     bool factory_new)
 {
     if (rejoin == NULL || !rejoin->bdb_ready) {
-        return false;
+        return GLSD301P_TICK_NONE;
     }
 
-    if (joined) {
-        /* Authoritative joined state ends any steering bookkeeping even if
-         * the commissioning callback was missed. Rejoin states belong to
-         * the callback reconciliation path and are left alone. */
-        if (glsd301p_rejoin_is_steer_state(rejoin->state)) {
-            (void)glsd301p_rejoin_note_joined(rejoin, true);
-        }
-        return false;
-    }
-
-    switch (rejoin->state) {
-    case GLSD301P_REJOIN_IDLE:
-        return factory_new;
-    case GLSD301P_REJOIN_STEER_WAIT:
-        if (!factory_new) {
-            /* Network state appeared without a join observation: hand the
-             * device back to the rejoin path, never steer over it. */
-            rejoin->state = GLSD301P_REJOIN_IDLE;
-            rejoin->steer_wait_s = 0u;
-            return false;
-        }
-        if (rejoin->steer_wait_s > 1u) {
-            rejoin->steer_wait_s--;
-            return false;
-        }
-        rejoin->steer_wait_s = 0u;
-        return true;
-    case GLSD301P_REJOIN_STEERING:
+    if (rejoin->state == GLSD301P_REJOIN_STEERING) {
+        /*
+         * Only a terminal commissioning status or the watchdog ends an
+         * accepted attempt: "joined" is already true while the TC link-key
+         * exchange runs, and that exchange can still fail and leave.
+         */
         if (rejoin->steer_active_s < 0xFFFFu) {
             rejoin->steer_active_s++;
         }
         if (rejoin->steer_active_s >= GLSD301P_STEER_ACTIVE_TIMEOUT_S) {
+            if (joined) {
+                /* The success callback was missed: reconcile to joined. */
+                (void)glsd301p_rejoin_note_joined(rejoin, true);
+                return GLSD301P_TICK_JOINED;
+            }
             glsd301p_rejoin_enter_steer_wait(rejoin);
         }
-        return false;
+        return GLSD301P_TICK_NONE;
+    }
+
+    if (joined) {
+        rejoin->unjoined_idle_s = 0u;
+        if (rejoin->state == GLSD301P_REJOIN_STEER_WAIT) {
+            (void)glsd301p_rejoin_note_joined(rejoin, true);
+            return GLSD301P_TICK_JOINED;
+        }
+        /* Rejoin states belong to the callback reconciliation path. */
+        return GLSD301P_TICK_NONE;
+    }
+
+    switch (rejoin->state) {
+    case GLSD301P_REJOIN_IDLE:
+        if (rejoin->dormant) {
+            rejoin->unjoined_idle_s = 0u;
+            return GLSD301P_TICK_NONE;
+        }
+        if (factory_new) {
+            rejoin->unjoined_idle_s = 0u;
+            return GLSD301P_TICK_STEER;
+        }
+        /* Stranded network state: kick a rejoin periodically. */
+        rejoin->unjoined_idle_s++;
+        if (rejoin->unjoined_idle_s < GLSD301P_UNJOINED_REJOIN_KICK_S) {
+            return GLSD301P_TICK_NONE;
+        }
+        rejoin->unjoined_idle_s = 0u;
+        return GLSD301P_TICK_REJOIN;
+    case GLSD301P_REJOIN_STEER_WAIT:
+        if (rejoin->dormant || !factory_new) {
+            /* Network state appeared without a join observation, or the
+             * device was removed: back to IDLE, never steer over it. */
+            rejoin->state = GLSD301P_REJOIN_IDLE;
+            rejoin->steer_wait_s = 0u;
+            rejoin->unjoined_idle_s = 0u;
+            return GLSD301P_TICK_NONE;
+        }
+        if (rejoin->steer_wait_s > 1u) {
+            rejoin->steer_wait_s--;
+            return GLSD301P_TICK_NONE;
+        }
+        rejoin->steer_wait_s = 0u;
+        return GLSD301P_TICK_STEER;
     default:
-        return false;
+        /* SDK_ACTIVE / RETRY_PENDING: owned by the callback/retry path. */
+        rejoin->unjoined_idle_s = 0u;
+        return GLSD301P_TICK_NONE;
     }
 }
 
@@ -263,4 +287,30 @@ void glsd301p_rejoin_request_steer_now(glsd301p_rejoin_t *rejoin)
     if (rejoin->state == GLSD301P_REJOIN_STEER_WAIT) {
         rejoin->steer_wait_s = 0u;
     }
+}
+
+void glsd301p_rejoin_note_removed(glsd301p_rejoin_t *rejoin)
+{
+    if (rejoin == NULL) {
+        return;
+    }
+    rejoin->dormant = true;
+    rejoin->last_joined = false;
+    rejoin->state = GLSD301P_REJOIN_IDLE;
+    rejoin->steer_wait_s = 0u;
+    rejoin->steer_active_s = 0u;
+    rejoin->unjoined_idle_s = 0u;
+}
+
+uint8_t glsd301p_rejoin_health_byte(const glsd301p_rejoin_t *rejoin)
+{
+    uint32_t failures;
+
+    if (rejoin == NULL) {
+        return 0u;
+    }
+    failures = rejoin->steer_failures > 15u ? 15u : rejoin->steer_failures;
+    return (uint8_t)((rejoin->state & 0x07u) |
+                     (rejoin->dormant ? 0x08u : 0x00u) |
+                     ((uint8_t)failures << 4));
 }

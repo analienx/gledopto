@@ -99,5 +99,5 @@ void glsd301p_health_snapshot(const glsd301p_health_t *health,
     glsd301p_health_put_u32(out + 40u, in->rejoin_successes);
     glsd301p_health_put_u16(out + 44u, in->exc_line);
     out[46] = in->exc_code;
-    out[47] = 0u;
+    out[47] = in->connectivity;
 }
