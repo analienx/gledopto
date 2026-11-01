@@ -160,8 +160,8 @@ fixed bytes can never be confused.
 | A6 | The 1 s event now carries recovery behaviour, but its registration result was discarded. | Fixed. Registration is retried from every BDB callback. |
 | A7 | The missed-callback reconciliation did not run the join side effects (OTA query). | Fixed. The tick returns `JOINED` → `stop_retry` + `glsd_note_joined()`. |
 | A8 | The release plan copied the vendor SHA-512 and fileVersion unchecked, so it could plan recovery with a null hash. | Fixed. A recovery request needs the pinned vendor SHA-512 and fileVersion and a strict downgrade. Six negative test variants. |
-| A9 | After a coordinator removal the device steered forever and re-joined on the next unrelated permit-join. | Fixed. It goes dormant until the gesture or a power cycle (see SAFETY.md). |
-| A10 | The steering counters and state were not observable on the device. | Fixed. Basic:0xFF10 byte 47 (formerly reserved, zero) carries the state, the dormant flag and steering failures; the decoder and fixtures were updated. |
+| A9 | After a coordinator removal the device steered forever and re-joined on the next unrelated permit-join. | **Withdrawn in round 3**: dormant removed (see the third review). |
+| A10 | The steering counters and state were not observable on the device. | Fixed. Basic:0xFF10 byte 47 (formerly reserved, zero) carries the state and steering failures (bit 3 reserved); the decoder and fixtures were updated. |
 
 `zb_factoryReset()` and the exact moment the stack becomes factory new are
 inside the binary-only `libzb_ed.a` and cannot be checked offline. A4 is
@@ -175,8 +175,8 @@ re-checked against the SDK source, and the fixes below came after the
 
 | # | Finding | Disposition |
 |---|---|---|
-| B1 | Any non-gesture own Leave outside steering made the device dormant, and dormant blocked rejoin. The Leave confirm carries no rejoin flag, so a Leave with rejoin=1 could strand a device that kept its network state. | Fixed. Dormant now only stops factory-new steering and never blocks a rejoin (parent-lost, retry, stranded kick). |
-| B2 | A real removal during STEERING (joined, before the success callback) was taken for BDB's TCLK Leave, so the device re-steered. | Fixed. `glsd301p_rejoin_note_own_leave()`: an own Leave during steering is a removal unless a terminal steering failure follows within 10 s. Steering is held in between. |
+| B1 | Any non-gesture own Leave outside steering made the device dormant, and dormant blocked rejoin. The Leave confirm carries no rejoin flag, so a Leave with rejoin=1 could strand a device that kept its network state. | Superseded in round 3: dormant removed. |
+| B2 | A real removal during STEERING (joined, before the success callback) was taken for BDB's TCLK Leave, so the device re-steered. | Superseded in round 3: dormant removed, no Leave classification. |
 | B3 | When the abort came from inside an `otaTimer` callback (`ota_ieeeAddrRspWait`), the OTA re-query did nothing: `ev_timer_exist` was still true, and the timer was unregistered right after. | Fixed. The re-query is deferred to the next 1 s tick (`g_ota_requery_pending`). |
 | B4 | When `ota_mcuReboot()` returned without switching (invalid image or failed flag write), the device was left with stale RAM transfer state. | Fixed. It reboots onto the current valid image (`glsd_arm_reboot(1u)`). |
 | B5 | SDK_ACTIVE had no exit if the stack's backoff stalled. | Fixed. A 900 s watchdog moves it to IDLE, and the stranded kick starts a fresh attempt. |
@@ -185,6 +185,39 @@ re-checked against the SDK source, and the fixes below came after the
 | B8 | A join reconciled by the tick left the health network state at JOINING. | Fixed. |
 | B9 | The docs implied the device retries an aborted recovery by itself, but Zigbee2MQTT only offers images on explicit requests. | Fixed: SAFETY.md and the comments corrected. The plan now records `abortedTransferRecovery = RESEND_SAME_REQUEST` and `deviceSelfRetriesRecovery = false`. |
 | B10 | STATUS.md still gave the old identity. | Fixed. |
+
+## Third independent review (`8b05a11..403df5a`)
+
+A third separate reviewer checked the round-2 fixes. The main result was a
+design conclusion. The "dormant after removal" behaviour (A9, then B1/B2)
+depended on telling Leave origins apart through event order and timing
+inside the closed `libzb_ed.a`. Each variant still had a path to a
+factory-new device that never steers again, and that conflicts with the
+project's primary goal of always being wirelessly recoverable. **Dormant is
+removed, and A9 is withdrawn.** A removed unit re-joins on the next
+permit-join, like most Zigbee devices; use the Zigbee2MQTT `blocklist` to
+keep it out. A CI gate now forbids any dormant/suppressed connectivity
+state.
+
+| # | Finding | Disposition |
+|---|---|---|
+| C1 | A BDB Leave confirm that arrived after `TCLK_EX_FAILURE` was taken for a removal, leaving the device permanently dormant. | Resolved by removing dormant. Only the gesture's Leave reboots; nothing else reacts to a Leave. |
+| C2 | Timing-window classification instead of `g_bdbCtx.leaveDoing`. | Moot: no classification is needed anymore. |
+| C3 | A real mid-commissioning removal could be "explained" by a later TCLK failure. | Moot: removal is not special-cased. |
+| C4 | The SDK can stay in DOWNLOAD_IN_PROGRESS without a completion event (`ota.c` buffer allocation failure), refusing every Image Notify. | Confirmed in source and fixed: a download with no offset progress for 300 s is aborted via the public `ota_upgradeAbort()`, which restores NORMAL and re-arms the query. CI gate added. |
+| C5 | The 900 s SDK_ACTIVE watchdog may restart a stack backoff that is still running. | Kept on purpose. Whether the stack backoff ever ends is decided inside the closed library. The worst case of the watchdog is a refused start retried every 5 s, which is harmless; the worst case without it is a stranded device. |
+| C6 | RETRY_PENDING/SDK_ACTIVE never yield to steering if the device became factory new. | Fixed: both states hand over to steering on a factory-new device. Tests added. |
+| C7 | Use `TL_SCHEDULE_TASK` instead of the re-query flag. | Not adopted: the repo avoids pooled SDK scheduling; the flag runs on the owned 1 s event. |
+| C8 | Redundant `CUSTOM_FILE_VERSION` check in the release plan (`validate_ota` already pins it). | Removed. |
+| C9 | The plan reported `candidate.fileVersion` from the sidecar, not from the header. | Fixed: it reports the header value. |
+
+### Hosted CI and reproducibility for the round-2 fixes (head `403df5a`, superseded)
+
+- All three workflows PASS on `403df5a`. The PR run 41314781628 and the
+  dispatch rebuild 41314899611 are byte-identical:
+  `glsd301p-ed.final.bin` is 142 340 bytes, `fileVersion=0x7f080001`,
+  SHA-256 `b4dd0c91d89b47c94a782008e2fad1aadf742de4e8e4c681cde0e4d7b7fc1e83`,
+  SHA-512 `ab15e663…d35c1889`.
 
 ### Hosted CI and reproducibility for the round-1 fixes (head `8b05a11`, superseded)
 

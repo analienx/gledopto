@@ -100,27 +100,28 @@ itself, so the application owns it:
   60 s. An accepted rejoin that still has not joined after 15 min is
   abandoned, and that kick starts a fresh one, so a stalled stack backoff
   cannot keep the device off the network.
-- **Leave.** Only the reset gesture reboots. For any other own Leave:
-  - during steering, it is first assumed to be BDB's own Leave after a
-    failed link-key exchange. If `TCLK_EX_FAILURE` follows within 10 s,
-    steering backs off normally. Otherwise it was a removal. Steering is
-    held during those 10 s;
-  - outside steering, the coordinator removed the device (Zigbee2MQTT
-    "remove").
-  A removal makes the device **dormant**: no factory-new steering until the
-  reset gesture or a power cycle, so a removed device does not re-join the
-  next time permit-join is opened for something else. Dormant **never
-  blocks a rejoin**: the Leave confirm does not say whether rejoin was
-  requested, and a device that kept its network state must always get back
-  on. Local PUSH control keeps working while dormant.
+- **Rejoin states on a factory-new device.** A rejoin attempt (active or
+  waiting to retry) on a device whose network state is gone can never
+  succeed, so it hands over to steering.
+- **Leave.** Only the reset gesture's Leave reboots. Any other own Leave
+  needs no special handling, whether it is BDB's own after a failed
+  link-key exchange, a coordinator removal (Zigbee2MQTT "remove"), or a
+  Leave with rejoin. A factory-new device steers again (with its RAM
+  backoff intact), and one that kept its network state rejoins.
+  **Consequence:** like most Zigbee devices, a removed unit re-joins the
+  next time permit-join is opened. To keep it out, power it off or add its
+  IEEE address to the Zigbee2MQTT `blocklist`. Three review rounds showed
+  that every "stay quiet after removal" variant also created a path where
+  the device never comes back by itself, which would forfeit the vendor
+  OTA recovery, so there is deliberately none.
 - **Reset gesture.** Ten short PUSH activations, each at most 1000 ms after the
   previous one, request a network reset. No rejoin is started during the
   reboot countdown. Joined: `zb_factoryReset()`
   (broadcast Leave) and a reboot within 10 s (2 s after the Leave confirm).
-  Not joined or dormant: a reboot after 1 s. Before that reboot, if the stack
+  Not joined: a reboot after 1 s. Before that reboot, if the stack
   still reports network state, the SDK's `nv_resetToFactoryNew()` clears it
   (the outgoing NWK frame counter is kept), so the device always boots
-  factory new and steers. On an already factory-new, non-dormant device the
+  factory new and steers. On an already factory-new device the
   gesture only restarts steering immediately. A hold (dimming) or a longer
   pause restarts the count; each press still toggles the output normally.
 - **OTA query.** After every join the OTA client queries the server every
@@ -131,10 +132,13 @@ itself, so the application owns it:
   device never retries a recovery by itself. If the SDK refuses to switch to
   a fully received image (invalid image or failed boot-flag write), the
   device reboots onto its current image so no stale RAM transfer state
-  survives.
+  survives. A download whose offset makes no progress for 300 s is aborted
+  through the SDK's `ota_upgradeAbort()`: the SDK can otherwise stay in
+  "download in progress" for good (e.g. a failed buffer allocation) and
+  refuse every later Image Notify, which would block the recovery.
 - **Observability.** Basic:0xFF10 byte 47 reports the connectivity state
   (idle / rejoin active / rejoin retry pending / steering / steering
-  backoff), the dormant flag and the steering-failure count (saturating
+  backoff) and the steering-failure count (saturating
   at 15).
 
 Re-joining a factory-new device requires Zigbee2MQTT permit-join. It then

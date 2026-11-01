@@ -1,5 +1,16 @@
 # STATUS — GL-SD-301P
 
+## 2026-11-01 (latest) — third review round: "dormant" withdrawn
+
+A third independent review showed that every way of keeping a removed unit
+quiet also created a path where it never comes back on its own. Dormant is
+gone, and a CI gate forbids it. A removed unit re-joins on the next
+permit-join; use the Zigbee2MQTT `blocklist` to keep it out. Also added:
+an OTA download-stall abort (300 s without progress) and rejoin-to-steering
+handover on a factory-new device. Identity unchanged (`GLSD-ED-007`,
+`0x7F080001`, never flashed); bind to the exact image hash in the review
+record.
+
 ## 2026-11-01 (later) — two independent acceptance review rounds, fixes in
 
 The over-the-air identity is now **`GLSD-ED-007`, APP_BUILD `0x08`,

@@ -219,10 +219,15 @@ require_source 'ota_queryStart\(GLSD301P_OTA_QUERY_INTERVAL_S\)' 'OTA query afte
 # (TCLK settle window, dormant never blocks rejoin); OTA re-query is
 # deferred out of the OTA timer callback; a refused image switch reboots;
 # no rejoin starts during the gesture's reboot countdown.
-require_source 'glsd301p_rejoin_note_own_leave\(&g_rejoin\)' 'own Leave origin decided by the rejoin module'
-if grep -Eq 'glsd301p_rejoin_note_removed\(&g_rejoin\)' "$TARGET_SRC"; then
-  echo 'ERROR: target must not force dormant directly; use note_own_leave' >&2; exit 1
+# Third review: no "dormant" state of any kind -- every variant could
+# strand the device. Only the gesture's Leave reboots.
+if grep -Eqi 'dormant' "$TARGET_SRC" "$ROOT/src/glsd301p_rejoin.c"; then
+  echo 'ERROR: dormant/suppressed connectivity states are forbidden (recovery must stay reachable)' >&2; exit 1
 fi
+[[ "$(grep -c 'ota_upgradeAbort()' "$TARGET_SRC")" -eq 1 ]] || {
+  echo 'ERROR: OTA download stall watchdog (single ota_upgradeAbort site) missing' >&2; exit 1;
+}
+require_source 'zcl_attr_imageUpgradeStatus == IMAGE_UPGRADE_STATUS_DOWNLOAD_IN_PROGRESS' 'OTA stall watchdog keyed on download state'
 require_source 'g_ota_requery_pending = true;' 'OTA re-query deferred out of the OTA callback'
 require_source 'glsd_arm_reboot\(1u\);' 'reboot after refused OTA image switch'
 [[ "$(grep -c 'if (g_reset_to_fn) {' "$TARGET_SRC")" -ge 2 ]] || {
@@ -243,7 +248,8 @@ if grep -q 'ACCESS_CONTROL_WRITE, (u8 \*)&g_startup' "$TARGET_SRC"; then
 fi
 echo 'TARGET_FACTORY_NEW_COMMISSIONING=PASS'
 echo 'TARGET_RESET_GESTURE_AND_LEAVE_REBOOT=PASS'
-echo 'TARGET_LEAVE_ORIGIN_AND_DORMANT=PASS'
+echo 'TARGET_LEAVE_ONLY_GESTURE_REBOOTS_NO_DORMANT=PASS'
+echo 'TARGET_OTA_STALL_WATCHDOG=PASS'
 echo 'TARGET_OTA_QUERY_REARM_AFTER_FAILURE=PASS'
 
 echo 'TARGET_ADC_FLASH_SAFETY_PIN_GPIO_PB3=PASS'

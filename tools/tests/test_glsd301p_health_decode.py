@@ -82,11 +82,10 @@ class HealthDecodeTests(unittest.TestCase):
         self.assertEqual(decoded["exc_line"], 0xBEEF)
         self.assertTrue(decoded["flags"]["boot_off_complete"])
         self.assertFalse(decoded["flags"]["uart_busy"])
-        # Byte 47 mirrors the C layout test: steering, dormant, 3 failures.
-        self.assertEqual(decoded["connectivity_raw"], 0x3B)
+        # Byte 47 mirrors the C layout test: steering, 3 failures.
+        self.assertEqual(decoded["connectivity_raw"], 0x33)
         self.assertEqual(decoded["connectivity"],
-                         {"state": "steering", "dormant": True,
-                          "steer_failures": 3})
+                         {"state": "steering", "steer_failures": 3})
 
     def test_unknown_connectivity_state_is_reported_not_rejected(self) -> None:
         raw = bytearray(bytes.fromhex(load_fixture("boot_defaults.json")["hex"]))

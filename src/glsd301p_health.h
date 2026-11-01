@@ -43,7 +43,7 @@ extern "C" {
  *  46  u8   SDK exception code
  *  47  u8   connectivity: bits 0-2 state (0 idle, 1 rejoin active,
  *               2 rejoin retry pending, 3 steering, 4 steering backoff),
- *               bit 3 dormant (removed by coordinator), bits 4-7
+ *               bit 3 reserved (0), bits 4-7
  *               steering failures saturated at 15; 0 at boot
  */
 

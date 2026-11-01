@@ -12,7 +12,6 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 from glsd301p_final_preflight import (
-    CUSTOM_FILE_VERSION,
     VENDOR_RECOVERY_FILE_VERSION,
     VENDOR_RECOVERY_SHA512,
 )
@@ -109,8 +108,6 @@ def build_plan(
         header_version = validate_ota(data)["fileVersion"]
     except EndDeviceOtaError as exc:
         raise ReleasePlanError(f"candidate is not a valid End Device OTA: {exc}") from exc
-    if header_version != CUSTOM_FILE_VERSION:
-        raise ReleasePlanError("candidate OTA header fileVersion is not the allocated custom version")
     for name, declared in (
         ("sidecar", sidecar.get("fileVersion")),
         ("preflight", preflight.get("candidate", {}).get("fileVersion")),
@@ -158,7 +155,7 @@ def build_plan(
             "sha256": digest256,
             "sha512": digest512,
             "sourceHead": sidecar.get("sourceHead"),
-            "fileVersion": sidecar.get("fileVersion"),
+            "fileVersion": header_version,
         },
         "softwarePreflightPass": preflight.get("SOFTWARE_PREFLIGHT_PASS") is True,
         "canaryDecisionReady": decision_ready,
