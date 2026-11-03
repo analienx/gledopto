@@ -1,3 +1,11 @@
+> [!CAUTION]
+> ## ⛔ CRITICAL — DO NOT FLASH THIS FIRMWARE
+> **Current experimental GL-SD-301P firmware is NOT safe to flash or deploy.** A real-device flash has left **Zigbee functionality completely non-operational** (no Zigbee connectivity/control). **The physical PUSH/button control continues to work**, so the device is not completely electrically dead, but its Zigbee firmware/functionality is effectively **soft-bricked**.
+>
+> **Recovery requires a physical wired flashing/programming connection.** **Do not rely on Zigbee OTA recovery** when Zigbee is no longer operational. Do not flash any candidate binary, OTA wrapper, release artifact, or development build from this project to a device.
+>
+> **STATUS: HARDWARE FAILURE OBSERVED · FLASHING BLOCKED · NO PUBLIC/PRODUCTION RELEASE.** Treat previous green CI/software checks as *build/test results only*, **not proof of device safety**. Flashing stays prohibited until root cause is identified, a corrected build is independently validated on recoverable bench hardware, and the warning is explicitly lifted.
+
 <div align="center">
 
 # Gledopto firmware lab
@@ -6,10 +14,10 @@
 
 **Clean-room firmware, hardware interoperability research, and tooling for turning compatible mains-powered GLEDOPTO/Telink devices from Zigbee routers into always-awake End Devices (leaf nodes) — without giving up normal lighting control.**
 
-![Status](https://img.shields.io/badge/GL--SD--301P-software%20gate%20green-brightgreen)
+![Status](https://img.shields.io/badge/GL--SD--301P-DO%20NOT%20FLASH-critical)
 ![Zigbee](https://img.shields.io/badge/Zigbee-RX--on--idle%20End%20Device-blue)
 ![MCU](https://img.shields.io/badge/Telink-TLSR8258-orange)
-![Stage](https://img.shields.io/badge/live%20canary-pending-yellow)
+![Stage](https://img.shields.io/badge/live%20canary-failed-red)
 
 </div>
 
@@ -74,10 +82,10 @@ flowchart LR
 | Host interoperability tests | **PASS** |
 | Safety/adversarial checks | **PASS** |
 | Reproducible quarantined firmware | **PASS** |
-| Single-device live canary | **Pending** |
-| General/public OTA release | **Not authorized** |
+| Single-device live canary | **FAILED — Zigbee non-operational after flash** |
+| General/public OTA release | **BLOCKED — DO NOT FLASH** |
 
-The current frozen software candidate is tracked in **PR #6**. Its software gate is green; successful behavior on the physical production device still requires the controlled canary and post-flash validation. Do not interpret a green CI build as a blanket recommendation to flash hardware.
+The previously frozen software candidate is tracked in **PR #6**. **Subsequent hardware flashing exposed a critical failure: the Zigbee subsystem stopped working.** Physical PUSH operation remains functional, but **wired programming is required for recovery**. The earlier green software gate is historical evidence only and **must not be used to authorize flashing**. All experimental firmware flashing and OTA distribution are suspended pending diagnosis, remediation, and independently verified recovery.
 
 ## Why this may be useful beyond one dimmer
 
