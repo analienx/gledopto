@@ -60,7 +60,7 @@ flowchart LR
     B[Physical PUSH input] --> Z
 ```
 
-### What the candidate preserves
+### What the candidate is intended to preserve (not currently validated on hardware)
 
 - Zigbee On/Off and Level Control
 - physical PUSH control
@@ -110,6 +110,7 @@ This repository is deliberately evidence-driven. It contains more than firmware 
 - [`tools/`](tools/) — firmware/static-analysis and validation tooling
 - [`.github/workflows/`](.github/workflows/) — reproducible analysis/build gates
 - [`AGENTS.md`](AGENTS.md) — automation/supervisor operating constraints
+- [Critical incident #9](https://github.com/analienx/gledopto/issues/9) — **active DO NOT FLASH alert and recovery investigation**
 - [Issue #1](https://github.com/analienx/gledopto/issues/1) — the detailed GL-SD-301P engineering ledger
 - [PR #6](https://github.com/analienx/gledopto/pull/6) — current clean-room End Device implementation and safety-gated build
 
