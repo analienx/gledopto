@@ -1,5 +1,14 @@
 # GL-SD-301P — device ledger
 
+> [!CAUTION]
+> ## ⛔ CRITICAL — DO NOT FLASH THIS FIRMWARE
+> **Current experimental GL-SD-301P firmware is NOT safe to flash or deploy.** A real-device flash has left **Zigbee functionality completely non-operational** (no Zigbee connectivity/control). **The physical PUSH/button control continues to work**, so the device is not completely electrically dead, but its Zigbee firmware/functionality is effectively **soft-bricked**.
+>
+> **Recovery requires a physical wired flashing/programming connection.** **Do not rely on Zigbee OTA recovery** when Zigbee is no longer operational. Do not flash any candidate binary, OTA wrapper, release artifact, or development build from this project to a device.
+>
+> **STATUS: HARDWARE FAILURE OBSERVED · FLASHING BLOCKED · NO PUBLIC/PRODUCTION RELEASE.** Treat previous green CI/software checks as *build/test results only*, **not proof of device safety**. Flashing stays prohibited until root cause is identified, a corrected build is independently validated on recoverable bench hardware, and the warning is explicitly lifted.
+
+
 GLEDOPTO GL-SD-301P Zigbee triac AC dimmer, mains powered.
 
 ## Production unit
@@ -35,7 +44,7 @@ track             PRODUCTION_ONLY_NO_SPARE
 
 ## Independent End Device candidate
 
-The current safety-reviewed candidate is PR #6 at exact head:
+The **historical software-reviewed candidate — NOW UNSAFE TO FLASH** — is PR #6 at exact head:
 
 ```text
 760c141925f29e517831c92afd61bd9c15e1b7b5
@@ -81,19 +90,20 @@ Frozen quarantined OTA wrapper SHA-256:
 43e6996fb55dd5569f450117ac430b8dd11d35f23a878b4680439f84b65c899b
 ```
 
-## Current gate
+## Current gate — flashing suspended
 
 ```text
-SOFTWARE_GATE            = GREEN
-SAFETY_SWEEP_BLOCKERS    = CLOSED
-CANARY_DECISION_READY    = YES
-LIVE_DEVICE_VALIDATED    = NO
-GENERAL_RELEASE          = NO
+SOFTWARE_GATE            = HISTORICAL_GREEN_ONLY
+SAFETY_SWEEP_BLOCKERS    = HARDWARE_FAILURE_OPEN
+CANARY_DECISION_READY    = NO
+LIVE_DEVICE_VALIDATED    = FAILED_ZIGBEE_NON_OPERATIONAL
+PHYSICAL_PUSH           = STILL_FUNCTIONAL
+RECOVERY                = WIRED_FLASH_REQUIRED
+FLASH_AUTHORIZATION     = REVOKED_DO_NOT_FLASH
+GENERAL_RELEASE         = BLOCKED
 ```
 
-The remaining proof is hardware/runtime validation on the exact production
-device under the latest bounded authorization in issue #1. Green CI is not
-equivalent to a successful live conversion.
+**Post-flash hardware failure has been observed.** Zigbee functions are non-operational; the physical PUSH control still works. Recovery requires a wired programming connection. Earlier software-green results and prior canary-readiness language are superseded by this incident. **No OTA, wired deployment of the uncorrected firmware, or further live canary is authorized.** Root-cause analysis, recoverable bench-device validation, and a new explicit safety decision are required before the gate can reopen.
 
 Canonical clean-room interface and safety documentation live alongside the
 candidate branch/PR. Status history: `STATUS.md`. Evidence: repo `evidence/`
