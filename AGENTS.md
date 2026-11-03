@@ -1,5 +1,13 @@
 # Agent instructions — `analienx/gledopto`
 
+## EMERGENCY FLASH BAN — 2026-11-03
+
+> [!CAUTION]
+> **DO NOT FLASH THE CURRENT GL-SD-301P FIRMWARE — ZIGBEE FAILURE OBSERVED ON HARDWARE.** The flashed device lost all Zigbee functionality although local physical PUSH/buttons still work. **Wired physical programming is required for recovery**; Zigbee OTA is not a viable recovery method while Zigbee is down. See [critical incident #9](https://github.com/analienx/gledopto/issues/9).
+
+**Mandatory agent/operator stop:** Do not initiate, schedule, recommend, authorize, automate, package as release-ready, or retry an OTA or wired deployment of the present firmware candidate. Historical GREEN software/CI status or prior canary authorization is superseded. Work may continue on read-only diagnostics, root-cause research, offline fixes and isolated software tests. No hardware flashing until corrected firmware and a recoverable bench validation are independently documented and a new explicit authorization is recorded.
+
+
 ## Source locality
 
 This is a LOCAL checkout. Canonical Supervisor ↔ Executor authority is the
