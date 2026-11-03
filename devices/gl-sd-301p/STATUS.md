@@ -1,5 +1,24 @@
 # STATUS — GL-SD-301P
 
+> [!CAUTION]
+> ## ⛔ CRITICAL — DO NOT FLASH THIS FIRMWARE
+> **Current experimental GL-SD-301P firmware is NOT safe to flash or deploy.** A real-device flash has left **Zigbee functionality completely non-operational** (no Zigbee connectivity/control). **The physical PUSH/button control continues to work**, so the device is not completely electrically dead, but its Zigbee firmware/functionality is effectively **soft-bricked**.
+>
+> **Recovery requires a physical wired flashing/programming connection.** **Do not rely on Zigbee OTA recovery** when Zigbee is no longer operational. Do not flash any candidate binary, OTA wrapper, release artifact, or development build from this project to a device.
+>
+> **STATUS: HARDWARE FAILURE OBSERVED · FLASHING BLOCKED · NO PUBLIC/PRODUCTION RELEASE.** Treat previous green CI/software checks as *build/test results only*, **not proof of device safety**. Flashing stays prohibited until root cause is identified, a corrected build is independently validated on recoverable bench hardware, and the warning is explicitly lifted.
+
+## 2026-11-03 — critical Zigbee flashing failure; firmware deployment STOP
+
+- **Observed:** after flashing the experimental firmware, Zigbee functionality ceased (no Zigbee communication/control).
+- **Still works:** local physical PUSH/button control.
+- **Recovery:** a physical wired firmware flash/programming connection is required; OTA is not a viable recovery route while Zigbee is nonfunctional.
+- **Decision:** immediately block all flashing, OTA distribution and production claims for the current firmware. Earlier green software/CI gates and canary readiness are superseded by observed hardware failure.
+- **Exit criteria:** identify root cause; demonstrate restore/recovery with a wired connection; fix and independently test the candidate on recoverable bench hardware; explicitly re-authorize any hardware canary. Do **not** assume recovery has already succeeded.
+
+---
+
+
 ## 2026-09-18 — execution model and durable project state reconciled
 
 The project now follows Supervisor ↔ Executor protocol 2.2 execution
