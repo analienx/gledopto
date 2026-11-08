@@ -102,6 +102,39 @@ class StockRecoveryTests(unittest.TestCase):
                 )
             process.assert_not_called()
 
+    def test_two_phase_activation_rejected_after_failed_stage(self):
+        with patch.object(recovery, "prepare", return_value={
+            "stagedOutput": "safe-stage.bin",
+            "activationOutput": "marker.bin",
+        }), patch.object(recovery, "get_programmer", return_value=Path("flasher.py")), \
+             patch.dict(sys.modules, {"serial": object()}), \
+             patch.object(recovery.subprocess, "run",
+                          return_value=type("R", (), {"returncode": 1})()) as run:
+            with self.assertRaises(recovery.RecoveryError):
+                recovery.flash(port="COM3", output=Path("stock.bin"),
+                               programmer=None, activate_ms=0,
+                               confirmation="WRITE_STOCK_BANK_A")
+            run.assert_called_once()
+            self.assertEqual(run.call_args.args[0][-3:],
+                             ["wf", "0x00000", "safe-stage.bin"])
+
+    def test_two_phase_activation_uses_no_erase_for_marker(self):
+        with patch.object(recovery, "prepare", return_value={
+            "stagedOutput": "safe-stage.bin",
+            "activationOutput": "marker.bin",
+        }), patch.object(recovery, "get_programmer", return_value=Path("flasher.py")), \
+             patch.dict(sys.modules, {"serial": object()}), \
+             patch.object(recovery.subprocess, "run",
+                          return_value=type("R", (), {"returncode": 0})()) as run:
+            recovery.flash(port="COM3", output=Path("stock.bin"),
+                           programmer=None, activate_ms=0,
+                           confirmation="WRITE_STOCK_BANK_A")
+            self.assertEqual(run.call_count, 2)
+            self.assertEqual(run.call_args_list[0].args[0][-3:],
+                             ["wf", "0x00000", "safe-stage.bin"])
+            self.assertEqual(run.call_args_list[1].args[0][-3:],
+                             ["we", "0x00008", "marker.bin"])
+
     def test_no_raw_ota_passed_to_programmer(self):
         self.assertEqual(recovery.BANK_A_START, 0)
         self.assertEqual(recovery.NV_A_START, recovery.BANK_A_END)
@@ -135,6 +168,14 @@ class StockRecoveryTests(unittest.TestCase):
             )
             self.assertEqual(out.read_bytes()[8:12], b"KNLT")
             self.assertTrue(out.with_suffix(".json").exists())
+            stage = out.with_name(out.stem + "-stage.bin").read_bytes()
+            marker = out.with_name(out.stem + "-activate.bin").read_bytes()
+            self.assertEqual(stage[8], 0xff)
+            self.assertEqual(stage[9:12], b"NLT")
+            self.assertEqual(stage[:8] + stage[9:], out.read_bytes()[:8] + out.read_bytes()[9:])
+            self.assertEqual(marker, b"K")
+            self.assertEqual(report["activationAddress"], "0x00008")
+            self.assertLessEqual(int(report["eraseEndExclusive"], 16), 0x34000)
         self.assertEqual(recovery.VENDOR_OTA.read_bytes(), original_before)
 
 
