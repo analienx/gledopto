@@ -43,6 +43,12 @@ jobs:
           img = Path(os.environ["IMAGE"]).read_bytes()
           end = (len(img) + 4095) & ~4095
           assert img[8:12] == b"KNLT"
+          stage = Path(os.environ["IMAGE"]).with_name("glsd301p-stock-bank-a-stage.bin").read_bytes()
+          activation = Path(os.environ["IMAGE"]).with_name("glsd301p-stock-bank-a-activate.bin").read_bytes()
+          assert len(stage) == len(img)
+          assert stage[8:12] == bytes.fromhex("ff4e4c54")
+          assert stage[:8] + stage[9:] == img[:8] + img[9:]
+          assert activation == b"K"
           assert 0 < end <= 0x34000 < 0x40000 < 0x76000
-          print(f"STOCK_RECOVERY_OFFLINE=PASS image={len(img)} erase_end=0x{end:x}")
+          print(f"STOCK_RECOVERY_TWO_PHASE=PASS image={len(img)} erase_end=0x{end:x} stage=inert activation=4b")
           PY
