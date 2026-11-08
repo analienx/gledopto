@@ -1,0 +1,48 @@
+name: GL-SD-301P stock SWire recovery validation (offline only)
+
+on:
+  push:
+    branches:
+      - recovery/glsd301p-stock-swire-20261108
+    paths:
+      - "tools/glsd301p_stock_swire_recovery.py"
+      - "tools/telink_app_finalize.py"
+      - "tools/tests/test_glsd301p_stock_swire_recovery.py"
+      - "devices/gl-sd-301p/vendor-firmware/**"
+      - ".github/workflows/glsd301p-stock-recovery.yml"
+  pull_request:
+    paths:
+      - "tools/glsd301p_stock_swire_recovery.py"
+      - "tools/telink_app_finalize.py"
+      - "tools/tests/test_glsd301p_stock_swire_recovery.py"
+      - "devices/gl-sd-301p/vendor-firmware/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate-stock-only-no-hardware:
+    name: Verify original stock OTA and bank-A write bounds
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Offline extraction, corruption and programmer-guard tests
+        run: python -m unittest discover -s tools/tests -p "test_glsd301p_stock_swire_recovery.py" -v
+      - name: Prepare exact historical vendor stock app (no serial/USB)
+        run: python tools/glsd301p_stock_swire_recovery.py prepare --output "$RUNNER_TEMP/glsd301p-stock-bank-a.bin"
+      - name: Assert sector-rounded writes cannot touch NV or MAC
+        run: |
+          export IMAGE="$RUNNER_TEMP/glsd301p-stock-bank-a.bin"
+          python - <<'PY'
+          import os
+          from pathlib import Path
+          img = Path(os.environ["IMAGE"]).read_bytes()
+          end = (len(img) + 4095) & ~4095
+          assert img[8:12] == b"KNLT"
+          assert 0 < end <= 0x34000 < 0x40000 < 0x76000
+          print(f"STOCK_RECOVERY_OFFLINE=PASS image={len(img)} erase_end=0x{end:x}")
+          PY
