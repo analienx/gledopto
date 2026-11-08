@@ -148,6 +148,36 @@ class TxOnlyProtocolTests(unittest.TestCase):
                 self.assertEqual(writer.return_value.stage.call_count, 1)
                 self.assertEqual(writer.return_value.activate_stock.call_count, 1)
 
+    def test_offline_zip_bundle_without_checkout_and_corruption(self):
+        with tempfile.TemporaryDirectory() as td:
+            directory = Path(td)
+            # These originate from the real pinned vendor original, and
+            # have to match the hashes expected from the GH Actions ZIP.
+            report, staged, activation = tx.prepare_payload(directory / tx.STOCK_FILE)
+            (directory / tx.STAGE_FILE).write_bytes(staged)
+            (directory / tx.ACTIVATION_FILE).write_bytes(activation)
+            (directory / tx.REPORT_FILE).write_text(json.dumps(report))
+            recovered, got_stage, got_activation = tx.prepare_artifact_bundle(directory)
+            self.assertEqual(recovered["sourceSha256"], tx.ORIGINAL_SOURCE_SHA256)
+            self.assertEqual(got_stage, staged)
+            self.assertEqual(got_activation, b"K")
+            broken = bytearray(staged)
+            broken[4000] ^= 0x01
+            (directory / tx.STAGE_FILE).write_bytes(broken)
+            with self.assertRaisesRegex(RecoveryError, "fail pinned"):
+                tx.prepare_artifact_bundle(directory)
+
+    def test_offline_bundle_requires_manifest_and_valid_app_crc(self):
+        with tempfile.TemporaryDirectory() as td:
+            directory = Path(td)
+            report, staged, activation = tx.prepare_payload(directory / tx.STOCK_FILE)
+            (directory / tx.STAGE_FILE).write_bytes(staged)
+            (directory / tx.ACTIVATION_FILE).write_bytes(activation)
+            report["sourceSha256"] = "wrong"
+            (directory / tx.REPORT_FILE).write_text(json.dumps(report))
+            with self.assertRaisesRegex(RecoveryError, "manifest mismatches"):
+                tx.prepare_artifact_bundle(directory)
+
     def test_prepare_actual_vendor_staged_image_on_host(self):
         with tempfile.TemporaryDirectory() as td:
             report, stage, act = tx.prepare_payload(Path(td)/"stock.bin")
