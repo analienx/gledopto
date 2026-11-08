@@ -52,3 +52,41 @@ jobs:
           assert 0 < end <= 0x34000 < 0x40000 < 0x76000
           print(f"STOCK_RECOVERY_TWO_PHASE=PASS image={len(img)} erase_end=0x{end:x} stage=inert activation=4b")
           PY
+      - name: Create checksum manifest for recovery files
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP"
+          sha256sum \
+            glsd301p-stock-bank-a.bin \
+            glsd301p-stock-bank-a-stage.bin \
+            glsd301p-stock-bank-a-activate.bin \
+            glsd301p-stock-bank-a.json > SHA256SUMS
+          python - <<'PY'
+          import hashlib, json, os
+          from pathlib import Path
+          root = Path(os.environ["RUNNER_TEMP"])
+          report = json.loads((root / "glsd301p-stock-bank-a.json").read_text())
+          for key, name in [
+              ("applicationSha256", "glsd301p-stock-bank-a.bin"),
+              ("stagedSha256", "glsd301p-stock-bank-a-stage.bin"),
+          ]:
+              actual = hashlib.sha256((root / name).read_bytes()).hexdigest()
+              assert actual == report[key], f"{name} SHA mismatch"
+          assert (root / "glsd301p-stock-bank-a-activate.bin").read_bytes() == b"K"
+          assert report["sourceSha256"] == "16595a38ab9783d3afc4eb58ab4ec32625249bd569c1fa6dbaf468bddc76dd72"
+          print("STOCK_RECOVERY_ARTIFACTS=PASS all checksums verified")
+          PY
+      - name: Upload validated stock SWire recovery BINs
+        uses: actions/upload-artifact@v4
+        with:
+          name: glsd301p-stock-swire-recovery-${{ github.sha }}
+          if-no-files-found: error
+          retention-days: 14
+          compression-level: 0
+          path: |
+            ${{ runner.temp }}/glsd301p-stock-bank-a.bin
+            ${{ runner.temp }}/glsd301p-stock-bank-a-stage.bin
+            ${{ runner.temp }}/glsd301p-stock-bank-a-activate.bin
+            ${{ runner.temp }}/glsd301p-stock-bank-a.json
+            ${{ runner.temp }}/SHA256SUMS
