@@ -143,6 +143,20 @@ def prepare(output: Path = DEFAULT_OUTPUT,
         raise RecoveryError(f"refusing to overwrite different local file: {output}")
     if not output.exists():
         output.write_bytes(app)
+    # Stage the complete application with invalid bank-A boot marker (0xFF).
+    # Only after the complete stage has been programmed do we clear bits in
+    # that one byte to 0x4B, enabling the valid TLNK boot marker atomically.
+    if app[8:12] != b"KNLT":
+        raise RecoveryError("unexpected stock startup marker")
+    staged = bytearray(app)
+    staged[8] = 0xFF
+    stage_path = output.with_name(output.stem + "-stage.bin")
+    activate_path = output.with_name(output.stem + "-activate.bin")
+    for file_path, payload in ((stage_path, bytes(staged)), (activate_path, b"K")):
+        if file_path.exists() and file_path.read_bytes() != payload:
+            raise RecoveryError(f"refusing to overwrite different local file: {file_path}")
+        if not file_path.exists():
+            file_path.write_bytes(payload)
     erase_end = (len(app) + FLASH_SECTOR_SIZE - 1) & ~(FLASH_SECTOR_SIZE - 1)
     report = {
         "device": "GL-SD-301P",
@@ -160,6 +174,13 @@ def prepare(output: Path = DEFAULT_OUTPUT,
         "readbackVerified": False,
         "stockZigbeeInterviewVerified": False,
         "output": str(output),
+        "stagedOutput": str(stage_path),
+        "stagedSha256": sha256(bytes(staged)),
+        "stagedBootMarker": "ff4e4c54",
+        "activationOutput": str(activate_path),
+        "activationAddress": "0x00008",
+        "activationByte": "4b",
+        "writeAlgorithm": "two-phase: wf bank A with inactive marker; we 0x00008 one byte",
     }
     output.with_suffix(".json").write_text(
         json.dumps(report, indent=2, sort_keys=True) + "\n",
@@ -215,6 +236,9 @@ def flash(*, port: str, output: Path, programmer: Path | None,
         "and safe programmer reset/RTS wiring BEFORE connecting USB.\n"
         "DO NOT connect the USB programmer while the dimmer is on 230 V.\n"
         "No full-chip erase. Only stock app bank A is sector-written.\n"
+        "PHASE 1 writes bank A with INVALID marker 0xFF; PHASE 2 changes\n"
+        "ONLY the startup marker at 0x00008 from FF to 4B (no erase).\n"
+        "A failed PHASE 1 must NEVER be followed by PHASE 2.\n"
         "This cannot verify the write by readback. It requires live Zigbee\n"
         "interview after fully disconnecting programmer and safe reassembly.\n"
     )
@@ -231,19 +255,28 @@ def flash(*, port: str, output: Path, programmer: Path | None,
     except ImportError as exc:
         raise RecoveryError("pyserial missing: python -m pip install pyserial") from exc
     program = get_programmer(programmer, REPO / "local-recovery/tools")
-    # Fixed address=0 and command=wf: never expose 'ea' / arbitrary regions.
-    command = [
+    # Two-phase activation: flash *invalid* bank A first, then program only
+    # the 1->0 transition FF -> 4B at offset 8, WITHOUT sector erase.
+    # Even if the initial write is interrupted, SDK boot selection keeps
+    # preferring the existing valid bank B rather than a truncated bank A.
+    base_command = [
         sys.executable, str(program), "-p", port, "-t", str(activate_ms),
-        "wf", "0x00000", str(output),
     ]
-    print("COMMAND:", subprocess.list2cmdline(command), flush=True)
-    completed = subprocess.run(command, check=False)
-    if completed.returncode:
-        raise RecoveryError(
-            f"programmer failed (exit {completed.returncode}); no success claim"
-        )
+    stages = (
+        ("STAGE", ["wf", "0x00000", report["stagedOutput"]]),
+        ("ACTIVATE", ["we", "0x00008", report["activationOutput"]]),
+    )
+    for step, tail in stages:
+        command = base_command + tail
+        print(f"PHASE {step}:", subprocess.list2cmdline(command), flush=True)
+        completed = subprocess.run(command, check=False)
+        if completed.returncode:
+            raise RecoveryError(
+                f"PHASE {step} failed (exit {completed.returncode}); "
+                "do NOT declare recovery or attempt manual marker changes"
+            )
     print(
-        "PROGRAMMER_REPORTED_SUCCESS; READBACK_UNVERIFIED.\n"
+        "TWO_PHASE_PROGRAMMER_REPORTED_SUCCESS; READBACK_UNVERIFIED.\n"
         "Disconnect USB/3.3V, reassemble safely, then validate stock Zigbee\n"
         "join + complete interview + OnOff/Level before declaring recovery."
     )
