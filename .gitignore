@@ -29,3 +29,6 @@ re-private/
 analysis-private/
 __pycache__/
 *.pyc
+
+# Locally generated stock recovery application and downloaded third-party programmer.
+local-recovery/
