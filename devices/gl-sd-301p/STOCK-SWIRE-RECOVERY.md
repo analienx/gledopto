@@ -18,8 +18,9 @@ These commands run from the root of a checkout of
 
    This reads the already-referenced source
    `devices/gl-sd-301p/vendor-firmware/originals/GL-SD-301P_V20851203_20251230.ota`
-   and creates `local-recovery/glsd301p-stock-bank-a.bin` plus a JSON
-   hash/range report. If the input hash, OTA/Telink structure, embedded CRC,
+   and creates `local-recovery/glsd301p-stock-bank-a.bin` (canonical
+   raw stock app), `...-stage.bin` (boot marker inactive), `...-activate.bin`
+   (one byte), plus a JSON hash/range report. If the input hash, OTA/Telink structure, embedded CRC,
    identity or safety limits differ, it **stops without producing a flash command**.
 
 2. For the supported *COM-port-SWire* programmer, install its Python dependency:
@@ -37,8 +38,13 @@ These commands run from the root of a checkout of
 
    Replace COM3 with the real COM port. The tool checks the stock binary
    again, downloads a **commit- and Git-blob-pinned** copy of pvvx's
-   `TLSR825xComFlasher.py`, prints the fixed `wf 0x00000` write command
-   and requires the exact `WRITE_STOCK_BANK_A` confirmation.
+   `TLSR825xComFlasher.py`, displays both fixed write operations, and
+   requires the exact `WRITE_STOCK_BANK_A` confirmation. **Phase 1:**
+   `wf 0x00000 ...-stage.bin` writes the entire app with the startup marker
+   deliberately invalid (`FF 4E 4C 54`). **Phase 2 (only if phase 1 succeeds):**
+   `we 0x00008 ...-activate.bin` programs a single `4B` byte WITHOUT
+   erasing the sector. This completes `4B 4E 4C 54` and enables bank A.
+   If phase 1 fails, phase 2 is never attempted.
    It will **never** issue `ea` (erase all), write arbitrary addresses or
    use a custom GLSD-ED image. The default `--activate-ms 0` does not pulse
    RTS; `--activate-ms 70` should only be used when a qualified RESET/RTS
@@ -103,7 +109,7 @@ proven on this failed physical unit.**
 
 | Region | Address | Recovery treatment |
 |---|---|---|
-| **Application bank A** | `0x00000–0x33FFF` | Write the extracted stock application from `0x00000` |
+| **Application bank A** | `0x00000–0x33FFF` | Stage the stock app with invalid marker at `0x00000`, then atomically enable with one byte at `0x00008` |
 | Zigbee NV A | `0x34000+` | Never erase/write |
 | Application bank B | `0x40000–0x73FFF` | Leave untouched (includes failed custom firmware) |
 | Factory/MAC region | `0x76000+` | Never erase/write |
@@ -111,8 +117,13 @@ proven on this failed physical unit.**
 
 The utility validates the application size **and the entire rounded-up
 4 KiB sector erase span** before permitting any write. The pvvx `wf`
-command performs sector erases within the image range. It does not write
-a Zigbee OTA wrapper. It does not erase all flash.
+stage command performs sector erases within the image range; `we` activation
+at `0x00008` does **not** erase. Staging with `0xFF` at byte 8 makes the
+bank-A startup flag invalid until the final one-byte activation. This avoids
+selecting an incomplete A image after an interrupted first phase. No full
+flash erase and no Zigbee OTA wrapper write occurs. Without physical
+readback or a power-loss test, this is **not a guarantee of atomic recovery
+on the actual hardware**.
 
 ## Exact source identity and toolchain
 
