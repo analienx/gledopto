@@ -5,7 +5,38 @@
 **Target:** GLEDOPTO GL-SD-301P, TLSR8258F512ET32, 512 KiB flash.
 **Incident:** [#9](https://github.com/analienx/gledopto/issues/9) — custom GLSD-ED-007 interrupted Zigbee; physical PUSH still works.
 
+## Prebuilt stock firmware BINs — GitHub Actions (no local build)
+
+**Already generated and independently checked on GitHub's hosted runner.**
+[Successful workflow run 42523757482](https://github.com/analienx/gledopto/actions/runs/42523757482)
+for source commit `b148ecaf2b03321ccc60df2de0237e4bf46c5b84`
+published the artifact
+**`glsd301p-stock-swire-recovery-b148ecaf2b03321ccc60df2de0237e4bf46c5b84`**,
+artifact ID `13634591809`. Find it under the run's **Artifacts** section
+and download the ZIP while signed into GitHub. It expires **2026-11-22**;
+subsequent branch runs create their own fresh artifacts.
+
+| Artifact file | Bytes | SHA-256 |
+|---|---:|---|
+| `glsd301p-stock-bank-a.bin` | 208,884 | `7ba122f1ebc9f6ec419d9ea6b27676d55c2a2aad864a03e90b896546248c4b48` |
+| `glsd301p-stock-bank-a-stage.bin` | 208,884 | `b2645f96869f4fb50f64749c14be281696200279cc3c8bca837836d95429d637` |
+| `glsd301p-stock-bank-a-activate.bin` | 1 | `86be9a55762d316a3026c2836d044f5fc76e34da10e1b45feee5f18be7edb177` |
+| `glsd301p-stock-bank-a.json` | 1,061 | See `SHA256SUMS` |
+| `SHA256SUMS` | 384 | Checksum manifest |
+
+**The plain bank-A BIN is the verified original stock application.** For the
+two-phase SWire process, use **the stage BIN first** (inactive boot flag), then
+**only the one-byte activation BIN**, as described below. Do not flash the
+Zigbee `.ota` package raw, and do not directly flash the plain bank-A BIN
+if following the protected two-phase procedure. The BINs are **prepared but
+not proven on physical hardware**.
+
+CI generates these directly from the original vendor OTA with a pinned hash.
+No local PC is needed to *generate* them; physical programming still requires
+a suitable SWire adapter connected to the completely mains-isolated device.
+
 ## Fastest safe path (Windows, from this branch)
+
 
 These commands run from the root of a checkout of
 `recovery/glsd301p-stock-swire-20261108`.
