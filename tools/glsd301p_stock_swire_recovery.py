@@ -282,9 +282,30 @@ def flash(*, port: str, output: Path, programmer: Path | None,
     )
 
 
+def print_serial_ports() -> None:
+    """Read-only serial-port inventory; never opens a device or sends bytes."""
+    try:
+        from serial.tools import list_ports
+    except ImportError as exc:
+        raise RecoveryError("pyserial missing: python -m pip install pyserial") from exc
+    ports = list(list_ports.comports())
+    if not ports:
+        print("NO_SERIAL_PORTS_FOUND: attach a qualified 3.3V SWire adapter")
+        return
+    for entry in ports:
+        # VID/PID are displayed to reduce accidental targeting of another
+        # device; the operator must still choose the exact intended port.
+        vidpid = (
+            f" VID:PID={entry.vid:04x}:{entry.pid:04x}"
+            if entry.vid is not None and entry.pid is not None else ""
+        )
+        print(f"{entry.device}\t{entry.description}{vidpid}")
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     subs = parser.add_subparsers(dest="action", required=True)
+    subs.add_parser("ports", help="list COM/serial ports only; NO device writes")
     prep = subs.add_parser("prepare", help="validate original and emit bank-A binary; NO hardware")
     prep.add_argument("--output", type=Path, default=DEFAULT_OUTPUT)
     fl = subs.add_parser("flash", help="explicitly write stock bank A, never network NV")
@@ -295,7 +316,9 @@ def main(argv: list[str] | None = None) -> int:
     fl.add_argument("--confirm", help="for attended executor: WRITE_STOCK_BANK_A")
     a = parser.parse_args(argv)
     try:
-        if a.action == "prepare":
+        if a.action == "ports":
+            print_serial_ports()
+        elif a.action == "prepare":
             print(json.dumps(prepare(output=a.output), indent=2, sort_keys=True))
         else:
             flash(
