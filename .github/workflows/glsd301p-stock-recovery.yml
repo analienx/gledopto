@@ -60,6 +60,17 @@ jobs:
           assert 0 < end <= 0x34000 < 0x40000 < 0x76000
           print(f"STOCK_RECOVERY_TWO_PHASE=PASS image={len(img)} erase_end=0x{end:x} stage=inert activation=4b")
           PY
+      - name: Package self-contained Windows TX-only tools into build artifact
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp tools/glsd301p_stock_txonly.py "$RUNNER_TEMP/"
+          cp tools/glsd301p_stock_swire_recovery.py "$RUNNER_TEMP/"
+          cp tools/telink_app_finalize.py "$RUNNER_TEMP/"
+          cp devices/gl-sd-301p/STOCK-SWIRE-RECOVERY.md "$RUNNER_TEMP/RECOVERY_README.md"
+          printf 'pyserial>=3.5,<4\n' > "$RUNNER_TEMP/requirements.txt"
+          cd "$RUNNER_TEMP"
+          python glsd301p_stock_txonly.py plan --bundle-dir .
       - name: Create checksum manifest for recovery files
         shell: bash
         run: |
@@ -69,7 +80,12 @@ jobs:
             glsd301p-stock-bank-a.bin \
             glsd301p-stock-bank-a-stage.bin \
             glsd301p-stock-bank-a-activate.bin \
-            glsd301p-stock-bank-a.json > SHA256SUMS
+            glsd301p-stock-bank-a.json \
+            glsd301p_stock_txonly.py \
+            glsd301p_stock_swire_recovery.py \
+            telink_app_finalize.py \
+            RECOVERY_README.md \
+            requirements.txt > SHA256SUMS
           python - <<'PY'
           import hashlib, json, os
           from pathlib import Path
@@ -97,4 +113,9 @@ jobs:
             ${{ runner.temp }}/glsd301p-stock-bank-a-stage.bin
             ${{ runner.temp }}/glsd301p-stock-bank-a-activate.bin
             ${{ runner.temp }}/glsd301p-stock-bank-a.json
+            ${{ runner.temp }}/glsd301p_stock_txonly.py
+            ${{ runner.temp }}/glsd301p_stock_swire_recovery.py
+            ${{ runner.temp }}/telink_app_finalize.py
+            ${{ runner.temp }}/RECOVERY_README.md
+            ${{ runner.temp }}/requirements.txt
             ${{ runner.temp }}/SHA256SUMS
