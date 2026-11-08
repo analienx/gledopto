@@ -28,6 +28,7 @@ from glsd301p_stock_swire_recovery import (
     BANK_A_END, BANK_A_START, DEFAULT_OUTPUT, FLASH_SECTOR_SIZE,
     RecoveryError, prepare, print_serial_ports, sha256,
 )
+from telink_app_finalize import TelinkImageError, validate_finalized_image
 
 # Pinned TX-only reference: pvvx.github.io ATC_MiThermometer USBCOMFlashTx.html v0.5
 REFERENCE_URL = (
@@ -48,6 +49,14 @@ STAGE_MARKER = bytes.fromhex("ff4e4c54")
 ACTIVATE_BYTE = b"K"
 STAGE_CONFIRM = "TX_ONLY_STAGE"
 ACTIVATE_CONFIRM = "TX_ONLY_ACTIVATE_UNVERIFIED"
+STOCK_FILE = "glsd301p-stock-bank-a.bin"
+STAGE_FILE = "glsd301p-stock-bank-a-stage.bin"
+ACTIVATION_FILE = "glsd301p-stock-bank-a-activate.bin"
+REPORT_FILE = "glsd301p-stock-bank-a.json"
+STOCK_SHA256 = "7ba122f1ebc9f6ec419d9ea6b27676d55c2a2aad864a03e90b896546248c4b48"
+STAGE_SHA256 = "b2645f96869f4fb50f64749c14be281696200279cc3c8bca837836d95429d637"
+ORIGINAL_SOURCE_SHA256 = "16595a38ab9783d3afc4eb58ab4ec32625249bd569c1fa6dbaf468bddc76dd72"
+STOCK_BYTES = 208884
 
 
 def swire_write_frame(address: int, data: bytes) -> bytes:
@@ -216,6 +225,46 @@ def prepare_payload(output: Path) -> tuple[dict, bytes, bytes]:
     return report, staged, activation
 
 
+def prepare_artifact_bundle(bundle_dir: Path) -> tuple[dict, bytes, bytes]:
+    """Offline-validate GitHub Actions artifacts without a local git checkout."""
+    if not bundle_dir.is_dir():
+        raise RecoveryError("GitHub artifact folder missing")
+    stock = (bundle_dir / STOCK_FILE).read_bytes()
+    staged = (bundle_dir / STAGE_FILE).read_bytes()
+    activation = (bundle_dir / ACTIVATION_FILE).read_bytes()
+    report = json.loads((bundle_dir / REPORT_FILE).read_text(encoding="utf-8"))
+    if (len(stock) != STOCK_BYTES or len(staged) != len(stock)
+            or sha256(stock) != STOCK_SHA256
+            or sha256(staged) != STAGE_SHA256
+            or activation != ACTIVATE_BYTE
+            or stock[8:12] != BOOT_MARKER
+            or staged[8:12] != STAGE_MARKER
+            or stock[:8] + stock[9:] != staged[:8] + staged[9:]):
+        raise RecoveryError("artifact files fail pinned original GL-SD-301P stock hashes")
+    if (report.get("device") != "GL-SD-301P"
+            or report.get("sourceSha256") != ORIGINAL_SOURCE_SHA256
+            or report.get("applicationSha256") != STOCK_SHA256
+            or report.get("stagedSha256") != STAGE_SHA256
+            or report.get("applicationBytes") != STOCK_BYTES
+            or report.get("activationAddress") != "0x00008"):
+        raise RecoveryError("artifact manifest mismatches historical vendor recovery")
+    try:
+        validate_finalized_image(
+            stock, manufacturer_code=0x124F, image_type=0x1416,
+            file_version=0x28013001, max_final_size=BANK_A_END,
+        )
+    except TelinkImageError as exc:
+        raise RecoveryError("artifact inner Telink CRC/identity failed") from exc
+    if (STOCK_BYTES + 4095) // 4096 * 4096 > BANK_A_END:
+        raise RecoveryError("artifact erase span crosses protected NV region")
+    return report, staged, activation
+
+
+def payload_for(output: Path, bundle_dir: Path | None) -> tuple[dict, bytes, bytes]:
+    return (prepare_artifact_bundle(bundle_dir) if bundle_dir is not None
+            else prepare_payload(output))
+
+
 def open_port(port: str):
     if not re.fullmatch(r"(?:COM\d+|/dev/[A-Za-z0-9_./-]+)", port, re.IGNORECASE):
         raise RecoveryError("invalid COM or POSIX serial device")
@@ -235,8 +284,10 @@ def open_port(port: str):
 
 
 def run_action(action: str, port: str, output: Path,
-               provided: str | None) -> dict:
-    report, staged, activation = prepare_payload(output)
+               provided: str | None, bundle_dir: Path | None = None) -> dict:
+    report, staged, activation = payload_for(output, bundle_dir)
+    if bundle_dir is not None:
+        output = bundle_dir / STOCK_FILE
     previous = receipt_path(output)
     if action == "stage" and previous.exists():
         raise RecoveryError(
@@ -298,17 +349,20 @@ def main(argv: list[str] | None = None) -> int:
     commands.add_parser("ports", help="list available COM ports (read-only)")
     plan = commands.add_parser("plan", help="generate stock stage/activation BINs offline")
     plan.add_argument("--output", type=Path, default=DEFAULT_OUTPUT)
+    plan.add_argument("--bundle-dir", type=Path,
+                      help="offline GitHub Actions ZIP unpack directory (no repo checkout)")
     for name in ("stage", "activate"):
         p = commands.add_parser(name, help="send ONLY this TX-only phase")
         p.add_argument("--port", required=True)
         p.add_argument("--output", type=Path, default=DEFAULT_OUTPUT)
+        p.add_argument("--bundle-dir", type=Path, help="directory containing extracted GitHub Actions BINs")
         p.add_argument("--confirm")
     args = parser.parse_args(argv)
     try:
         if args.action == "ports":
             print_serial_ports()
         elif args.action == "plan":
-            report, staged, _ = prepare_payload(args.output)
+            report, staged, _ = payload_for(args.output, args.bundle_dir)
             print(json.dumps({
                 "device": report["device"], "stageSha256": sha256(staged),
                 "sourceSha256": report["sourceSha256"],
@@ -318,7 +372,7 @@ def main(argv: list[str] | None = None) -> int:
                 "transport": "TX-only; UNSUPPORTED LIVE HARDWARE",
             }, indent=2))
         else:
-            run_action(args.action, args.port, args.output, args.confirm)
+            run_action(args.action, args.port, args.output, args.confirm, args.bundle_dir)
     except (RecoveryError, OSError, ValueError, ImportError) as exc:
         print(f"TX_ONLY_BLOCKED: {exc}", file=sys.stderr)
         return 2
