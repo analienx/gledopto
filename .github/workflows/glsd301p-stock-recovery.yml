@@ -6,15 +6,19 @@ on:
       - recovery/glsd301p-stock-swire-20261108
     paths:
       - "tools/glsd301p_stock_swire_recovery.py"
+      - "tools/glsd301p_stock_txonly.py"
       - "tools/telink_app_finalize.py"
       - "tools/tests/test_glsd301p_stock_swire_recovery.py"
+      - "tools/tests/test_glsd301p_stock_txonly.py"
       - "devices/gl-sd-301p/vendor-firmware/**"
       - ".github/workflows/glsd301p-stock-recovery.yml"
   pull_request:
     paths:
       - "tools/glsd301p_stock_swire_recovery.py"
+      - "tools/glsd301p_stock_txonly.py"
       - "tools/telink_app_finalize.py"
       - "tools/tests/test_glsd301p_stock_swire_recovery.py"
+      - "tools/tests/test_glsd301p_stock_txonly.py"
       - "devices/gl-sd-301p/vendor-firmware/**"
   workflow_dispatch:
 
@@ -30,8 +34,12 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - name: Offline extraction, corruption and programmer-guard tests
+      - name: Offline stock OTA extraction and corruption/guard tests
         run: python -m unittest discover -s tools/tests -p "test_glsd301p_stock_swire_recovery.py" -v
+      - name: TX-only pvvx JavaScript parity and independent phase safety tests
+        run: python -m unittest discover -s tools/tests -p "test_glsd301p_stock_txonly.py" -v
+      - name: TX-only offline stock image plan (NO SERIAL PORT)
+        run: python tools/glsd301p_stock_txonly.py plan --output "$RUNNER_TEMP/glsd301p-stock-bank-a.bin"
       - name: Prepare exact historical vendor stock app (no serial/USB)
         run: python tools/glsd301p_stock_swire_recovery.py prepare --output "$RUNNER_TEMP/glsd301p-stock-bank-a.bin"
       - name: Assert sector-rounded writes cannot touch NV or MAC
