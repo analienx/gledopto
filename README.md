@@ -15,6 +15,10 @@
 
 ---
 
+> [!CAUTION]
+> **CRITICAL GL-SD-301P incident [#9](https://github.com/analienx/gledopto/issues/9): DO NOT FLASH experimental End Device firmware.**
+> The production dimmer lost Zigbee operation after experimental OTA. An **offline-tested, stock-only SWire recovery preparation tool** is now available: [write-only stock restoration guide](devices/gl-sd-301p/STOCK-SWIRE-RECOVERY.md). The physical recovery has **not** been validated yet; wiring and mains isolation must be verified before attempting it.
+
 ## Why this project exists
 
 A mains-powered Zigbee device is often shipped as a **Router**. That is useful when the router implementation is excellent. When it is not, the device can become an undesirable part of the mesh: children may attach to it, routes may traverse it, and failures can affect devices that otherwise have nothing to do with the light or dimmer.
