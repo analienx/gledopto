@@ -29,6 +29,14 @@ These commands run from the root of a checkout of
    python -m pip install pyserial
    ```
 
+   Identify the adapter's **actual** COM port (read-only listing, no writes):
+
+   ```cmd
+   python tools\glsd301p_stock_swire_recovery.py ports
+   ```
+
+   Select the port matching the **SWire adapter**, not the Zigbee coordinator.
+
 3. With the dimmer **completely disconnected from 230 V** and a correctly
    established isolated low-voltage 3.3 V programming setup, run:
 
