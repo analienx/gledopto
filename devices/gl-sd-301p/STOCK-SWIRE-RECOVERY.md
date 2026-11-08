@@ -35,6 +35,111 @@ CI generates these directly from the original vendor OTA with a pinned hash.
 No local PC is needed to *generate* them; physical programming still requires
 a suitable SWire adapter connected to the completely mains-isolated device.
 
+## CH340G TX-only path — recommended software for photographed adapter
+
+Our new **stock-only** Python sender is
+[glsd301p_stock_txonly.py](../../tools/glsd301p_stock_txonly.py).
+It is an offline-tested adaptation of [pvvx TX-only USB-COM Writer v0.5](https://github.com/pvvx/pvvx.github.io/blob/master/ATC_MiThermometer/USBCOMFlashTx.html).
+Unlike the old bidirectional Python `flash` command, **it never reads the
+target** and only needs the adapter's **TXD-to-SWS signal, common GND
+and separately qualified isolated 3.3 V supply**. It does not require RXD,
+RTS, a Telink programmer, a hardware flash dump or browser Web Serial.
+But no echo, flash status, CRC or memory readback is possible.
+
+**Simplest Windows workflow, using only the GitHub Actions ZIP:**
+
+1. Download the latest successful
+   [stock recovery Actions artifact](https://github.com/analienx/gledopto/actions/workflows/glsd301p-stock-recovery.yml)
+   and extract its contents into one directory. Current workflow includes
+   the `glsd301p_stock_txonly.py` sender, its two Python support
+   modules, all three verified BINs, a manifest, hashes, instructions and
+   `requirements.txt`. No Git checkout and **no local BIN generation**.
+2. From that directory, in Windows Terminal / Command Prompt:
+
+   ```cmd
+   python -m pip install -r requirements.txt
+   python glsd301p_stock_txonly.py plan --bundle-dir .
+   python glsd301p_stock_txonly.py ports
+   ```
+
+   The `plan` command checks the archived stock **SHA-256**, Telink
+   CRC/version and sector write bounds **before any USB work**. Identify the
+   actual CH340G COM port from `ports`.
+3. **Only after verifying all PCB pads, low-voltage isolation, supply,
+   TXD logic voltage, and mechanically stable contacts** (with the mains
+   fully disconnected), send the first, inactive-marker image:
+
+   ```cmd
+   python glsd301p_stock_txonly.py stage --bundle-dir . --port COM3
+   ```
+
+   Confirm by typing `TX_ONLY_STAGE`. This erases/writes only
+   application bank A, sector by sector, with the boot marker still
+   `FF 4E 4C 54` (inactive). The script writes an explicit
+   `*-txonly-stage-sent.json` **transmission-only receipt**.
+4. **Only after the entire stage has been transmitted without host-side
+   errors and all wiring/power conditions remain valid**, send the one-byte
+   boot-marker activation in a *separate* command:
+
+   ```cmd
+   python glsd301p_stock_txonly.py activate --bundle-dir . --port COM3
+   ```
+
+   Confirm by typing `TX_ONLY_ACTIVATE_UNVERIFIED`. The
+   command requires the stage receipt from the **same COM port and same
+   staged SHA-256**, sends only `0x4B` at `0x00008`,
+   **without sector erase**, and refuses to repeat automatically.
+
+   **Crucial limitation:** "sent" means UART transmitted data; the MCU
+   gives **no response whatsoever**. The stage may have been partially
+   missed despite successful serial writes, in which case enabling bank A
+   could still fail to boot. The two-phase process reduces one interruption
+   window but **cannot prove image validity without readback**.
+5. Disconnect USB and independent 3.3 V supply; reassemble and restore
+   mains safely. Verify **Zigbee2MQTT complete interview** plus OnOff, Level
+   and physical PUSH before declaring the unit recovered. Do not repeat
+   the writer blindly on failure.
+
+**Activation caveat for your adapter:** pvvx v0.5 repeatedly transmits
+a CPU-stop command during a 3-second SWire activation window. A running
+custom firmware may reconfigure SWS, so a genuine **isolated low-voltage
+reset/power cycle during activation** may be necessary. The photographed
+CH340G has no verified accessible RTS/reset pin. Our script does **not**
+pretend to toggle one. Without a validated power/reset plan, even
+a correct TXD connection may fail to enter programming mode; stop rather
+than connecting 230 V or improvising reset wiring.
+
+### Can the LaskaKit mini-hooks be used on the PCB?
+
+**Yes, on a protruding conductor or plated through-hole where the hook
+mechanically grabs and survives a gentle disconnected-board pull test.**
+The hook must not pull loose, slide into a neighbouring pad, short traces
+or rely on being held by hand over a multi-minute flash.
+
+**Not reliably on a flat, isolated gold/solder test pad.** User reports:
+- A [small-board repair discussion](https://www.reddit.com/r/AskElectronics/comments/1869q3x/)
+  reports success using a test hook on a board **with a drilled hole**,
+  but says it cannot attach to a small flat pad; experienced respondents
+  recommend spring-loaded pogo probes/fixtures instead.
+- A [probe/grabber discussion](https://www.reddit.com/r/AskElectronics/comments/zwezlj/)
+  explains that hook probes still require exposed **legs to grab**, whereas
+  flat pads need dedicated PCB contacts or a test fixture.
+
+**For the three small Gledopto PCB points shown earlier, do not assume
+your hook can grip the bare circular pad.** If a plated hole or accessible
+connected component lead exists, it may work, but **we have not traced
+and electrically identified those alternative contacts**. A pogo-pin
+fixture with a clamped PCB, or professionally soldered temporary fine
+wires, is a more reliable option. Even if using only two signal clips
+(GND and SWS), safe 3.3 V supply still has to be established.
+
+**Do not attempt with only the photographed supplies if you lack a
+multimeter and a proven isolated low-voltage power source.** Previous
+photo pad assignments were merely visual guesses, not continuity
+verification. The CH340G selector alone does not prove TXD voltage.
+
+---
+
 ## Fastest safe path (Windows, from this branch)
 
 
@@ -118,15 +223,12 @@ qualified or safe.** Specifically:
   **bidirectional** SWire protocol over COM; it requires a validated
   TXD/SWS + RXD return/echo wiring topology and appropriate signal voltage.
   Do not connect TXD/RXD to board pads arbitrarily.
-- An alternative [pvvx browser TX-only USB-COM Flash Writer](https://pvvx.github.io/ATC_MiThermometer/USBCOMFlashTx.html)
-  explicitly supports **TX→SWS**, GND and isolated 3.3 V supply,
-  with manual power-cycle/activation if RTS is absent. This is a
-  **different programmer path**, and its ordinary write feature is not
-  currently integrated with or verified for the repo's **two-phase
-  stage + erase-free one-byte activation** protocol. Do not assume the
-  existing staged BIN can be uploaded to the browser writer and complete
-  recovery. The full plain stock BIN would sacrifice our staged-marker
-  interruption protection; do not use blindly.
+- The [pvvx browser TX-only USB-COM Flash Writer](https://pvvx.github.io/ATC_MiThermometer/USBCOMFlashTx.html)
+  supports **TX→SWS** and inspired our new standalone
+  `glsd301p_stock_txonly.py` sender. The unmodified browser writer
+  always erases sectors from address zero and **cannot safely perform
+  our one-byte no-erase activation**: use the new two-phase repo script,
+  not the browser "Write" button for stage+activation.
 - The 3.3 V selector/rail **does not prove** TXD is 3.3 V or that the
   module has enough current to power all circuitry on this dimmer.
   Verify TXD idle voltage, 3.3 V voltage/current budget and ground
@@ -153,10 +255,12 @@ The previous generated photo labeling the three pads 3V3/GND/SWS was
   ground, supply and any RESET point using the MCU datasheet, copper tracing
   and continuity measurements by a qualified person. Label exact board pads
   only after verifying actual connectivity. Do not rely on relative pad order.
-* SWire is **bidirectional**, even for a firmware **write**; the pvvx COM-port
-  emulator still needs RX/status transactions. A physically TX-only lead is
-  not compatible. A readback-unavailable operator is fine **provided** the
-  programmer supports the SWire exchanges required by its protocol.
+* The **original Telink SWire protocol is bidirectional**, but pvvx's
+  **TX-only subset** explicitly imitates only the write/control
+  sequences, without acknowledgements. Our new `glsd301p_stock_txonly.py`
+  is based on this approach and uses **TXD only**. The separate older
+  `glsd301p_stock_swire_recovery.py flash` remains bidirectional and
+  must not be confused with TX-only.
 * Use **3.3 V logic**, current-limited and electrically isolated supply
   appropriate to the module. Do not inject a random 3.3 V rail into an
   unidentified node. Do **not** use a 5 V UART TX/RX or assume the USB
