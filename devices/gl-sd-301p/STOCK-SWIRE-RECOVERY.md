@@ -7,14 +7,15 @@
 
 ## Prebuilt stock firmware BINs — GitHub Actions (no local build)
 
-**Already generated and independently checked on GitHub's hosted runner.**
-[Successful workflow run 42523757482](https://github.com/analienx/gledopto/actions/runs/42523757482)
-for source commit `b148ecaf2b03321ccc60df2de0237e4bf46c5b84`
+**Already generated and independently checked on GitHub's hosted runner.** The ZIP now contains both the BINs and the complete TX-only executable script.
+[Successful workflow run 42533124606](https://github.com/analienx/gledopto/actions/runs/42533124606)
+for source commit `bcb5d6d1b88708993d42a016df1d77b73968ae10`
 published the artifact
-**`glsd301p-stock-swire-recovery-b148ecaf2b03321ccc60df2de0237e4bf46c5b84`**,
-artifact ID `13634591809`. Find it under the run's **Artifacts** section
-and download the ZIP while signed into GitHub. It expires **2026-11-22**;
-subsequent branch runs create their own fresh artifacts.
+**`glsd301p-stock-swire-recovery-7f7de88ccd1c3a75c0c5a1eb465bf2761147c4c0`**,
+artifact ID `13638466495`. Find it under the run's **Artifacts** section,
+and download the ZIP while signed into GitHub. ZIP: **479,595 bytes**,
+SHA-256 `088d7e08c2c63f46102613d1ecafa59af191c22b590903fbe702f3887ef1eb05`.
+It expires **2026-11-22**; later successful runs may create fresh artifacts.
 
 | Artifact file | Bytes | SHA-256 |
 |---|---:|---|
@@ -22,7 +23,10 @@ subsequent branch runs create their own fresh artifacts.
 | `glsd301p-stock-bank-a-stage.bin` | 208,884 | `b2645f96869f4fb50f64749c14be281696200279cc3c8bca837836d95429d637` |
 | `glsd301p-stock-bank-a-activate.bin` | 1 | `86be9a55762d316a3026c2836d044f5fc76e34da10e1b45feee5f18be7edb177` |
 | `glsd301p-stock-bank-a.json` | 1,061 | See `SHA256SUMS` |
-| `SHA256SUMS` | 384 | Checksum manifest |
+| `glsd301p_stock_txonly.py` | included | TX-only CH340G sender |
+| `glsd301p_stock_swire_recovery.py` / `telink_app_finalize.py` | included | Support modules |
+| `RECOVERY_README.md` / `requirements.txt` | included | Setup / safety instructions |
+| `SHA256SUMS` | 831 | Checksum manifest for all nine payload files |
 
 **The plain bank-A BIN is the verified original stock application.** For the
 two-phase SWire process, use **the stage BIN first** (inactive boot flag), then
@@ -140,7 +144,7 @@ verification. The CH340G selector alone does not prove TXD voltage.
 
 ---
 
-## Fastest safe path (Windows, from this branch)
+## Alternative: bidirectional COM-port SWire path (not CH340G TX-only)
 
 
 These commands run from the root of a checkout of
