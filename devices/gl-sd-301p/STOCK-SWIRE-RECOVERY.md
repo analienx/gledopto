@@ -104,6 +104,46 @@ These commands run from the root of a checkout of
    Level and physical PUSH. Until then, report `PROGRAMMER_REPORTED_SUCCESS,
    READBACK_UNVERIFIED`, **not** `RECOVERED`.
 
+## Available owner hardware (2026-11-08) — compatibility triage
+
+Photographs show an Allegro **CH340G USB-to-TTL UART adapter**, whose
+5-pin breakout is labeled `5V / 3V3 / TXD / RXD / GND`, with a
+3.3 V/5 V selector, and LaskaKit female-Dupont-to-mini-hook cables.
+
+**These two products alone do not make the physical SWire connection
+qualified or safe.** Specifically:
+
+- The CH340G is **not an SWire programmer natively**. The current repo
+  `flash` subcommand uses pvvx's `TLSR825xComFlasher.py` to emulate the
+  **bidirectional** SWire protocol over COM; it requires a validated
+  TXD/SWS + RXD return/echo wiring topology and appropriate signal voltage.
+  Do not connect TXD/RXD to board pads arbitrarily.
+- An alternative [pvvx browser TX-only USB-COM Flash Writer](https://pvvx.github.io/ATC_MiThermometer/USBCOMFlashTx.html)
+  explicitly supports **TX→SWS**, GND and isolated 3.3 V supply,
+  with manual power-cycle/activation if RTS is absent. This is a
+  **different programmer path**, and its ordinary write feature is not
+  currently integrated with or verified for the repo's **two-phase
+  stage + erase-free one-byte activation** protocol. Do not assume the
+  existing staged BIN can be uploaded to the browser writer and complete
+  recovery. The full plain stock BIN would sacrifice our staged-marker
+  interruption protection; do not use blindly.
+- The 3.3 V selector/rail **does not prove** TXD is 3.3 V or that the
+  module has enough current to power all circuitry on this dimmer.
+  Verify TXD idle voltage, 3.3 V voltage/current budget and ground
+  isolation with proper instruments. Never apply 5 V directly to
+  the Telink's logic pins or use the unknown mains dimmer supply.
+- Mini-hook clips are for **exposed leads**, not guaranteed electrical
+  contact on unpopulated flat PCB test pads; use a fixture/pogo contact
+  or correctly qualified soldered lead after pads are verified.
+- At minimum, obtain/borrow a **multimeter** for continuity and voltage
+  checks and a reliable low-voltage **isolated, current-limited 3.3 V
+  supply** if the verified module rail cannot safely power the board.
+  Confirm exact SWS/PA7, GND and supply traces using a datasheet and
+  measurements; the earlier generated pin labels are **not verified**.
+- The user need not buy a dedicated Telink programmer **if** the
+  CH340G protocol/wiring is validated, but the current hardware inventory
+  does **not** authorize connecting USB or attempting a write.
+
 ## Hardware gate: do NOT guess the test-pad pinout
 
 The previous generated photo labeling the three pads 3V3/GND/SWS was
