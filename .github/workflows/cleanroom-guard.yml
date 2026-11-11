@@ -708,9 +708,40 @@ jobs:
           export OUT_DIR="$RUNNER_TEMP/glsd301p-ed"
           bash tools/build_glsd301p_ed_tc32.sh
           cat "$OUT_DIR/target/manifest.txt"
-      - name: Enforce no deployment artifact publication
+      # Owner decision 2026-11-11: manual runs publish the built image as a
+      # private run artifact so a wired (SWire) flash can use the exact
+      # CI-built bytes. Pull-request and push runs still publish nothing.
+      # Publishing is not flash authorization: the manifest keeps
+      # FIRST_FLASHABLE_CANARY_ALLOWED=NO and every live action stays a
+      # separate owner gate.
+      - name: Stage wired-flash image (manual runs only)
+        if: github.event_name == 'workflow_dispatch'
         shell: bash
         run: |
           set -euo pipefail
-          echo 'CI_ARTIFACT_UPLOAD=NONE'
+          src="$RUNNER_TEMP/glsd301p-ed/target"
+          out="$RUNNER_TEMP/glsd301p-ed-wired"
+          mkdir -p "$out"
+          cp "$src/glsd301p-ed.final.bin" "$out/glsd301p-ed_0x00000.bin"
+          cp "$src/manifest.txt" "$src/sdk-patches.json" "$src/glsd301p-ed.map" "$out/"
+          (cd "$out" && sha256sum glsd301p-ed_0x00000.bin | tee SHA256SUMS)
+          echo "WIRED_IMAGE_BYTES=$(stat -c %s "$out/glsd301p-ed_0x00000.bin")"
+          echo "WIRED_IMAGE_SOURCE=${{ github.sha }}"
+      - name: Upload wired-flash image (manual runs only)
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/upload-artifact@v4
+        with:
+          name: glsd301p-ed-wired-${{ github.sha }}
+          path: ${{ runner.temp }}/glsd301p-ed-wired/
+          if-no-files-found: error
+          retention-days: 30
+      - name: Report artifact publication rule
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo 'CI_ARTIFACT_UPLOAD=WIRED_IMAGE_MANUAL_RUN_ONLY'
+          else
+            echo 'CI_ARTIFACT_UPLOAD=NONE'
+          fi
           echo 'FIRST_FLASHABLE_CANARY_ALLOWED=NO'
