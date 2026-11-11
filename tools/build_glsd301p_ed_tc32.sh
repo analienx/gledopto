@@ -24,7 +24,7 @@ APP_SLOT_SIZE=0x34000
 BANK_B_BASE=0x40000
 BANK_B_SLOT_END=0x74000
 MAC_REGION_START=0x76000
-FILE_VERSION=0x7F080001
+FILE_VERSION=0x7F090001
 
 [[ -f "$SDK/platform/boot/8258/boot_8258.link" ]] || { echo 'ERROR: pinned TLSR8258 SDK fixture incomplete' >&2; exit 2; }
 [[ -f "$SDK/zigbee/lib/tc32/libzb_ed.a" ]] || { echo 'ERROR: libzb_ed.a missing' >&2; exit 2; }
@@ -125,6 +125,7 @@ app_sources=(
   "$CORE/glsd301p_rejoin.c"
   "$CORE/glsd301p_bdb_adapter.c"
   "$CORE/glsd301p_health.c"
+  "$CORE/glsd301p_stack_nv.c"
   "$TARGET/glsd301p_telink_inert_glue.c"
   "$TARGET/glsd301p_telink_link_sentinels.c"
   "$TARGET/glsd301p_telink_target.c"
@@ -221,8 +222,25 @@ grep -q 'glsd_leave_cnf_cb,' "$TARGET/glsd301p_telink_target.c" || {
   echo 'ERROR: own-Leave confirm handler is not registered' >&2; exit 1;
 }
 
+# Stack NV clean start: one boot-time call before zb_init and one forced
+# call on the gesture reboot path; the SDK reset-to-FN routine (which a
+# factory-new device used to skip) must not come back, and the NWK frame
+# counter module must never be listed for erase.
+[[ "$(grep -c 'glsd301p_stack_nv_ensure_clean(' "$TARGET/glsd301p_telink_target.c")" -eq 2 ]] || {
+  echo 'ERROR: target must wipe stack NV at exactly two sites (boot, gesture)' >&2; exit 1;
+}
+if grep -q 'nv_resetToFactoryNew' "$TARGET/glsd301p_telink_target.c"; then
+  echo 'ERROR: gesture must use the unconditional stack NV wipe, not nv_resetToFactoryNew' >&2; exit 1
+fi
+if grep -q 'NV_MODULE_NWK_FRAME_COUNT,' "$TARGET/glsd301p_telink_target.c"; then
+  echo 'ERROR: the NWK frame counter module must never be wiped' >&2; exit 1
+fi
+grep -q 'TRANSPORT_NETWORK_KEY_WAIT_TIME = GLSD301P_NETWORK_KEY_WAIT_MS;' "$TARGET/glsd301p_telink_target.c" || {
+  echo 'ERROR: network key wait must be raised before bdb_init' >&2; exit 1;
+}
+
 # M5: RAM-only v2 health snapshot on Basic:0xFF10, read-only, refreshed by
-# the owned 1 s event; development identity GLSD-ED-007 / 0x7F080001.
+# the owned 1 s event; development identity GLSD-ED-008 / 0x7F090001.
 grep -q 'GLSD301P_HEALTH_ATTR_ID, ZCL_DATA_TYPE_OCTET_STR, ACCESS_CONTROL_READ, g_basic_health' \
   "$TARGET/glsd301p_telink_target.c" || {
   echo 'ERROR: Basic:0xFF10 health attribute entry missing or not read-only' >&2; exit 1;
@@ -239,23 +257,23 @@ grep -q 'glsd301p_health_note_bdb_status' "$TARGET/glsd301p_telink_target.c" || 
 if grep -q 'nv_\|zcl_nv\|reportAttr\|zcl_report' "$CORE/glsd301p_health.c"; then
   echo 'ERROR: health snapshot must not touch NVM or reporting' >&2; exit 1;
 fi
-grep -q '#define FILE_VERSION[[:space:]]*0x7F080001' "$TARGET/version_cfg.h" || {
-  echo 'ERROR: FILE_VERSION must be the allocated 0x7F080001' >&2; exit 1;
+grep -q '#define FILE_VERSION[[:space:]]*0x7F090001' "$TARGET/version_cfg.h" || {
+  echo 'ERROR: FILE_VERSION must be the allocated 0x7F090001' >&2; exit 1;
 }
-grep -q '#define APP_BUILD[[:space:]]*0x08' "$TARGET/version_cfg.h" || {
-  echo 'ERROR: APP_BUILD must be the allocated 08' >&2; exit 1;
+grep -q '#define APP_BUILD[[:space:]]*0x09' "$TARGET/version_cfg.h" || {
+  echo 'ERROR: APP_BUILD must be the allocated 09' >&2; exit 1;
 }
 # The over-the-air Basic identity must match the declared DEV_IDENTITY.
-grep -Fq "g_basic_sw_build_id[] = {11,'G','L','S','D','-','E','D','-','0','0','7'};"   "$TARGET/glsd301p_telink_target.c" || {
-  echo 'ERROR: Basic swBuildId must report GLSD-ED-007' >&2; exit 1;
+grep -Fq "g_basic_sw_build_id[] = {11,'G','L','S','D','-','E','D','-','0','0','8'};"   "$TARGET/glsd301p_telink_target.c" || {
+  echo 'ERROR: Basic swBuildId must report GLSD-ED-008' >&2; exit 1;
 }
-grep -Fq "g_basic_date_code[] = {8,'2','0','2','6','1','1','0','1'};"   "$TARGET/glsd301p_telink_target.c" || {
-  echo 'ERROR: Basic dateCode must report 20261101' >&2; exit 1;
+grep -Fq "g_basic_date_code[] = {8,'2','0','2','6','1','1','1','1'};"   "$TARGET/glsd301p_telink_target.c" || {
+  echo 'ERROR: Basic dateCode must report 20261111' >&2; exit 1;
 }
-grep -Fq "g_basic_app_version = 0x08u;" "$TARGET/glsd301p_telink_target.c" || {
-  echo 'ERROR: Basic appVersion must report APP_BUILD 0x08' >&2; exit 1;
+grep -Fq "g_basic_app_version = 0x09u;" "$TARGET/glsd301p_telink_target.c" || {
+  echo 'ERROR: Basic appVersion must report APP_BUILD 0x09' >&2; exit 1;
 }
-[[ "$FILE_VERSION" == '0x7F080001' ]] || {
+[[ "$FILE_VERSION" == '0x7F090001' ]] || {
   echo 'ERROR: build FILE_VERSION drifted from allocated identity' >&2; exit 1;
 }
 
@@ -631,10 +649,12 @@ grep -q 'libzb_ed' "$map" || { echo 'ERROR: End Device stack archive absent from
   echo ZCL_COMMAND_POLICY=SHARED_DISPATCH_HARNESSED
   echo REJOIN=OWNED_SINGLE_ATTEMPT_ZDO_SUCCESS_MAPPED_ONESHOT_RETRY_5S
   echo COMMISSIONING=FACTORY_NEW_STEER_TICK_1S_BACKOFF_5_TO_300S_WATCHDOG_180S_TCLK_SAFE_STRANDED_REJOIN_60S_REJOIN_WATCHDOG_900S_FN_HANDOVER_REMOVAL_RESTEERS
-  echo RESET_GESTURE=PUSH_10_SHORT_PRESSES_GAP_1000MS_LEAVE_THEN_REBOOT_FACTORY_NEW_VERIFIED
+  echo RESET_GESTURE=PUSH_10_SHORT_PRESSES_GAP_1000MS_LEAVE_THEN_REBOOT_STACK_NV_ALWAYS_WIPED
+  echo STACK_NV=CLEAN_START_ONCE_PER_FIRMWARE_LINE_VERIFIED_BLANK_FRAME_COUNTER_KEPT
+  echo NETWORK_KEY_WAIT=10000MS
   echo OTA_CLIENT_QUERY=AFTER_JOIN_AND_FAILED_TRANSFER_43200S_SDK_P7_NO_STUCK_DOWNLOAD
   echo HEALTH_SNAPSHOT=RAM_V2_48B_BASIC_0xFF10_READONLY_1S_OWNED
-  echo DEV_IDENTITY=GLSD-ED-007_APP_BUILD_08_FILE_VERSION_0x7F080001_DATE_20261101
+  echo DEV_IDENTITY=GLSD-ED-008_APP_BUILD_09_FILE_VERSION_0x7F090001_DATE_20261111
   python3 - "$DIR/sdk-patches.json" <<'PY'
 import json, sys
 report = json.load(open(sys.argv[1]))

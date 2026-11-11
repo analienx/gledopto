@@ -178,7 +178,7 @@ class FinalizationTests(unittest.TestCase):
             parsed = wrapper.validate_ota(ota.read_bytes())
             self.assertEqual(parsed["manufacturerCode"], 0x124F)
             self.assertEqual(parsed["imageType"], 0x1416)
-            self.assertEqual(parsed["fileVersion"], 0x7F080001)
+            self.assertEqual(parsed["fileVersion"], 0x7F090001)
             self.assertEqual((parsed["hardwareVersionMin"], parsed["hardwareVersionMax"]), (2, 2))
             self.assertTrue(meta["bankNeutral"])
             self.assertEqual(meta["physicalBootTargets"], [0, 0x40000])
@@ -357,7 +357,7 @@ class FinalizationTests(unittest.TestCase):
                 "missing_sha512": {k: v for k, v in good["vendorRecovery"].items() if k != "sha512"},
                 "wrong_sha512": dict(good["vendorRecovery"], sha512="0" * 128),
                 "missing_version": {k: v for k, v in good["vendorRecovery"].items() if k != "fileVersion"},
-                "wrong_version": dict(good["vendorRecovery"], fileVersion=0x7F080001),
+                "wrong_version": dict(good["vendorRecovery"], fileVersion=0x7F090001),
                 "string_version": dict(good["vendorRecovery"], fileVersion=str(preflight.VENDOR_RECOVERY_FILE_VERSION)),
             }
             for name, vendor in bad_variants.items():

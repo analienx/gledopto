@@ -14,6 +14,7 @@
 #include "glsd301p_hw_io.h"
 #include "glsd301p_rejoin.h"
 #include "glsd301p_runtime_core.h"
+#include "glsd301p_stack_nv.h"
 #include "glsd301p_timebase.h"
 #include "glsd301p_timer_events.h"
 #include "glsd301p_uart_service.h"
@@ -38,6 +39,12 @@
 #define GLSD301P_GESTURE_LOCAL_REBOOT_DELAY_S  1u
 /* Upper bound on extra 1 s ticks a pending reboot waits for UART idle. */
 #define GLSD301P_REBOOT_UART_WAIT_MAX_S        3u
+/* Private item in NV_MODULE_APP naming the firmware line that owns the
+ * stack's NV modules (see glsd301p_stack_nv.h). */
+#define GLSD301P_NV_ITEM_STACK_EPOCH           0xE5u
+/* How long an associated device waits for its network key. The SDK default
+ * of 2 s leaves no margin for a multi-hop trust-centre round trip. */
+#define GLSD301P_NETWORK_KEY_WAIT_MS           10000u
 
 /*
  * Thin target glue. All IO/Level/UART policy lives in the shared control
@@ -58,15 +65,15 @@ static u8 g_zcl_online;
 
 /* Independent implementation identity; hardware/stack lineage remains explicit. */
 static u8 g_basic_zcl_version = 0x03u;
-static u8 g_basic_app_version = 0x08u;
+static u8 g_basic_app_version = 0x09u;
 static u8 g_basic_stack_version = 0x02u;
 static u8 g_basic_hw_version = 0x02u;
 static u8 g_basic_power_source = POWER_SOURCE_MAINS_1_PHASE;
 static u8 g_basic_device_enabled = TRUE;
 static u8 g_basic_mfr_name[] = {8,'a','n','a','l','i','e','n','x'};
 static u8 g_basic_model_id[] = {13,'G','L','-','S','D','-','3','0','1','P','-','E','D'};
-static u8 g_basic_date_code[] = {8,'2','0','2','6','1','1','0','1'};
-static u8 g_basic_sw_build_id[] = {11,'G','L','S','D','-','E','D','-','0','0','7'};
+static u8 g_basic_date_code[] = {8,'2','0','2','6','1','1','1','1'};
+static u8 g_basic_sw_build_id[] = {11,'G','L','S','D','-','E','D','-','0','0','8'};
 
 /*
  * RAM-only v2 health snapshot body for Basic:0xFF10. The length prefix is
@@ -346,6 +353,85 @@ static void glsd_arm_reboot(u8 delay_s)
     }
 }
 
+/*
+ * Stack NV seam for the shared clean-start policy. Index 0 is the module
+ * holding the marker item; NV_MODULE_NWK_FRAME_COUNT is deliberately not
+ * listed, so the outgoing NWK frame counter survives every wipe.
+ */
+static const u8 g_stack_nv_modules[] = {
+    NV_MODULE_APP,
+    NV_MODULE_ZB_INFO,
+    NV_MODULE_ADDRESS_TABLE,
+    NV_MODULE_APS,
+    NV_MODULE_ZCL,
+    NV_MODULE_OTA,
+    NV_MODULE_KEYPAIR,
+};
+#define GLSD301P_STACK_NV_MODULE_COUNT \
+    ((u8)(sizeof(g_stack_nv_modules) / sizeof(g_stack_nv_modules[0])))
+
+static bool glsd_stack_nv_marker_read(
+    uint8_t out[GLSD301P_STACK_NV_MARKER_SIZE])
+{
+    return nv_flashReadNew(1, NV_MODULE_APP, GLSD301P_NV_ITEM_STACK_EPOCH,
+                           GLSD301P_STACK_NV_MARKER_SIZE, out) == NV_SUCC;
+}
+
+static bool glsd_stack_nv_marker_write(
+    const uint8_t marker[GLSD301P_STACK_NV_MARKER_SIZE])
+{
+    u8 copy[GLSD301P_STACK_NV_MARKER_SIZE];
+
+    memcpy(copy, marker, sizeof(copy));
+    return nv_flashWriteNew(1, NV_MODULE_APP, GLSD301P_NV_ITEM_STACK_EPOCH,
+                            sizeof(copy), copy) == NV_SUCC;
+}
+
+static bool glsd_stack_nv_module_erase(uint8_t index)
+{
+    if (index >= GLSD301P_STACK_NV_MODULE_COUNT) {
+        return false;
+    }
+    return nv_resetModule(g_stack_nv_modules[index]) == NV_SUCC;
+}
+
+/* Reads the whole module back: a sector erase that a write-protected or
+ * failing flash silently ignored must not count as clean. */
+static bool glsd_stack_nv_module_blank(uint8_t index)
+{
+    u8 chunk[32];
+    u32 addr;
+    u32 end;
+    u8 id;
+    u8 i;
+
+    if (index >= GLSD301P_STACK_NV_MODULE_COUNT) {
+        return false;
+    }
+    id = g_stack_nv_modules[index];
+    addr = MODULES_START_ADDR(id);
+    end = addr + (u32)MODULE_SECTOR_NUM * NV_SECTOR_SIZE(id);
+#if (MODULE_WATCHDOG_ENABLE)
+    drv_wd_clear();
+#endif
+    for (; addr < end; addr += sizeof(chunk)) {
+        flash_read(addr, sizeof(chunk), chunk);
+        for (i = 0u; i < sizeof(chunk); i++) {
+            if (chunk[i] != 0xFFu) {
+                return false;
+            }
+        }
+    }
+    return true;
+}
+
+static const glsd301p_stack_nv_ops_t g_stack_nv_ops = {
+    glsd_stack_nv_marker_read,
+    glsd_stack_nv_marker_write,
+    glsd_stack_nv_module_erase,
+    glsd_stack_nv_module_blank,
+};
+
 static void glsd_note_joined(void)
 {
     /* Idempotent: the SDK only arms its query timer when none exists. */
@@ -434,40 +520,39 @@ static void glsd_maintenance_tick(void)
             g_reboot_uart_waits++;
             return;
         }
-        if (g_reset_to_fn && !zb_isDeviceFactoryNew()) {
+        if (g_reset_to_fn) {
             /*
-             * The gesture promised a factory-new boot, but the stack still
-             * holds network state (no Leave could be sent or confirmed).
-             * Clear it explicitly with the SDK's own BDB reset-to-FN NV
-             * routine (keeps the outgoing NWK frame counter).
+             * The gesture promised a factory-new boot with empty stack
+             * storage. Wipe every stack NV module unconditionally (the
+             * outgoing NWK frame counter is kept): "already factory-new"
+             * says nothing about leftover records or full sectors, which
+             * is exactly the state a unit that cannot join may be in. A
+             * failed wipe leaves no marker, so the next boot repeats it.
              */
-            nv_resetToFactoryNew();
+            (void)glsd301p_stack_nv_ensure_clean(
+                &g_stack_nv_ops, GLSD301P_STACK_NV_MODULE_COUNT, true);
         }
         zb_resetDevice();
         return;
     }
 
     if (glsd301p_control_take_network_reset_request(&g_control)) {
-        if (factory_new) {
-            /* Nothing to leave: just steer again without waiting. */
-            glsd301p_rejoin_request_steer_now(&g_rejoin);
+        /*
+         * Always end in a clean factory-new boot, also on a device that
+         * already counts as factory-new (the boot steers again at once).
+         * Joined: broadcast the Leave first (its confirm reboots sooner).
+         * Not joined: no Leave can be delivered, reboot right away. The
+         * reboot path wipes the stack NV either way.
+         */
+        g_reset_to_fn = true;
+        glsd301p_timer_retry_stop();
+        if (joined) {
+            zb_factoryReset();
+            glsd_arm_reboot(GLSD301P_GESTURE_REBOOT_DELAY_S);
         } else {
-            /*
-             * Always end in a clean factory-new boot. Joined: broadcast the
-             * Leave first (its confirm reboots sooner). Not joined: no
-             * Leave can be delivered, reboot right away; the
-             * reboot path clears any remaining network NV.
-             */
-            g_reset_to_fn = true;
-            glsd301p_timer_retry_stop();
-            if (joined) {
-                zb_factoryReset();
-                glsd_arm_reboot(GLSD301P_GESTURE_REBOOT_DELAY_S);
-            } else {
-                glsd_arm_reboot(GLSD301P_GESTURE_LOCAL_REBOOT_DELAY_S);
-            }
-            return;
+            glsd_arm_reboot(GLSD301P_GESTURE_LOCAL_REBOOT_DELAY_S);
         }
+        return;
     }
 
     if (g_ota_requery_pending) {
@@ -777,6 +862,15 @@ void user_init(bool isRetention)
     /* Electrical safety path is initialized before Zigbee application state. */
     (void)glsd_init_power_stage_io();
 
+    /*
+     * Before the stack reads anything: stack NV left by another firmware
+     * line (the vendor Router image this build replaces in place) is erased
+     * once and the modules start empty. A failed wipe writes no marker and
+     * is repeated on the next boot; the stack still starts either way.
+     */
+    (void)glsd301p_stack_nv_ensure_clean(
+        &g_stack_nv_ops, GLSD301P_STACK_NV_MODULE_COUNT, false);
+
     zb_init();
     zb_zdoCbRegister((zdo_appIndCb_t *)&g_zdo_callbacks);
     af_nodeDescManuCodeUpdate(GLSD301P_MANUFACTURER_CODE);
@@ -818,6 +912,7 @@ void user_init(bool isRetention)
     glsd301p_health_init(&g_health);
     glsd_health_snapshot_now(glsd301p_timebase_now_ms());
     glsd_ensure_maintenance_timer();
+    TRANSPORT_NETWORK_KEY_WAIT_TIME = GLSD301P_NETWORK_KEY_WAIT_MS;
     (void)bdb_init((af_simple_descriptor_t *)&g_simple_desc,
                    &g_bdb_settings, &g_bdb_callbacks, 1);
 }

@@ -238,10 +238,20 @@ require_source 'glsd_arm_reboot\(1u\);' 'reboot after refused OTA image switch'
 [[ "$(grep -c 'if (g_reset_to_fn) {' "$TARGET_SRC")" -ge 2 ]] || {
   echo 'ERROR: rejoin start must be gated during the gesture reboot countdown' >&2; exit 1;
 }
-require_source 'if \(g_reset_to_fn && !zb_isDeviceFactoryNew\(\)\)' 'gesture reboot verifies factory new'
-[[ "$(grep -co 'nv_resetToFactoryNew' "$TARGET_SRC")" -eq 1 ]] || {
-  echo 'ERROR: target must contain exactly one guarded NV factory-new reset site' >&2; exit 1;
+# The gesture wipes stack NV unconditionally (a factory-new device used to
+# skip the wipe and kept foreign records); the same policy runs once at
+# boot before zb_init for a firmware line change.
+[[ "$(grep -c 'glsd301p_stack_nv_ensure_clean(' "$TARGET_SRC")" -eq 2 ]] || {
+  echo 'ERROR: target must wipe stack NV at exactly two sites (boot, gesture)' >&2; exit 1;
 }
+require_source 'GLSD301P_STACK_NV_MODULE_COUNT, true\);' 'gesture wipe is forced'
+require_source 'GLSD301P_STACK_NV_MODULE_COUNT, false\);' 'boot wipe is marker-gated'
+if grep -q 'nv_resetToFactoryNew' "$TARGET_SRC"; then
+  echo 'ERROR: gesture must not fall back to the factory-new-gated SDK reset' >&2; exit 1
+fi
+if grep -q 'glsd301p_rejoin_request_steer_now' "$TARGET_SRC"; then
+  echo 'ERROR: a factory-new gesture must wipe and reboot, not just re-steer' >&2; exit 1
+fi
 [[ "$(grep -co 'ota_queryStart(GLSD301P_OTA_QUERY_INTERVAL_S)' "$TARGET_SRC")" -eq 2 ]] || {
   echo 'ERROR: OTA query must be armed after join and re-armed after a failed transfer' >&2; exit 1;
 }
