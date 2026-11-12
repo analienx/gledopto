@@ -370,6 +370,36 @@ static const u8 g_stack_nv_modules[] = {
 #define GLSD301P_STACK_NV_MODULE_COUNT \
     ((u8)(sizeof(g_stack_nv_modules) / sizeof(g_stack_nv_modules[0])))
 
+/*
+ * The wipe must hit the addresses where the 2026-11-12 SWire dump of the
+ * first migrated unit found the vendor's records (512 KiB map, module id in
+ * every sector header). Compile-time only: any SDK/flash-map drift fails the
+ * build instead of silently wiping the wrong flash. No code is emitted.
+ */
+typedef char glsd_nv_zb_info_at_0x34000[
+    (MODULES_START_ADDR(NV_MODULE_ZB_INFO) == 0x34000u) ? 1 : -1];
+typedef char glsd_nv_address_table_at_0x36000[
+    (MODULES_START_ADDR(NV_MODULE_ADDRESS_TABLE) == 0x36000u) ? 1 : -1];
+typedef char glsd_nv_aps_at_0x38000[
+    (MODULES_START_ADDR(NV_MODULE_APS) == 0x38000u) ? 1 : -1];
+typedef char glsd_nv_zcl_at_0x3a000[
+    (MODULES_START_ADDR(NV_MODULE_ZCL) == 0x3A000u) ? 1 : -1];
+typedef char glsd_nv_frame_count_at_0x3c000_kept[
+    (MODULES_START_ADDR(NV_MODULE_NWK_FRAME_COUNT) == 0x3C000u) ? 1 : -1];
+typedef char glsd_nv_ota_at_0x3e000[
+    (MODULES_START_ADDR(NV_MODULE_OTA) == 0x3E000u) ? 1 : -1];
+typedef char glsd_nv_app_at_0x7a000[
+    (MODULES_START_ADDR(NV_MODULE_APP) == 0x7A000u) ? 1 : -1];
+typedef char glsd_nv_keypair_at_0x7c000[
+    (MODULES_START_ADDR(NV_MODULE_KEYPAIR) == 0x7C000u) ? 1 : -1];
+typedef char glsd_nv_keypair_ends_at_0x80000[
+    (MODULES_START_ADDR(NV_MODULE_KEYPAIR) +
+     MODULE_SECTOR_NUM * NV_SECTOR_SIZE(NV_MODULE_KEYPAIR) == 0x80000u) ? 1 : -1];
+/* Nothing the wipe touches may reach the MAC/calibration sectors. */
+typedef char glsd_nv_stack_below_identity[
+    (MODULES_START_ADDR(NV_MODULE_OTA) +
+     MODULE_SECTOR_NUM * NV_SECTOR_SIZE(NV_MODULE_OTA) <= 0x40000u) ? 1 : -1];
+
 static bool glsd_stack_nv_marker_read(
     uint8_t out[GLSD301P_STACK_NV_MARKER_SIZE])
 {
