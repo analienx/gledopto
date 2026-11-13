@@ -16,6 +16,9 @@ class FakeConnection(bench.Connection):
         self.base = "zigbee2mqtt"
         self.events = queue.Queue()
         self.producer = producer
+        self.expected_build=bench.BUILD;self.expected_version=bench.VERSION
+        self.target_topic=self.base+'/'+bench.TARGET
+        self.devices=[]
         self.info = {'config': {'devices': {bench.TARGET: {'filtered_cache': ['bench_read_.*']}}}}
 
     def publish(self, suffix, payload):
@@ -108,7 +111,7 @@ class BenchTests(unittest.TestCase):
     def test_guided_resume_never_assumes_power_was_cycled(self):
         with tempfile.TemporaryDirectory() as tmp:
             journal = bench.Journal(Path(tmp))
-            for case in ("build", "health"):
+            for case in ("build", "version", "health"):
                 journal.put("baseline", case, "PASS")
             for case in ("server-name", "server-id", "version-name", "version-id", "status-name", "status-id", "combined-names", "combined-ids"):
                 journal.put("attributes", case, "PASS")
@@ -119,6 +122,55 @@ class BenchTests(unittest.TestCase):
             with mock.patch("builtins.input", side_effect=EOFError), mock.patch("subprocess.run") as run, mock.patch.object(journal, "report", return_value={"cases": []}):
                 self.assertEqual(bench.guided(args, journal), 2)
                 run.assert_not_called()
+
+    def test_profiles_accept_installed_and_candidate_and_pin_versions(self):
+        base={'ieee':bench.TARGET,'endpoint':11,'role':'EndDevice','mqtt_config':str(Path(tempfile.gettempdir())/'private-mqtt.yaml')}
+        for build,version in [('GLSD-ED-008',0x7f090001),('GLSD-ED-009',0x7f0a0001),('GLSD-ED-010',0x7f0b0001)]:
+            bench.validate_profile({**base,'build':build,'file_version':version})
+        with self.assertRaises(ValueError):bench.validate_profile({**base,'build':'GLSD-ED-009','file_version':0x7f090001})
+
+    def test_journal_cannot_reuse_another_build_evidence(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            p={'ieee':bench.TARGET,'build':'GLSD-ED-008','file_version':0x7f090001,'role':'EndDevice','endpoint':11}
+            bench.Journal(Path(tmp),p)
+            with self.assertRaises(ValueError):bench.Journal(Path(tmp),{**p,'build':'GLSD-ED-009','file_version':0x7f0a0001})
+
+    def test_converter_requires_refreshed_build_and_real_expose(self):
+        d={'ieee_address':bench.TARGET,'type':'EndDevice','endpoints':{'11':{}},
+           'software_build_id':bench.BUILD,'definition':{'exposes':[{'name':'power_on_behavior','values':['off','on','toggle','previous']}]}}
+        self.assertTrue(bench.converter_ready([d],bench.BUILD)[0])
+        self.assertFalse(bench.converter_ready([{**d,'software_build_id':'GLSD-ED-008'}],bench.BUILD)[0])
+        self.assertFalse(bench.converter_ready([{**d,'definition':{'exposes':[]}}],bench.BUILD)[0])
+        self.assertFalse(bench.converter_ready([{**d,'ieee_address':'wrong'}],bench.BUILD)[0])
+
+    def test_post_ota_does_not_accept_cached_metadata_without_fresh_reads(self):
+        c=FakeConnection(lambda *args:None)
+        with tempfile.TemporaryDirectory() as tmp, mock.patch.object(c,'read',return_value={'status':'UNVERIFIED'}):
+            self.assertFalse(bench.post_ota(c,bench.Journal(Path(tmp))))
+
+    def test_startup_acceptance_settles_and_checks_reboot_and_state(self):
+        c=FakeConnection(lambda *args:None);c.info['permit_join']=False
+        old={'on':True,'policy':255,'level':73,'health':{'uptime_ms':100000}}
+        current={**old,'health':{'uptime_ms':1000}}
+        with tempfile.TemporaryDirectory() as tmp:
+            j=bench.Journal(Path(tmp))
+            with mock.patch.object(bench,'startup_snapshot',return_value=old),mock.patch.object(bench.time,'sleep') as sleep:
+                self.assertTrue(bench.startup_check(c,j,'previous-on','before'))
+                sleep.assert_called_once_with(3)
+            with mock.patch.object(bench,'startup_snapshot',return_value=current):
+                self.assertTrue(bench.startup_check(c,j,'previous-on','after'))
+            with mock.patch.object(bench,'startup_snapshot',return_value=old):
+                self.assertFalse(bench.startup_check(c,j,'previous-on','after'))
+            with mock.patch.object(bench,'startup_snapshot',return_value={**current,'on':False}):
+                self.assertFalse(bench.startup_check(c,j,'previous-on','after'))
+
+    def test_startup_rejects_missing_before_and_wrong_initial_policy(self):
+        c=FakeConnection(lambda *args:None);c.info['permit_join']=False
+        with tempfile.TemporaryDirectory() as tmp:
+            j=bench.Journal(Path(tmp))
+            self.assertFalse(bench.startup_check(c,j,'on','after'))
+            with mock.patch.object(bench,'startup_snapshot',return_value={'on':False,'policy':0,'level':73}):
+                self.assertFalse(bench.startup_check(c,j,'on','before'))
 
 
 if __name__ == "__main__":
