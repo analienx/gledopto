@@ -2,6 +2,7 @@
 #include <stdbool.h>
 #include <stdlib.h>
 #include <stdint.h>
+#include <stddef.h>
 #include <string.h>
 #include <assert.h>
 #include "host_types.h"
@@ -11,6 +12,7 @@
 #define FLASH_ADDR_OF_F_CFG_INFO_512K 0x77000u
 #define CFG_FACTORY_RST_CNT 0x78000u
 #define min2(a,b) ((a)<(b)?(a):(b))
+#define OFFSETOF(type,member) offsetof(type,member)
 #define ZB_EXCEPTION_POST(n) assert(0 && "SDK NV exception")
 #include "drivers/drv_nv.h"
 unsigned int xcrc32(const unsigned char *,int,unsigned int);

@@ -60,8 +60,9 @@ The candidate is `GLSD-ED-009`, app version `0x0A`, OTA `0x7F0A0001`, date
 - Standard OnOff `StartUpOnOff` (0x4003) is writable. The pinned SDK patch
   rejects reserved enum values before ordinary writes and atomic validation.
   Level `StartUpCurrentLevel` remains read-only 255, restoring saved brightness.
-- Target item `NV_MODULE_APP:0xE6` uses SDK journal write plus exact readback;
-  stack epoch item `0xE5` and its marker remain unchanged. An ordinary OTA
+- Target item `NV_MODULE_ZCL:0xE6` (0x3A000–0x3BFFF) uses SDK journal write plus
+  exact readback. Routine saves never rotate the APP module holding epoch
+  item `0xE5`. Stack epoch and its marker remain unchanged. An ordinary OTA
   within this firmware line does not erase network records or startup settings.
 - Persistence requires ready output, idle level engine, no pending/inflight
   DMA and two matching maintenance samples separated by 1 s. Normal durability
@@ -71,7 +72,7 @@ The candidate is `GLSD-ED-009`, app version `0x0A`, OTA `0x7F0A0001`, date
 - Control restores selected OnOff only after initial OFF completion and owned
   timer readiness. Defaults remain OFF, so after a future approved installation
   explicitly select `on` for the RIGHT-relay topology, or `previous` if desired.
-- The converter exposes the four options only for the exact ED-009 fingerprint;
+- The converter exposes the four options for the ED-009-and-later build family;
   ED-008/unknown development builds keep their older light/OTA definition.
   Do not mistake green converter/build checks for actual installed support.
 
@@ -88,6 +89,51 @@ committed record and retries. Startup policy applies to watchdog/software
 resets too. SDK journal behavior and flash timing are not replaced by a new
 storage driver; actual powered-device persistence and lamp behavior remain
 unverified until a separately authorized OTA and controlled power-cycle test.
+
+## Review corrections and evidence limits
+
+The initial candidate at `0fdf8aa` incorrectly placed routine saves in APP with
+the epoch marker and left application voltage detection disabled. That
+candidate is withdrawn from hardware consideration. Keeping the marker's bytes
+unchanged was insufficient: sector rotation could lose it and boot recovery
+would then erase the network. No part of that candidate was flashed here.
+
+The corrected target enables the SDK PB3 voltage guard and checks a fresh ADC
+sample before calling NV. The SDK checks again before each page write and sector
+erase. This reduces brownout exposure; it cannot guarantee a flash operation
+finishes if supply collapses after the check. Isolation ensures damaged ZCL
+storage cannot, by itself, invalidate the APP epoch marker. ZCL reporting setup
+may need repair after a ZCL storage failure. The unsafe APP:E6 record is not
+read or migrated; the withdrawn candidate was never deployed.
+
+Executable hosted wiring tests compile the actual target writer, maintenance
+and `user_init` bodies, plus the pinned SDK's actual flash write/erase guards.
+They exercise low voltage, every save-deferral input, NV errors, corrupt and
+valid-but-different readback, and boot-load ordering. Mutation cases must fail
+if the module, voltage check, comparison, DMA gate or boot ordering changes.
+The build manifest receives observed module/item/address/guard facts from this
+test report, along with its SHA-256. These are tested source-wiring facts, not
+binary-derived proof or hardware acceptance.
+
+A second harness executes the pinned SDK NV driver and CRC code on simulated
+NOR flash. It forces repeated sector rotations, cuts in write/erase callbacks
+and invalid ZCL sector headers. All bytes outside ZCL, and the actual epoch
+clean predicate, must remain unchanged. The simulation is not a physical
+brownout test.
+
+The profile-driven bench runner supports ED-008, ED-009 and future explicitly
+pinned builds/versions. `post-ota` requires fresh identity/version responses and
+updated Z2M metadata with the startup expose. `startup` supplies read-only
+before/after cases with a three-second settling gate and real restarted-uptime
+check; see BENCH-ED008.md. No interview, firmware transfer or relay action is
+performed automatically.
+
+Household policy: select `on` when RIGHT is the normal hard-power control. If an
+automation uses `previous` and sends a light/brightness command before cutting
+RIGHT, require at least three seconds with no newer state/level change before
+the cut. A direct bound or local wall-button cut cannot be delayed by HA; do not
+promise last-second persistence for that path. The HA topology/agent handoff
+records this rule; live automation rollout remains a separate qualified action.
 
 ## Recent-activity defect and correction
 

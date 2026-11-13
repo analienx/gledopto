@@ -82,9 +82,11 @@ The policy applies to all boots, including watchdog resets; it does not claim
 to distinguish a mains cut from a software reset. A faulted/unready runtime
 cannot persist a fault-forced OFF over the last normal user state.
 
-ED-009 stores policy and stable user state in application item `0xE6`, using
+ED-009 stores policy and stable user state in ZCL-module item `0xE6`, using
 the existing SDK NV journal, an application version/CRC and write readback.
-The stack-NV epoch item `0xE5` and its migration value are unchanged. Factory
+The stack-NV epoch item `0xE5` stays in APP: routine startup saves cannot rotate
+its sectors. PB3 supply checks gate the target save and SDK writes/erases.
+The epoch's migration value is unchanged. Factory
 reset still erases the application module along with the existing stack wipe.
 Normal samples require idle Level, no pending/inflight UART and ready output.
 The 1 s maintenance event waits for two matching safe samples at least 1 s
