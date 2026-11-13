@@ -585,6 +585,7 @@ jobs:
         run: |
           set -euo pipefail
           python3 tools/tests/test_glsd301p_health_decode.py -v
+          python3 tools/tests/test_glsd301p_bench.py -v
       - name: Adversarially verify End Device architecture firewall
         shell: bash
         run: bash tests/test_glsd301p_target_contract.sh
