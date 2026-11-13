@@ -106,6 +106,20 @@ def validate_target_manifest(manifest_path: Path, inner_path: Path) -> dict:
     if wrong:
         raise EndDeviceOtaError("build manifest violates target contract: " + ", ".join(wrong))
 
+    evidence_path=manifest_path.parent/'startup-wiring/startup-target-evidence.json'
+    if not evidence_path.is_file():
+        raise EndDeviceOtaError('missing executable startup wiring evidence')
+    evidence_raw=evidence_path.read_bytes()
+    if hashlib.sha256(evidence_raw).hexdigest()!=fields.get('STARTUP_WIRING_EVIDENCE_SHA256'):
+        raise EndDeviceOtaError('startup wiring evidence hash mismatch')
+    try:
+        evidence=json.loads(evidence_raw)
+    except (ValueError,UnicodeError) as exc:
+        raise EndDeviceOtaError('invalid startup wiring evidence') from exc
+    if any(evidence.get(k)!=v for k,v in {'nv_module':3,'nv_item':230,'nv_start':0x3a000,
+                                         'voltage_guard':1,'target_wiring':'PASS'}.items()):
+        raise EndDeviceOtaError('startup wiring evidence does not match the safe storage contract')
+
     inner = inner_path.read_bytes()
     validate_finalized_image(
         inner,
@@ -165,6 +179,7 @@ def validate_target_manifest(manifest_path: Path, inner_path: Path) -> dict:
                                "item": int(fields["STARTUP_NV_ITEM"], 0),
                                "address": int(fields["STARTUP_NV_START"], 0),
                                "voltageGuard": fields["STARTUP_VOLTAGE_GUARD"] == "1"},
+            "startupWiringEvidenceSha256": fields['STARTUP_WIRING_EVIDENCE_SHA256'],
         },
         "hardwareContract": {
             "adcFlashSafetyPin": "PB3",

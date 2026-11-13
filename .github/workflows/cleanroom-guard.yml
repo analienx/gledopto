@@ -739,6 +739,7 @@ jobs:
           mkdir -p "$out"
           cp "$src/glsd301p-ed.final.bin" "$out/glsd301p-ed_0x00000.bin"
           cp "$src/manifest.txt" "$src/sdk-patches.json" "$src/glsd301p-ed.map" "$out/"
+          cp "$src/startup-wiring/startup-target-evidence.json" "$out/"
           (cd "$out" && sha256sum glsd301p-ed_0x00000.bin | tee SHA256SUMS)
           echo "WIRED_IMAGE_BYTES=$(stat -c %s "$out/glsd301p-ed_0x00000.bin")"
           echo "WIRED_IMAGE_SOURCE=${{ github.sha }}"

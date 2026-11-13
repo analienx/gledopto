@@ -40,6 +40,11 @@ def finalized_inner(version: int, size: int = 256) -> bytes:
 
 def target_manifest(path: Path, inner_path: Path) -> None:
     inner = inner_path.read_bytes()
+    evidence_path=path.parent/'startup-wiring/startup-target-evidence.json'
+    evidence_path.parent.mkdir(exist_ok=True)
+    evidence=json.dumps({'nv_module':3,'nv_item':230,'nv_start':0x3a000,
+                         'voltage_guard':1,'target_wiring':'PASS'}).encode()
+    evidence_path.write_bytes(evidence)
     fields = {
         "QUARANTINED_BUILD": "YES",
         "DEPLOYABLE": "NO",
@@ -66,6 +71,7 @@ def target_manifest(path: Path, inner_path: Path) -> None:
         "STARTUP_NV_START": "0x3a000",
         "STARTUP_VOLTAGE_GUARD": "1",
         "STARTUP_WIRING_TEST": "PASS",
+        "STARTUP_WIRING_EVIDENCE_SHA256": hashlib.sha256(evidence).hexdigest(),
         "OTA_CLIENT_QUERY": "AFTER_JOIN_AND_FAILED_TRANSFER_43200S_SDK_P7_NO_STUCK_DOWNLOAD",
         "FINAL_BINARY_SIZE": str(len(inner)),
         "TEXT_VMA": "0x00001560",
@@ -217,6 +223,17 @@ class FinalizationTests(unittest.TestCase):
                 manifest.write_text(good.replace(old,new))
                 with self.subTest(new=new),self.assertRaises(wrapper.EndDeviceOtaError):
                     wrapper.validate_target_manifest(manifest,inner)
+
+    def test_wrapper_rejects_missing_or_tampered_startup_evidence(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            root=Path(td);inner=root/'glsd301p-ed.final.bin'
+            inner.write_bytes(finalized_inner(wrapper.DEFAULT_FILE_VERSION))
+            manifest=root/'manifest.txt';target_manifest(manifest,inner)
+            evidence=root/'startup-wiring/startup-target-evidence.json'
+            evidence.write_text('{}')
+            with self.assertRaises(wrapper.EndDeviceOtaError):wrapper.validate_target_manifest(manifest,inner)
+            evidence.unlink()
+            with self.assertRaises(wrapper.EndDeviceOtaError):wrapper.validate_target_manifest(manifest,inner)
 
     def test_wrapper_rejects_manifest_without_commissioning(self) -> None:
         with tempfile.TemporaryDirectory() as td:

@@ -258,7 +258,7 @@ fi
 require_source 'glsd_ensure_maintenance_timer\(\);' 'maintenance event registration retried'
 require_source 'in\.connectivity = glsd301p_rejoin_health_byte' 'connectivity state exported in health snapshot'
 require_source 'ACCESS_CONTROL_READ \| ACCESS_CONTROL_WRITE, &g_startup.policy' 'StartUpOnOff is writable'
-require_source 'GLSD301P_NV_ITEM_STARTUP' 'startup uses separate app NV item'
+require_source 'GLSD301P_NV_ITEM_STARTUP' 'startup uses private ZCL NV item'
 require_source 'g_control.boot_on = glsd301p_startup_boot_on' 'startup enters guarded restore'
 echo 'TARGET_FACTORY_NEW_COMMISSIONING=PASS'
 echo 'TARGET_RESET_GESTURE_AND_LEAVE_REBOOT=PASS'
