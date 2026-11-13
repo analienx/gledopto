@@ -26,7 +26,7 @@
 const {light, identify} = require("zigbee-herdsman-converters/lib/modernExtend");
 
 const definition = {
-    zigbeeModel: ["GL-SD-301P-ED"],
+    fingerprint: [{modelID: "GL-SD-301P-ED", manufacturerName: "analienx", softwareBuildID: "GLSD-ED-009"}],
     model: "GL-SD-301P-ED",
     vendor: "analienx",
     description: "GL-SD-301P dimmer running independent RX-on-when-idle End Device firmware",
@@ -41,4 +41,14 @@ const definition = {
     ota: true,
 };
 
-module.exports = definition;
+// Keep ED-008 and unknown development builds usable without offering a
+// writable setting that their firmware may reject. OTA remains available.
+const legacy = {
+    zigbeeModel: ["GL-SD-301P-ED"],
+    model: "GL-SD-301P-ED",
+    vendor: "analienx",
+    description: "GL-SD-301P End Device firmware without configurable startup",
+    extend: [light({configureReporting: true, effect: false, powerOnBehavior: false}), identify()],
+    ota: true,
+};
+module.exports = [definition, legacy];

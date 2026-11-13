@@ -31,6 +31,8 @@ static void defaults_and_matrix(void)
         glsd301p_startup_init(&reboot, flash);
         assert(reboot.policy == policies[i]);
         assert(reboot.previous_level == 73u);
+        glsd301p_startup_init(&reboot, reboot.committed);
+        assert(reboot.previous_level == 73u && reboot.policy == policies[i]);
         assert(glsd301p_startup_boot_on(&reboot) ==
             (policies[i] == 1u || (policies[i] == 2u && !on) ||
              (policies[i] == 255u && on)));

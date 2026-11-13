@@ -40,10 +40,14 @@ bool glsd301p_startup_record_valid(const uint8_t *r)
 
 void glsd301p_startup_init(glsd301p_startup_t *s, const uint8_t *r)
 {
+    uint8_t copy[GLSD301P_STARTUP_RECORD_SIZE];
+    bool valid;
     if (s == NULL) return;
+    valid = glsd301p_startup_record_valid(r);
+    if (valid) memcpy(copy, r, sizeof(copy));
     memset(s, 0, sizeof(*s));
-    if (glsd301p_startup_record_valid(r)) {
-        memcpy(s->committed, r, GLSD301P_STARTUP_RECORD_SIZE);
+    if (valid) {
+        memcpy(s->committed, copy, GLSD301P_STARTUP_RECORD_SIZE);
     } else {
         encode(s->committed, 0u, false, 254u);
     }

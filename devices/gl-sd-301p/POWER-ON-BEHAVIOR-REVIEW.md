@@ -49,9 +49,45 @@ do not silently change an existing user's chosen policy during migration.
   owner approval: transfer, fresh installed build/role, power-cycle behavior,
   physical dimming and button/relay operation are separate live acceptance cases.
 
-**Startup firmware implementation is pending.** This document is an explicit
-reviewable requirement, not a claim that ED-008 already supports the setting or
-that a replacement image is ready.
+## Implemented candidate: ED-009
+
+The candidate is `GLSD-ED-009`, app version `0x0A`, OTA `0x7F0A0001`, date
+`20261113`. ED-008 remains installed. No OTA has been initiated.
+
+- `src/glsd301p_startup.{c,h}` owns a versioned 8-byte record with CRC16,
+  startup selection, last normal OnOff and brightness. Invalid/missing records
+  migrate to OFF/254. Values 0/1/2/255 mean Off/On/Toggle/Previous.
+- Standard OnOff `StartUpOnOff` (0x4003) is writable. The pinned SDK patch
+  rejects reserved enum values before ordinary writes and atomic validation.
+  Level `StartUpCurrentLevel` remains read-only 255, restoring saved brightness.
+- Target item `NV_MODULE_APP:0xE6` uses SDK journal write plus exact readback;
+  stack epoch item `0xE5` and its marker remain unchanged. An ordinary OTA
+  within this firmware line does not erase network records or startup settings.
+- Persistence requires ready output, idle level engine, no pending/inflight
+  DMA and two matching maintenance samples separated by 1 s. Normal durability
+  takes 1–2 s after settling. A cut sooner restores the prior committed state.
+  State writes are coalesced, absent when unchanged, and failed writes retry
+  no more than once per 30 s. Fault-forced OFF never replaces normal state.
+- Control restores selected OnOff only after initial OFF completion and owned
+  timer readiness. Defaults remain OFF, so after a future approved installation
+  explicitly select `on` for the RIGHT-relay topology, or `previous` if desired.
+- The converter exposes the four options only for the exact ED-009 fingerprint;
+  ED-008/unknown development builds keep their older light/OTA definition.
+  Do not mistake green converter/build checks for actual installed support.
+
+Regression sources: `tests/test_glsd301p_startup.c` (all policy/state pairs,
+round trip, every single record-bit corruption, power cut, failed write retry,
+wear/coalescing, unsafe state, zero-level OFF and wrap); control harness
+(configured ON stays OFF until completion, invalid restore, boot timeout);
+SDK dispatch harness (valid/reserved policies, atomic writes and no-response
+writes); converter resolution/exposes; packaging startup contract.
+
+Limits to review: durability is deferred rather than synchronously guaranteed
+by the ZCL write response. A persistent flash failure retains the previous
+committed record and retries. Startup policy applies to watchdog/software
+resets too. SDK journal behavior and flash timing are not replaced by a new
+storage driver; actual powered-device persistence and lamp behavior remain
+unverified until a separately authorized OTA and controlled power-cycle test.
 
 ## Recent-activity defect and correction
 

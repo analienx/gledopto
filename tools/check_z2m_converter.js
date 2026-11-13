@@ -39,10 +39,11 @@ function zclString(source, name) {
     const model = zclString(target, "g_basic_model_id");
     const vendor = zclString(target, "g_basic_mfr_name");
 
-    const def = require(path.join(root, "devices/gl-sd-301p/zigbee2mqtt/glsd301p_ed.js"));
-    if (!def.zigbeeModel || !def.zigbeeModel.includes(model)) {
-        fail(`converter zigbeeModel ${JSON.stringify(def.zigbeeModel)} does not include firmware modelId ${model}`);
-    }
+    const definitions = require(path.join(root, "devices/gl-sd-301p/zigbee2mqtt/glsd301p_ed.js"));
+    const [def, legacy] = definitions;
+    const build = zclString(target, "g_basic_sw_build_id");
+    if (!def.fingerprint.some(f => f.modelID === model && f.softwareBuildID === build))
+        fail("new converter fingerprint does not pin firmware model/build");
     if (def.vendor !== vendor) fail(`converter vendor ${def.vendor} != firmware manufacturerName ${vendor}`);
 
     const prepared = zhc.prepareDefinition(def);
@@ -61,16 +62,28 @@ function zclString(source, name) {
     for (const forbidden of ["effect"]) {
         if (names.includes(forbidden)) fail("exposes control the firmware refuses: " + forbidden);
     }
+    const power = exposes.find(e => e.name === "power_on_behavior");
+    for (const value of ["off", "on", "toggle", "previous"])
+        if (!power.values.includes(value)) fail("missing startup choice " + value);
 
+    zhc.addExternalDefinition(legacy);
     zhc.addExternalDefinition(def);
     const found = await zhc.findByDevice({
         modelID: model,
         manufacturerName: vendor,
+        softwareBuildID: build,
         endpoints: [],
         getEndpoint: () => undefined,
         type: "EndDevice",
     });
     if (!found || found.model !== def.model) fail("findByDevice does not resolve the firmware identity");
+    const old = await zhc.findByDevice({modelID: model, manufacturerName: vendor,
+        softwareBuildID: "GLSD-ED-008", endpoints: [], getEndpoint: () => undefined, type: "EndDevice"});
+    const oldExposes = typeof old.exposes === "function" ? old.exposes({}, {}) : old.exposes;
+    if (oldExposes.some(e => e.name === "power_on_behavior"))
+        fail("ED-008 must not expose unsupported startup control");
+    const foundExposes = typeof found.exposes === "function" ? found.exposes({}, {}) : found.exposes;
+    if (!foundExposes.some(e => e.name === "power_on_behavior")) fail("ED-009 fingerprint did not win");
 
     console.log(`Z2M_CONVERTER=PASS model=${model} vendor=${vendor} ota=true exposes=${names.join(",")}`);
 })().catch((e) => fail(e && e.stack ? e.stack : String(e)));
