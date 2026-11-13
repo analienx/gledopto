@@ -24,7 +24,7 @@ APP_SLOT_SIZE=0x34000
 BANK_B_BASE=0x40000
 BANK_B_SLOT_END=0x74000
 MAC_REGION_START=0x76000
-FILE_VERSION=0x7F090001
+FILE_VERSION=0x7F0A0001
 
 [[ -f "$SDK/platform/boot/8258/boot_8258.link" ]] || { echo 'ERROR: pinned TLSR8258 SDK fixture incomplete' >&2; exit 2; }
 [[ -f "$SDK/zigbee/lib/tc32/libzb_ed.a" ]] || { echo 'ERROR: libzb_ed.a missing' >&2; exit 2; }
@@ -126,6 +126,7 @@ app_sources=(
   "$CORE/glsd301p_bdb_adapter.c"
   "$CORE/glsd301p_health.c"
   "$CORE/glsd301p_stack_nv.c"
+  "$CORE/glsd301p_startup.c"
   "$TARGET/glsd301p_telink_inert_glue.c"
   "$TARGET/glsd301p_telink_link_sentinels.c"
   "$TARGET/glsd301p_telink_target.c"
@@ -257,23 +258,23 @@ grep -q 'glsd301p_health_note_bdb_status' "$TARGET/glsd301p_telink_target.c" || 
 if grep -q 'nv_\|zcl_nv\|reportAttr\|zcl_report' "$CORE/glsd301p_health.c"; then
   echo 'ERROR: health snapshot must not touch NVM or reporting' >&2; exit 1;
 fi
-grep -q '#define FILE_VERSION[[:space:]]*0x7F090001' "$TARGET/version_cfg.h" || {
-  echo 'ERROR: FILE_VERSION must be the allocated 0x7F090001' >&2; exit 1;
+grep -q '#define FILE_VERSION[[:space:]]*0x7F0A0001' "$TARGET/version_cfg.h" || {
+  echo 'ERROR: FILE_VERSION must be the allocated 0x7F0A0001' >&2; exit 1;
 }
-grep -q '#define APP_BUILD[[:space:]]*0x09' "$TARGET/version_cfg.h" || {
-  echo 'ERROR: APP_BUILD must be the allocated 09' >&2; exit 1;
+grep -q '#define APP_BUILD[[:space:]]*0x0A' "$TARGET/version_cfg.h" || {
+  echo 'ERROR: APP_BUILD must be the allocated 0A' >&2; exit 1;
 }
 # The over-the-air Basic identity must match the declared DEV_IDENTITY.
-grep -Fq "g_basic_sw_build_id[] = {11,'G','L','S','D','-','E','D','-','0','0','8'};"   "$TARGET/glsd301p_telink_target.c" || {
-  echo 'ERROR: Basic swBuildId must report GLSD-ED-008' >&2; exit 1;
+grep -Fq "g_basic_sw_build_id[] = {11,'G','L','S','D','-','E','D','-','0','0','9'};"   "$TARGET/glsd301p_telink_target.c" || {
+  echo 'ERROR: Basic swBuildId must report GLSD-ED-009' >&2; exit 1;
 }
-grep -Fq "g_basic_date_code[] = {8,'2','0','2','6','1','1','1','1'};"   "$TARGET/glsd301p_telink_target.c" || {
-  echo 'ERROR: Basic dateCode must report 20261111' >&2; exit 1;
+grep -Fq "g_basic_date_code[] = {8,'2','0','2','6','1','1','1','3'};"   "$TARGET/glsd301p_telink_target.c" || {
+  echo 'ERROR: Basic dateCode must report 20261113' >&2; exit 1;
 }
-grep -Fq "g_basic_app_version = 0x09u;" "$TARGET/glsd301p_telink_target.c" || {
-  echo 'ERROR: Basic appVersion must report APP_BUILD 0x09' >&2; exit 1;
+grep -Fq "g_basic_app_version = 0x0Au;" "$TARGET/glsd301p_telink_target.c" || {
+  echo 'ERROR: Basic appVersion must report APP_BUILD 0x0A' >&2; exit 1;
 }
-[[ "$FILE_VERSION" == '0x7F090001' ]] || {
+[[ "$FILE_VERSION" == '0x7F0A0001' ]] || {
   echo 'ERROR: build FILE_VERSION drifted from allocated identity' >&2; exit 1;
 }
 
@@ -654,7 +655,7 @@ grep -q 'libzb_ed' "$map" || { echo 'ERROR: End Device stack archive absent from
   echo NETWORK_KEY_WAIT=10000MS
   echo OTA_CLIENT_QUERY=AFTER_JOIN_AND_FAILED_TRANSFER_43200S_SDK_P7_NO_STUCK_DOWNLOAD
   echo HEALTH_SNAPSHOT=RAM_V2_48B_BASIC_0xFF10_READONLY_1S_OWNED
-  echo DEV_IDENTITY=GLSD-ED-008_APP_BUILD_09_FILE_VERSION_0x7F090001_DATE_20261111
+  echo DEV_IDENTITY=GLSD-ED-009_APP_BUILD_0A_FILE_VERSION_0x7F0A0001_DATE_20261113
   python3 - "$DIR/sdk-patches.json" <<'PY'
 import json, sys
 report = json.load(open(sys.argv[1]))

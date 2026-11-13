@@ -54,6 +54,7 @@ void glsd301p_control_init(glsd301p_control_ctx_t *ctx,
     ctx->max_level = max_level;
     ctx->boot_level = boot_level;
     ctx->boot_min = boot_min;
+    ctx->boot_on = false;
     ctx->io_serviced_once = false;
     ctx->io_last_ms = 0u;
     ctx->io_max_gap_ms = 0u;
@@ -575,7 +576,7 @@ void glsd301p_control_io_step(glsd301p_control_ctx_t *ctx,
             return;
         }
         result = glsd301p_runtime_core_restore_state(
-            ctx->runtime, false, ctx->boot_level, ctx->boot_min, false,
+            ctx->runtime, ctx->boot_on, ctx->boot_level, ctx->boot_min, false,
             frame);
         if (result == GLSD301P_RUNTIME_FRAME_READY) {
             (void)glsd301p_control_emit(ctx, result, frame, now_ms);

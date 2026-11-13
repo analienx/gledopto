@@ -272,6 +272,8 @@ jobs:
           # shellcheck disable=SC2086
           cc $strict $inc src/glsd301p_stack_nv.c tests/test_glsd301p_stack_nv.c \
             -o build/host-tests/test_glsd301p_stack_nv
+          cc $strict $inc src/glsd301p_startup.c tests/test_glsd301p_startup.c \
+            -o build/host-tests/test_glsd301p_startup
       - name: Install 32-bit toolchain for pool-exact harnesses
         shell: bash
         run: |
@@ -580,6 +582,7 @@ jobs:
           build/host-tests/test_glsd301p_zcl_dispatch
           build/host-tests/test_glsd301p_health
           build/host-tests/test_glsd301p_stack_nv
+          build/host-tests/test_glsd301p_startup
       - name: Run health decoder fixtures
         shell: bash
         run: |

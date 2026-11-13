@@ -15,6 +15,7 @@
 #include "glsd301p_rejoin.h"
 #include "glsd301p_runtime_core.h"
 #include "glsd301p_stack_nv.h"
+#include "glsd301p_startup.h"
 #include "glsd301p_timebase.h"
 #include "glsd301p_timer_events.h"
 #include "glsd301p_uart_service.h"
@@ -42,6 +43,7 @@
 /* Private item in NV_MODULE_APP naming the firmware line that owns the
  * stack's NV modules (see glsd301p_stack_nv.h). */
 #define GLSD301P_NV_ITEM_STACK_EPOCH           0xE5u
+#define GLSD301P_NV_ITEM_STARTUP               0xE6u
 /* How long an associated device waits for its network key. The SDK default
  * of 2 s leaves no margin for a multi-hop trust-centre round trip. */
 #define GLSD301P_NETWORK_KEY_WAIT_MS           10000u
@@ -58,6 +60,7 @@ static glsd301p_uart_transport_t g_uart_transport;
 static glsd301p_uart_service_t g_uart_service;
 static glsd301p_level_state_t g_level_state;
 static glsd301p_control_ctx_t g_control;
+static glsd301p_startup_t g_startup;
 static u8 g_uart_rx_buf[GLSD301P_UART_RX_BUFFER_SIZE] __attribute__((aligned(4)));
 static u8 g_uart_tx_dma[GLSD301P_UART_TX_DMA_SIZE] __attribute__((aligned(4)));
 static u8 g_uart_online;
@@ -65,15 +68,15 @@ static u8 g_zcl_online;
 
 /* Independent implementation identity; hardware/stack lineage remains explicit. */
 static u8 g_basic_zcl_version = 0x03u;
-static u8 g_basic_app_version = 0x09u;
+static u8 g_basic_app_version = 0x0Au;
 static u8 g_basic_stack_version = 0x02u;
 static u8 g_basic_hw_version = 0x02u;
 static u8 g_basic_power_source = POWER_SOURCE_MAINS_1_PHASE;
 static u8 g_basic_device_enabled = TRUE;
 static u8 g_basic_mfr_name[] = {8,'a','n','a','l','i','e','n','x'};
 static u8 g_basic_model_id[] = {13,'G','L','-','S','D','-','3','0','1','P','-','E','D'};
-static u8 g_basic_date_code[] = {8,'2','0','2','6','1','1','1','1'};
-static u8 g_basic_sw_build_id[] = {11,'G','L','S','D','-','E','D','-','0','0','8'};
+static u8 g_basic_date_code[] = {8,'2','0','2','6','1','1','1','3'};
+static u8 g_basic_sw_build_id[] = {11,'G','L','S','D','-','E','D','-','0','0','9'};
 
 /*
  * RAM-only v2 health snapshot body for Basic:0xFF10. The length prefix is
@@ -94,17 +97,15 @@ static u8 g_global_scene_control = TRUE;
 static u16 g_on_time;
 static u16 g_off_wait_time;
 /*
- * Startup behavior is fixed by the safety contract (SAFETY.md: boot locked
- * OFF, restore OFF at GLSD301P_MAX_LEVEL; nothing is persisted). Both
- * StartUp attributes are therefore read-only and report exactly what the
- * device does, instead of accepting writes that would be silently ignored.
+ * Boot remains locked OFF until UART completion and timer readiness.
+ * StartUpOnOff selects the subsequent guarded state; level restores the
+ * last committed brightness (StartUpCurrentLevel=255, read-only).
  */
-static u8 g_startup_onoff = ZCL_START_UP_ONOFF_SET_ONOFF_TO_OFF;
 
 static u8 g_min_level = GLSD301P_MIN_LEVEL;
 static u8 g_max_level = GLSD301P_MAX_LEVEL;
 static u8 g_level_options;
-static u8 g_startup_current_level = GLSD301P_MAX_LEVEL;
+static u8 g_startup_current_level = 255u;
 
 static const zclAttrInfo_t g_basic_attr_table[] = {
     {ZCL_ATTRID_BASIC_ZCL_VER, ZCL_DATA_TYPE_UINT8, ACCESS_CONTROL_READ, (u8 *)&g_basic_zcl_version},
@@ -136,7 +137,7 @@ static const zclAttrInfo_t g_onoff_attr_table[] = {
     {ZCL_ATTRID_GLOBAL_SCENE_CONTROL, ZCL_DATA_TYPE_BOOLEAN, ACCESS_CONTROL_READ, (u8 *)&g_global_scene_control},
     {ZCL_ATTRID_ON_TIME, ZCL_DATA_TYPE_UINT16, ACCESS_CONTROL_READ | ACCESS_CONTROL_WRITE, (u8 *)&g_on_time},
     {ZCL_ATTRID_OFF_WAIT_TIME, ZCL_DATA_TYPE_UINT16, ACCESS_CONTROL_READ | ACCESS_CONTROL_WRITE, (u8 *)&g_off_wait_time},
-    {ZCL_ATTRID_START_UP_ONOFF, ZCL_DATA_TYPE_ENUM8, ACCESS_CONTROL_READ, (u8 *)&g_startup_onoff},
+    {ZCL_ATTRID_START_UP_ONOFF, ZCL_DATA_TYPE_ENUM8, ACCESS_CONTROL_READ | ACCESS_CONTROL_WRITE, &g_startup.policy},
     {ZCL_ATTRID_GLOBAL_CLUSTER_REVISION, ZCL_DATA_TYPE_UINT16, ACCESS_CONTROL_READ, (u8 *)&zcl_attr_global_clusterRevision},
 };
 
@@ -529,11 +530,40 @@ static void glsd_health_snapshot_now(uint32_t now_ms)
 
 static void glsd_rejoin_start_attempt(bool from_retry_fire);
 
+static bool glsd_startup_write(const uint8_t *record, void *context)
+{
+    uint8_t check[GLSD301P_STARTUP_RECORD_SIZE];
+    (void)context;
+    /* SDK owns journal/sector rotation. Acknowledged application durability
+     * requires a readback; a failed write never advances our committed state. */
+    if (nv_flashWriteNew(1, NV_MODULE_APP, GLSD301P_NV_ITEM_STARTUP,
+                         GLSD301P_STARTUP_RECORD_SIZE, (u8 *)record) != NV_SUCC)
+        return false;
+    return nv_flashReadNew(1, NV_MODULE_APP, GLSD301P_NV_ITEM_STARTUP,
+                           sizeof(check), check) == NV_SUCC &&
+           glsd301p_startup_record_valid(check) &&
+           memcmp(record, check, sizeof(check)) == 0;
+}
+
+static void glsd_startup_maintenance(void)
+{
+    const bool safe = glsd301p_runtime_core_is_ready(&g_runtime) &&
+        !g_uart_service.fault_latched && !g_uart_service.inflight_active &&
+        !glsd301p_hw_uart_busy() &&
+        !glsd301p_uart_transport_has_pending(&g_uart_transport) &&
+        g_level_state.mode == GLSD301P_LEVEL_IDLE;
+    (void)glsd301p_startup_poll(&g_startup, g_runtime.logical_output_enabled,
+        g_runtime.current_level, glsd301p_timebase_now_ms(), safe,
+        glsd_startup_write, NULL);
+}
+
 static void glsd_maintenance_tick(void)
 {
     bool factory_new = zb_isDeviceFactoryNew() ? true : false;
     bool joined = zb_isDeviceJoinedNwk() ? true : false;
     glsd301p_bdb_action_t action;
+
+    glsd_startup_maintenance();
 
     if (g_reboot_countdown_s != 0u) {
         if (g_reboot_countdown_s > 1u) {
@@ -900,6 +930,15 @@ void user_init(bool isRetention)
      */
     (void)glsd301p_stack_nv_ensure_clean(
         &g_stack_nv_ops, GLSD301P_STACK_NV_MODULE_COUNT, false);
+
+    {
+        uint8_t record[GLSD301P_STARTUP_RECORD_SIZE];
+        const bool loaded = nv_flashReadNew(1, NV_MODULE_APP,
+            GLSD301P_NV_ITEM_STARTUP, sizeof(record), record) == NV_SUCC;
+        glsd301p_startup_init(&g_startup, loaded ? record : NULL);
+        g_control.boot_on = glsd301p_startup_boot_on(&g_startup);
+        g_control.boot_level = g_startup.previous_level;
+    }
 
     zb_init();
     zb_zdoCbRegister((zdo_appIndCb_t *)&g_zdo_callbacks);

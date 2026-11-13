@@ -405,6 +405,29 @@ PATCHES = [
         "edits": [
             {
                 "anchor": (
+                    "    if (!pAttrEntry->data) {\n"
+                    "        return ZCL_STA_UNSUPPORTED_ATTRIBUTE;\n"
+                    "    }\n\n"
+                    "    if (enable) {\n"
+                ),
+                "replacement": (
+                    "    if (!pAttrEntry->data) {\n"
+                    "        return ZCL_STA_UNSUPPORTED_ATTRIBUTE;\n"
+                    "    }\n\n"
+                    "    /* ED-009: validate standard StartUpOnOff before both\n"
+                    "     * ordinary writes and atomic prevalidation. Never\n"
+                    "     * acknowledge a reserved policy or mutate its store. */\n"
+                    "    if (endpoint == 11 && clusterId == 0x0006 &&\n"
+                    "        pWriteRec->attrID == 0x4003 &&\n"
+                    "        pWriteRec->attrData[0] > 2 &&\n"
+                    "        pWriteRec->attrData[0] != 0xff) {\n"
+                    "        return ZCL_STA_INVALID_VALUE;\n"
+                    "    }\n\n"
+                    "    if (enable) {\n"
+                ),
+            },
+            {
+                "anchor": (
                     "/***************************************************************************\n"
                     " **************************** Read *****************************************\n"
                     " ***************************************************************************/\n"

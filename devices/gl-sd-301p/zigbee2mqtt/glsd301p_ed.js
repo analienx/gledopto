@@ -17,8 +17,8 @@
  * Firmware facts mirrored here (firmware/glsd301p-ed/glsd301p_telink_target.c):
  *   - endpoint 11, HA dimmable light, OnOff + Level + Identify + Groups;
  *   - minLevel 2 / maxLevel 254;
- *   - StartUpOnOff / StartUpCurrentLevel are read-only (always boots OFF at
- *     254), so no power-on-behavior control is exposed;
+ *   - ED-009 supports writable StartUpOnOff and restores committed brightness;
+ *     StartUpCurrentLevel is read-only 255 (previous level);
  *   - Identify Trigger Effect is rejected, so no effect control is exposed;
  *   - Basic:0xFF10 is a read-only 48-byte health snapshot (decode with
  *     tools/glsd301p_health_decode.py); it is never reported.
@@ -34,7 +34,7 @@ const definition = {
         light({
             configureReporting: true,
             effect: false,
-            powerOnBehavior: false,
+            powerOnBehavior: true,
         }),
         identify(),
     ],

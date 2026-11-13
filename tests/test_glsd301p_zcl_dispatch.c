@@ -113,7 +113,7 @@ static const zclAttrInfo_t t_onoff_attrs[] = {
     {ZCL_ATTRID_GLOBAL_SCENE_CONTROL, ZCL_DATA_TYPE_BOOLEAN, ACCESS_CONTROL_READ, (u8 *)&t_global_scene_control},
     {ZCL_ATTRID_ON_TIME, ZCL_DATA_TYPE_UINT16, ACCESS_CONTROL_READ | ACCESS_CONTROL_WRITE, (u8 *)&t_on_time},
     {ZCL_ATTRID_OFF_WAIT_TIME, ZCL_DATA_TYPE_UINT16, ACCESS_CONTROL_READ | ACCESS_CONTROL_WRITE, (u8 *)&t_off_wait_time},
-    {ZCL_ATTRID_START_UP_ONOFF, ZCL_DATA_TYPE_ENUM8, ACCESS_CONTROL_READ, (u8 *)&t_startup_onoff},
+    {ZCL_ATTRID_START_UP_ONOFF, ZCL_DATA_TYPE_ENUM8, ACCESS_CONTROL_READ | ACCESS_CONTROL_WRITE, (u8 *)&t_startup_onoff},
     {ZCL_ATTRID_GLOBAL_CLUSTER_REVISION, ZCL_DATA_TYPE_UINT16, ACCESS_CONTROL_READ, (u8 *)&t_cluster_revision},
 };
 
@@ -5014,6 +5014,42 @@ static void test_r23_host_foundation_layout(void)
     assert(pool_free_total() == 26u);
 }
 
+static void test_startup_attribute_validation(void)
+{
+    u8 ok[] = {0x03u, 0x40u, 0x30u, 0u};
+    const u8 bad_atomic[] = {0x03u,0x40u,0x30u,1u, 0x03u,0x40u,0x30u,3u};
+    const u8 allowed[] = {0u,1u,2u,255u};
+    const u8 rejected[] = {3u,4u,254u};
+    u16 cluster, len;
+    u8 cmd;
+    const u8 *pld;
+    unsigned i;
+    for (i=0u; i<sizeof(allowed); ++i) {
+        fixture_init(NULL); ok[3]=allowed[i];
+        root_frame(ZCL_CLUSTER_GEN_ON_OFF, ZCL_CMD_WRITE, 0u,
+                   ZCL_FRAME_CLIENT_SERVER_DIR, ok, sizeof(ok), 1u);
+        assert(t_startup_onoff==allowed[i]);
+        assert(af_parse(0u,&cluster,&cmd,&pld,&len));
+        assert(cmd==ZCL_CMD_WRITE_RSP && len==1u && pld[0]==ZCL_STA_SUCCESS);
+    }
+    for (i=0u; i<sizeof(rejected); ++i) {
+        fixture_init(NULL); ok[3]=rejected[i];
+        root_frame(ZCL_CLUSTER_GEN_ON_OFF, ZCL_CMD_WRITE, 0u,
+                   ZCL_FRAME_CLIENT_SERVER_DIR, ok, sizeof(ok), 1u);
+        assert(t_startup_onoff==0u);
+        assert(af_parse(0u,&cluster,&cmd,&pld,&len));
+        assert(cmd==ZCL_CMD_WRITE_RSP && len==3u && pld[0]==ZCL_STA_INVALID_VALUE);
+    }
+    fixture_init(NULL);
+    root_frame(ZCL_CLUSTER_GEN_ON_OFF, ZCL_CMD_WRITE_UNDIVIDED, 0u,
+               ZCL_FRAME_CLIENT_SERVER_DIR, bad_atomic, sizeof(bad_atomic), 1u);
+    assert(t_startup_onoff==0u);
+    fixture_init(NULL); ok[3]=255u;
+    root_frame(ZCL_CLUSTER_GEN_ON_OFF, ZCL_CMD_WRITE_NO_RSP, 0u,
+               ZCL_FRAME_CLIENT_SERVER_DIR, ok, sizeof(ok), 1u);
+    assert(t_startup_onoff==255u && t_onoff==0u);
+}
+
 int main(int argc, char **argv)
 {
     unsigned int i;
@@ -5064,6 +5100,7 @@ int main(int argc, char **argv)
     test_r6_group_responses_unreachable();
     test_r7_write_truncated();
     test_r7_write_valid_matrix();
+    test_startup_attribute_validation();
     test_r7_write_no_rsp_and_undivided();
     test_r7_response_parsers();
     test_r7_dflt_and_discover_requests();

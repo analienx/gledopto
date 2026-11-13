@@ -257,10 +257,9 @@ fi
 }
 require_source 'glsd_ensure_maintenance_timer\(\);' 'maintenance event registration retried'
 require_source 'in\.connectivity = glsd301p_rejoin_health_byte' 'connectivity state exported in health snapshot'
-if grep -q 'ACCESS_CONTROL_WRITE, (u8 \*)&g_startup' "$TARGET_SRC"; then
-  echo 'ERROR: StartUp attributes must be read-only (behavior is fixed, nothing persisted)' >&2
-  exit 1
-fi
+require_source 'ACCESS_CONTROL_READ \| ACCESS_CONTROL_WRITE, &g_startup.policy' 'StartUpOnOff is writable'
+require_source 'GLSD301P_NV_ITEM_STARTUP' 'startup uses separate app NV item'
+require_source 'g_control.boot_on = glsd301p_startup_boot_on' 'startup enters guarded restore'
 echo 'TARGET_FACTORY_NEW_COMMISSIONING=PASS'
 echo 'TARGET_RESET_GESTURE_AND_LEAVE_REBOOT=PASS'
 echo 'TARGET_LEAVE_ONLY_GESTURE_REBOOTS_NO_DORMANT=PASS'

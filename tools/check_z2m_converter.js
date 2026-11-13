@@ -55,10 +55,10 @@ function zclString(source, name) {
         names.push(e.name || e.type);
         for (const f of e.features || []) names.push(f.name);
     }
-    for (const required of ["state", "brightness"]) {
+    for (const required of ["state", "brightness", "power_on_behavior"]) {
         if (!names.includes(required)) fail("missing expose: " + required);
     }
-    for (const forbidden of ["power_on_behavior", "effect"]) {
+    for (const forbidden of ["effect"]) {
         if (names.includes(forbidden)) fail("exposes control the firmware refuses: " + forbidden);
     }
 

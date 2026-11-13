@@ -73,6 +73,7 @@ typedef struct {
     uint8_t max_level;
     uint8_t boot_level;
     uint8_t boot_min;
+    bool boot_on;
     bool io_serviced_once;
     uint32_t io_last_ms;
     uint32_t io_max_gap_ms;
