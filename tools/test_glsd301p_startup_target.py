@@ -13,7 +13,7 @@ import subprocess
 
 
 def function(text, name):
-    match = re.search(r'(?m)^(?:static )?(?:bool|void) ' + name + r'\([^;]*?\)\s*\{', text)
+    match = re.search(r'(?m)^(?:static )?(?:bool|void|unsigned int) ' + name + r'\([^;]*?\)\s*\{', text)
     if not match:
         raise ValueError('missing function ' + name)
     start = text.index('{', match.start())

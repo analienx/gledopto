@@ -42,8 +42,8 @@ function zclString(source, name) {
     const definitions = require(path.join(root, "devices/gl-sd-301p/zigbee2mqtt/glsd301p_ed.js"));
     const [def, legacy] = definitions;
     const build = zclString(target, "g_basic_sw_build_id");
-    if (!def.fingerprint.some(f => f.modelID === model && f.softwareBuildID === build))
-        fail("new converter fingerprint does not pin firmware model/build");
+    if (!def.fingerprint.some(f => f.modelID === model && f.softwareBuildID.test(build)))
+        fail("converter family does not match firmware model/build");
     if (def.vendor !== vendor) fail(`converter vendor ${def.vendor} != firmware manufacturerName ${vendor}`);
 
     const prepared = zhc.prepareDefinition(def);
@@ -84,6 +84,14 @@ function zclString(source, name) {
         fail("ED-008 must not expose unsupported startup control");
     const foundExposes = typeof found.exposes === "function" ? found.exposes({}, {}) : found.exposes;
     if (!foundExposes.some(e => e.name === "power_on_behavior")) fail("ED-009 fingerprint did not win");
+    for (const [buildID,expected] of [["GLSD-ED-010",true],["GLSD-ED-099",true],
+        ["GLSD-ED-100",true],["GLSD-ED-999",true],["GLSD-ED-007",false],
+        ["GLSD-ED-008",false],["GLSD-ED-009-extra",false],["garbage",false]]) {
+        const resolved=await zhc.findByDevice({modelID:model,manufacturerName:vendor,
+            softwareBuildID:buildID,endpoints:[],getEndpoint:()=>undefined,type:"EndDevice"});
+        const list=typeof resolved.exposes==="function"?resolved.exposes({},{}):resolved.exposes;
+        if(list.some(e=>e.name==="power_on_behavior")!==expected)fail("wrong family resolution: "+buildID);
+    }
 
     console.log(`Z2M_CONVERTER=PASS model=${model} vendor=${vendor} ota=true exposes=${names.join(",")}`);
 })().catch((e) => fail(e && e.stack ? e.stack : String(e)));

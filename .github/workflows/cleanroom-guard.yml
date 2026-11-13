@@ -282,6 +282,8 @@ jobs:
           sudo apt-get install -y gcc-multilib libc6-dev-i386
       - name: Execute actual startup target and SDK flash guard bodies
         run: python3 tools/test_glsd301p_startup_target.py --sdk-root telink-sdk/tl_zigbee_sdk --out build/startup-wiring --mutants
+      - name: Exercise pinned SDK NV sector rotation and power-cut isolation
+        run: python3 tools/test_glsd301p_startup_nv.py --sdk-root telink-sdk/tl_zigbee_sdk --out build/startup-nv
           ls /usr/lib32/libasan* /usr/lib32/libubsan* 2>/dev/null || true
           echo 'int main(void){return 0;}' > build/m32probe.c
           cc -m32 -fsanitize=address,undefined build/m32probe.c -o build/m32probe

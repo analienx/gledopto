@@ -26,7 +26,10 @@
 const {light, identify} = require("zigbee-herdsman-converters/lib/modernExtend");
 
 const definition = {
-    fingerprint: [{modelID: "GL-SD-301P-ED", manufacturerName: "analienx", softwareBuildID: "GLSD-ED-009"}],
+    // Startup-capable family starts at ED-009. Future ED-010...ED-999 builds
+    // keep the same interface without another converter deployment.
+    fingerprint: [{modelID: "GL-SD-301P-ED", manufacturerName: "analienx",
+        softwareBuildID: /^GLSD-ED-(?:009|0[1-9][0-9]|[1-9][0-9]{2})$/}],
     model: "GL-SD-301P-ED",
     vendor: "analienx",
     description: "GL-SD-301P dimmer running independent RX-on-when-idle End Device firmware",

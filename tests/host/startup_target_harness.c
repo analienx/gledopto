@@ -5,8 +5,6 @@
 #include <string.h>
 #include "host_types.h"
 #define _attribute_packed_ __attribute__((packed))
-#define NV_BASE_ADDRESS 0x34000u
-#define NV_BASE_ADDRESS2 0x7a000u
 #include "drv_nv.h"
 #include "glsd301p_startup.h"
 /* TARGET_DEFINES */
