@@ -131,6 +131,8 @@ class Journal:
             status = event.get("status", "UNVERIFIED") if event else "UNVERIFIED"
             if event and phase == "baseline" and case == "build" and event.get("response", {}).get("swBuildId") != self.expected_build:
                 status = "FAIL"
+            if event and phase == 'baseline' and case == 'version' and event.get('response',{}).get('currentFileVersion')!=self.expected_version:
+                status='FAIL'
             if event and phase == "baseline" and case == "health" and not event.get("health"):
                 status = "UNVERIFIED"
             if event and phase == "attributes" and status == "PASS":
@@ -477,7 +479,7 @@ def startup_check(conn,journal,name,stage):
             journal.put('startup',name,'PASS',stage=stage,snapshot=snapshot,
                         reason='stable snapshot recorded; operator may now perform the isolated manual power cycle')
             return True
-        events=[json.loads(l) for l in journal.path.read_text().splitlines() if l.strip()]
+        events=[json.loads(l) for l in journal.path.read_text().splitlines() if l.strip()] if journal.path.exists() else []
         before=next((e for e in reversed(events) if e.get('phase')=='startup' and e.get('case')==name and e.get('stage')=='before'),None)
         if not before or before.get('status')!='PASS':raise ValueError('no passing settled before snapshot')
         old=before['snapshot'];current=startup_snapshot(conn,journal,name+'-restored')

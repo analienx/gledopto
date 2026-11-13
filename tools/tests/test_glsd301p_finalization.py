@@ -204,6 +204,20 @@ class FinalizationTests(unittest.TestCase):
             with self.assertRaises(wrapper.EndDeviceOtaError):
                 wrapper.validate_target_manifest(manifest, inner)
 
+    def test_wrapper_rejects_unsafe_startup_storage_or_guard(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            root=Path(td);inner=root/'glsd301p-ed.final.bin'
+            inner.write_bytes(finalized_inner(wrapper.DEFAULT_FILE_VERSION))
+            manifest=root/'manifest.txt';target_manifest(manifest,inner)
+            good=manifest.read_text()
+            for old,new in [('STARTUP_NV_MODULE=3','STARTUP_NV_MODULE=6'),
+                            ('STARTUP_NV_START=0x3a000','STARTUP_NV_START=0x7a000'),
+                            ('STARTUP_VOLTAGE_GUARD=1','STARTUP_VOLTAGE_GUARD=0'),
+                            ('STARTUP_WIRING_TEST=PASS','STARTUP_WIRING_TEST=FAIL')]:
+                manifest.write_text(good.replace(old,new))
+                with self.subTest(new=new),self.assertRaises(wrapper.EndDeviceOtaError):
+                    wrapper.validate_target_manifest(manifest,inner)
+
     def test_wrapper_rejects_manifest_without_commissioning(self) -> None:
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)

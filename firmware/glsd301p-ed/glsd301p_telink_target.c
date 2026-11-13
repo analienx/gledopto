@@ -68,6 +68,9 @@ typedef char glsd_startup_separate_from_epoch[
 typedef char glsd_startup_zcl_region[
     (MODULES_START_ADDR(GLSD301P_STARTUP_NV_MODULE) == 0x3A000u) ? 1 : -1];
 typedef char glsd_startup_voltage_guard_enabled[(VOLTAGE_DETECT_ENABLE == 1) ? 1 : -1];
+typedef char glsd_startup_item_is_private[
+    (GLSD301P_NV_ITEM_STARTUP > NV_ITEM_APS_BINDING_TABLE_V2 &&
+     GLSD301P_NV_ITEM_STARTUP < NV_ITEM_ID_MAX) ? 1 : -1];
 static u8 g_uart_rx_buf[GLSD301P_UART_RX_BUFFER_SIZE] __attribute__((aligned(4)));
 static u8 g_uart_tx_dma[GLSD301P_UART_TX_DMA_SIZE] __attribute__((aligned(4)));
 static u8 g_uart_online;

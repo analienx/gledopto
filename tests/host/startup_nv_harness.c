@@ -5,7 +5,7 @@
 /* Include the byte-identical pinned SDK body; only flash/allocator HALs are fake. */
 #include "proj/drivers/drv_nv.c"
 static uint8_t media[0x80000], snapshot[0x80000], rotation[0x80000];
-static unsigned erases, ops, fail_at;
+static unsigned erases, ops, fail_at, cuts;
 static bool cut_enabled;
 static jmp_buf power_cut;
 void flash_read(u32 a,u32 n,u8 *p){assert(a+n<=sizeof(media));memcpy(p,media+a,n);}
@@ -39,6 +39,7 @@ int main(void){
     glsd301p_stack_nv_marker(marker);assert(marker_write(marker));
     assert(nv_flashWriteNew(1,NV_MODULE_ZB_INFO,1,sizeof(sentinel),sentinel)==NV_SUCC);
     assert(nv_flashWriteNew(1,NV_MODULE_KEYPAIR,1,sizeof(sentinel),sentinel)==NV_SUCC);
+    assert(nv_flashWriteNew(1,NV_MODULE_ZCL,NV_ITEM_ZCL_REPORT,sizeof(sentinel),sentinel)==NV_SUCC);
     memcpy(snapshot,media,sizeof(media));unsigned start=erases;bool captured=false;
     for(unsigned i=0;i<400;i++){
         value[0]=(uint8_t)i;value[1]=(uint8_t)(i>>8);
@@ -46,12 +47,16 @@ int main(void){
         assert(nv_flashWriteNew(1,NV_MODULE_ZCL,0xe6,sizeof(value),value)==NV_SUCC);
         assert(nv_flashReadNew(1,NV_MODULE_ZCL,0xe6,sizeof(check),check)==NV_SUCC);
         assert(memcmp(check,value,sizeof(check))==0);intact();
+        uint8_t report[sizeof(sentinel)];
+        assert(nv_flashReadNew(1,NV_MODULE_ZCL,NV_ITEM_ZCL_REPORT,sizeof(report),report)==NV_SUCC);
+        assert(memcmp(report,sentinel,sizeof(report))==0);
         if(i>5 && erases>prior && !captured){
             /* Exercise cuts inside real sector-copy writes and erases. */
             uint8_t completed[sizeof(media)];memcpy(completed,media,sizeof(media));
             for(unsigned failure=1;failure<=50;failure++){
                 memcpy(media,rotation,sizeof(media));ops=0;fail_at=failure;cut_enabled=true;
                 if(setjmp(power_cut)==0)(void)nv_flashWriteNew(1,NV_MODULE_ZCL,0xe6,sizeof(value),value);
+                else ++cuts;
                 cut_enabled=false;intact();
                 (void)nv_flashReadNew(1,NV_MODULE_ZCL,0xe6,sizeof(check),check);
                 /* Recovery may lose ZCL state; it must not touch APP/network. */
@@ -60,9 +65,9 @@ int main(void){
             memcpy(media,completed,sizeof(media));captured=true;
         }
     }
-    assert(captured && erases>start+5);
+    assert(captured && erases>start+5 && cuts>=5);
     memset(media+0x3a000,0,4);memset(media+0x3b000,0,4);
     (void)nv_flashWriteNew(1,NV_MODULE_ZCL,0xe6,sizeof(value),value);intact();
-    puts("SDK_NV_ISOLATION=PASS 400 writes, repeated rotation, 50 cuts, invalid sector headers; APP/network unchanged");
+    printf("SDK_NV_ISOLATION=PASS 400 writes, rotations preserve reporting; 50 cut positions (%u actual cuts), invalid headers; APP/network unchanged\n",cuts);
     return 0;
 }
