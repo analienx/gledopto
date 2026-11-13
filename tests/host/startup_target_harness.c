@@ -26,6 +26,7 @@ static unsigned initialized, reads, writes, observed_module, observed_item;
 static bool dma_busy, pending, ready=true, write_fail, write_noop, read_fail, read_corrupt, timer_ok=true;
 static unsigned voltage=3300, flash_writes, flash_erases;
 static uint8_t stored[GLSD301P_STARTUP_RECORD_SIZE];
+static uint8_t flash_media[64];
 static struct {bool boot_on;uint8_t boot_level;} g_control;
 static struct {bool logical_output_enabled;uint8_t current_level;} g_runtime;
 static struct {bool fault_latched,inflight_active;} g_uart_service;
@@ -38,7 +39,8 @@ static bool glsd301p_uart_transport_has_pending(void *p){return pending;}
 static uint32_t now;
 static uint32_t glsd301p_timebase_now_ms(void){return now;}
 static u16 drv_get_adc_data(void){return voltage;}
-static void flash_write_page(u32 a,u32 n,u8 *p){++flash_writes;}
+static void flash_write_page(u32 a,u32 n,u8 *p){assert(a+n<=sizeof(flash_media));memcpy(flash_media+a,p,n);++flash_writes;}
+static void flash_read(u32 a,u32 n,u8 *p){assert(a+n<=sizeof(flash_media));memcpy(p,flash_media+a,n);}
 static void flash_erase_sector(u32 a){++flash_erases;}
 nv_sts_t nv_flashWriteNew(u8 single,u16 module,u8 item,u16 n,u8 *p)
 {
@@ -109,8 +111,8 @@ int main(void)
     ready=true;g_uart_service.fault_latched=false;g_uart_service.inflight_active=false;
     dma_busy=false;pending=false;g_level_state.mode=0;
     now=4000;glsd_startup_maintenance();now=5000;glsd_startup_maintenance();assert(writes==count+1);
-    voltage=2199;flash_write(0,1,good);flash_erase(0);assert(flash_writes==0 && flash_erases==0);
-    voltage=2200;flash_write(0,1,good);flash_erase(0);assert(flash_writes==1 && flash_erases==1);
+    voltage=2199;flash_write(0,1,good);assert(!flash_writeWithCheck(0,sizeof(good),good));flash_erase(0);assert(flash_writes==0 && flash_erases==0);
+    voltage=2200;flash_write(0,1,good);assert(flash_writeWithCheck(0,sizeof(good),good));flash_erase(0);assert(flash_writes==2 && flash_erases==1);
     printf("{\"nv_module\":%u,\"nv_item\":%u,\"nv_start\":%u,\"voltage_guard\":%u,\"target_wiring\":\"PASS\"}\n",
         observed_module,observed_item,(unsigned)MODULES_START_ADDR(observed_module),VOLTAGE_DETECT_ENABLE);
     return 0;

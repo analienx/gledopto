@@ -39,7 +39,7 @@ def generate(root, sdk):
     bodies = '\n'.join(function(target, name) for name in
                        ('glsd_startup_write','glsd_startup_maintenance','user_init'))
     flash = (sdk/'proj/drivers/drv_flash.c').read_text()
-    bodies += '\n'+function(flash,'flash_write')+'\n'+function(flash,'flash_erase')
+    bodies += '\n'+'\n'.join(function(flash,name) for name in ('flash_write','flash_writeWithCheck','flash_erase'))
     threshold=re.search(r'^#define\s+BATTERY_SAFETY_THRESHOLD\s+[^\n]+',
                         (sdk/'proj/drivers/drv_hw.h').read_text(),re.M).group()
     defs.append(threshold)
