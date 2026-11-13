@@ -25,33 +25,35 @@
  */
 const {light, identify} = require("zigbee-herdsman-converters/lib/modernExtend");
 
-const definition = {
-    // Startup-capable family starts at ED-009. Future ED-010...ED-999 builds
-    // keep the same interface without another converter deployment.
-    fingerprint: [{modelID: "GL-SD-301P-ED", manufacturerName: "analienx",
-        softwareBuildID: /^GLSD-ED-(?:009|0[1-9][0-9]|[1-9][0-9]{2})$/}],
-    model: "GL-SD-301P-ED",
-    vendor: "analienx",
-    description: "GL-SD-301P dimmer running independent RX-on-when-idle End Device firmware",
-    extend: [
-        light({
-            configureReporting: true,
-            effect: false,
-            powerOnBehavior: true,
-        }),
-        identify(),
-    ],
-    ota: true,
-};
+const supportsStartup = (device) => /^GLSD-ED-(?:009|0[1-9][0-9]|[1-9][0-9]{2})$/.test(device?.softwareBuildID || "");
+const lightExtension = light({configureReporting: true, effect: false, powerOnBehavior: true});
+const startupExpose = lightExtension.exposes.find(e => e.name === "power_on_behavior");
+lightExtension.exposes = [
+    ...lightExtension.exposes.filter(e => e.name !== "power_on_behavior"),
+    (device) => supportsStartup(device) ? [startupExpose] : [],
+];
+lightExtension.toZigbee = lightExtension.toZigbee.map(converter => {
+    if (!converter.key.includes("power_on_behavior")) return converter;
+    const guarded = {...converter};
+    for (const method of ["convertSet", "convertGet"]) {
+        if (!converter[method]) continue;
+        guarded[method] = async (entity, ...args) => {
+            const meta = args[args.length - 1];
+            const device = meta?.device || entity.getDevice?.();
+            if (!supportsStartup(device)) throw new Error("power_on_behavior requires a refreshed GLSD-ED-009-or-later build identity");
+            return converter[method](entity, ...args);
+        };
+    }
+    return guarded;
+});
 
-// Keep ED-008 and unknown development builds usable without offering a
-// writable setting that their firmware may reject. OTA remains available.
-const legacy = {
+const definition = {
     zigbeeModel: ["GL-SD-301P-ED"],
     model: "GL-SD-301P-ED",
     vendor: "analienx",
-    description: "GL-SD-301P End Device firmware without configurable startup",
-    extend: [light({configureReporting: true, effect: false, powerOnBehavior: false}), identify()],
+    description: "GL-SD-301P dimmer running independent RX-on-when-idle End Device firmware",
+    extend: [lightExtension, identify()],
     ota: true,
 };
-module.exports = [definition, legacy];
+
+module.exports = definition;
