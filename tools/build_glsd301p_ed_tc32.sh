@@ -321,6 +321,7 @@ fi
 
 rm -rf "$DIR"
 mkdir -p "$DIR/obj/sdk" "$DIR/obj/app" "$DIR/obj/abi"
+python3 "$ROOT/tools/test_glsd301p_startup_target.py" --sdk-root "$SDK" --out "$DIR/startup-wiring"
 objects=()
 
 # Narrow deterministic SDK patches (hash-pinned, anchor-checked, provenance
@@ -654,7 +655,18 @@ grep -q 'libzb_ed' "$map" || { echo 'ERROR: End Device stack archive absent from
   echo STACK_NV=CLEAN_START_ONCE_PER_FIRMWARE_LINE_VERIFIED_BLANK_FRAME_COUNTER_KEPT
   echo NETWORK_KEY_WAIT=10000MS
   echo STARTUP_POLICY=STANDARD_OFF_ON_TOGGLE_PREVIOUS_GUARDED
-  echo STARTUP_NV=APP_E6_V1_CRC16_READBACK_STABLE_1S
+  python3 - "$DIR/startup-wiring/startup-target-evidence.json" <<'PY'
+import hashlib, json, sys
+path = sys.argv[1]
+raw = open(path, 'rb').read()
+evidence = json.loads(raw)
+print('STARTUP_NV_MODULE=' + str(evidence['nv_module']))
+print('STARTUP_NV_ITEM=' + hex(evidence['nv_item']))
+print('STARTUP_NV_START=' + hex(evidence['nv_start']))
+print('STARTUP_VOLTAGE_GUARD=' + str(evidence['voltage_guard']))
+print('STARTUP_WIRING_TEST=' + evidence['target_wiring'])
+print('STARTUP_WIRING_EVIDENCE_SHA256=' + hashlib.sha256(raw).hexdigest())
+PY
   echo OTA_CLIENT_QUERY=AFTER_JOIN_AND_FAILED_TRANSFER_43200S_SDK_P7_NO_STUCK_DOWNLOAD
   echo HEALTH_SNAPSHOT=RAM_V2_48B_BASIC_0xFF10_READONLY_1S_OWNED
   echo DEV_IDENTITY=GLSD-ED-009_APP_BUILD_0A_FILE_VERSION_0x7F0A0001_DATE_20261113

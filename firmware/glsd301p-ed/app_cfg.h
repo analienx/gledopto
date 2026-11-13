@@ -18,15 +18,15 @@
 
 #define TOUCHLINK_SUPPORT                       0
 #define FIND_AND_BIND_SUPPORT                   0
-#define VOLTAGE_DETECT_ENABLE                   0
+#define VOLTAGE_DETECT_ENABLE                   1
 #define FLASH_PROTECT_ENABLE                    1
 #define MODULE_WATCHDOG_ENABLE                  1
 #define MODULE_UART_ENABLE                      1
 
 #if defined(MCU_CORE_8258)
 #define CLOCK_SYS_CLOCK_HZ                      48000000
-/* Telink drv_hw.c initializes an ADC input for flash safe-voltage handling even
- * when application voltage detection is disabled. Genuine same-model GLEDOPTO
+/* Voltage detection gates SDK flash writes/erases with a fresh ADC sample.
+ * Genuine same-model GLEDOPTO
  * firmware was independently traced through the unique drv_adc_mode_pin_set
  * helper/caller and resolves this VBAT-mode argument to GPIO_PB3. Keep this
  * exact pin locked unless the vendor-proof gate is deliberately superseded. */

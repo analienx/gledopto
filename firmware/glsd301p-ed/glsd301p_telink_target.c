@@ -44,6 +44,8 @@
  * stack's NV modules (see glsd301p_stack_nv.h). */
 #define GLSD301P_NV_ITEM_STACK_EPOCH           0xE5u
 #define GLSD301P_NV_ITEM_STARTUP               0xE6u
+/* Routine saves must NEVER rotate the epoch marker's APP module. */
+#define GLSD301P_STARTUP_NV_MODULE              NV_MODULE_ZCL
 /* How long an associated device waits for its network key. The SDK default
  * of 2 s leaves no margin for a multi-hop trust-centre round trip. */
 #define GLSD301P_NETWORK_KEY_WAIT_MS           10000u
@@ -61,6 +63,11 @@ static glsd301p_uart_service_t g_uart_service;
 static glsd301p_level_state_t g_level_state;
 static glsd301p_control_ctx_t g_control;
 static glsd301p_startup_t g_startup;
+typedef char glsd_startup_separate_from_epoch[
+    (GLSD301P_STARTUP_NV_MODULE != NV_MODULE_APP) ? 1 : -1];
+typedef char glsd_startup_zcl_region[
+    (MODULES_START_ADDR(GLSD301P_STARTUP_NV_MODULE) == 0x3A000u) ? 1 : -1];
+typedef char glsd_startup_voltage_guard_enabled[(VOLTAGE_DETECT_ENABLE == 1) ? 1 : -1];
 static u8 g_uart_rx_buf[GLSD301P_UART_RX_BUFFER_SIZE] __attribute__((aligned(4)));
 static u8 g_uart_tx_dma[GLSD301P_UART_TX_DMA_SIZE] __attribute__((aligned(4)));
 static u8 g_uart_online;
@@ -536,10 +543,11 @@ static bool glsd_startup_write(const uint8_t *record, void *context)
     (void)context;
     /* SDK owns journal/sector rotation. Acknowledged application durability
      * requires a readback; a failed write never advances our committed state. */
-    if (nv_flashWriteNew(1, NV_MODULE_APP, GLSD301P_NV_ITEM_STARTUP,
+    if (drv_get_adc_data() < BATTERY_SAFETY_THRESHOLD) return false;
+    if (nv_flashWriteNew(1, GLSD301P_STARTUP_NV_MODULE, GLSD301P_NV_ITEM_STARTUP,
                          GLSD301P_STARTUP_RECORD_SIZE, (u8 *)record) != NV_SUCC)
         return false;
-    return nv_flashReadNew(1, NV_MODULE_APP, GLSD301P_NV_ITEM_STARTUP,
+    return nv_flashReadNew(1, GLSD301P_STARTUP_NV_MODULE, GLSD301P_NV_ITEM_STARTUP,
                            sizeof(check), check) == NV_SUCC &&
            glsd301p_startup_record_valid(check) &&
            memcmp(record, check, sizeof(check)) == 0;
@@ -933,7 +941,7 @@ void user_init(bool isRetention)
 
     {
         uint8_t record[GLSD301P_STARTUP_RECORD_SIZE];
-        const bool loaded = nv_flashReadNew(1, NV_MODULE_APP,
+        const bool loaded = nv_flashReadNew(1, GLSD301P_STARTUP_NV_MODULE,
             GLSD301P_NV_ITEM_STARTUP, sizeof(record), record) == NV_SUCC;
         glsd301p_startup_init(&g_startup, loaded ? record : NULL);
         g_control.boot_on = glsd301p_startup_boot_on(&g_startup);

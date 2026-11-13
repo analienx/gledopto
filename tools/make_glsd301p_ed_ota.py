@@ -92,7 +92,11 @@ def validate_target_manifest(manifest_path: Path, inner_path: Path) -> dict:
         "COMMISSIONING": "FACTORY_NEW_STEER_TICK_1S_BACKOFF_5_TO_300S_WATCHDOG_180S_TCLK_SAFE_STRANDED_REJOIN_60S_REJOIN_WATCHDOG_900S_FN_HANDOVER_REMOVAL_RESTEERS",
         "RESET_GESTURE": "PUSH_10_SHORT_PRESSES_GAP_1000MS_LEAVE_THEN_REBOOT_STACK_NV_ALWAYS_WIPED",
         "STARTUP_POLICY": "STANDARD_OFF_ON_TOGGLE_PREVIOUS_GUARDED",
-        "STARTUP_NV": "APP_E6_V1_CRC16_READBACK_STABLE_1S",
+        "STARTUP_NV_MODULE": "3",
+        "STARTUP_NV_ITEM": "0xe6",
+        "STARTUP_NV_START": "0x3a000",
+        "STARTUP_VOLTAGE_GUARD": "1",
+        "STARTUP_WIRING_TEST": "PASS",
         "OTA_CLIENT_QUERY": "AFTER_JOIN_AND_FAILED_TRANSFER_43200S_SDK_P7_NO_STUCK_DOWNLOAD",
     }
     missing = sorted(k for k in expected if k not in fields)
@@ -157,7 +161,10 @@ def validate_target_manifest(manifest_path: Path, inner_path: Path) -> dict:
             "resetGesture": fields["RESET_GESTURE"],
             "otaClientQuery": fields["OTA_CLIENT_QUERY"],
             "startupPolicy": fields["STARTUP_POLICY"],
-            "startupStorage": fields["STARTUP_NV"],
+            "startupStorage": {"module": int(fields["STARTUP_NV_MODULE"]),
+                               "item": int(fields["STARTUP_NV_ITEM"], 0),
+                               "address": int(fields["STARTUP_NV_START"], 0),
+                               "voltageGuard": fields["STARTUP_VOLTAGE_GUARD"] == "1"},
         },
         "hardwareContract": {
             "adcFlashSafetyPin": "PB3",
