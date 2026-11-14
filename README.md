@@ -174,6 +174,40 @@ A good future candidate is a device that:
 
 That could eventually include additional GLEDOPTO dimmers, controllers, bulbs or related Telink-based hardware — **but support is model/revision specific, not assumed from branding alone**.
 
+## 🛠️ Source code and how to build it
+
+Everything needed is in this repository.
+
+| Path | What it is |
+|---|---|
+| [`src/`](src/) | Device logic: control, startup and power-restore, UART link to the power stage, push input, rejoin, health |
+| [`firmware/glsd301p-ed/`](firmware/glsd301p-ed/) | Telink target: stack and app configuration, pin contract, version (`0x7F0A0001`) |
+| [`tools/`](tools/) | Build script, SDK patches, OTA wrapper and preflight checks, bench and decode tools |
+| [`tests/`](tests/) | Host tests for the device logic |
+| [`devices/gl-sd-301p/zigbee2mqtt/`](devices/gl-sd-301p/zigbee2mqtt/) | The Zigbee2MQTT converter |
+
+### Build on GitHub (recommended)
+
+The pinned build runs in [`.github/workflows/glsd301p-final-readiness.yml`](.github/workflows/glsd301p-final-readiness.yml), so you do not need to set up a toolchain:
+
+1. Fork the repository and enable Actions.
+2. **Actions → GL-SD-301P final no-spare readiness → Run workflow.**
+3. Download the `glsd301p-ed-ota-<sha>` artifact: the `.ota`, the raw `.bin`, the manifest and the SHA-256/SHA-512 sums.
+
+The workflow checks out the Telink Zigbee SDK at the exact commit `d5bc2f7b0c1f8536fe21c8127ca680ea8214bc8e` (tag `V3.7.2.0`), downloads the TC32 toolchain `tc32_gcc_v2.0` and verifies its SHA-256 (`33b854be…`), checks the vendor-recovery contract, builds with [`tools/build_glsd301p_ed_tc32.sh`](tools/build_glsd301p_ed_tc32.sh), runs the host and safety tests and checks the image, then wraps it as an OTA file.
+
+### Build on your own machine
+
+You need the same two pieces the workflow uses: the [Telink Zigbee SDK](https://github.com/telink-semi/telink_zigbee_sdk) at the pinned commit and the TC32 toolchain (`tc32-elf-gcc`). Then:
+
+```bash
+export TELINK_SDK_ROOT=/path/to/telink-sdk/tl_zigbee_sdk
+export TC32_CC=/path/to/tc32/bin/tc32-elf-gcc
+bash tools/build_glsd301p_ed_tc32.sh      # output in $OUT_DIR (default /tmp/glsd301p-ed-tc32)
+```
+
+This project treats the GitHub-hosted build as the reference, so compare any local image with the hashes from a workflow run before you flash it.
+
 ## What is actually in this repository
 
 This repository is deliberately evidence-driven. It contains more than firmware source:
