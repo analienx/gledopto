@@ -9,6 +9,10 @@ Preserve drafts, exact session/workspace binding, and verified handoff receipts.
 This is Muse interaction authority; implementation, hosted validation, publication
 and live-device authority still follow the task and the boundaries below.
 
+## Flash ban of 2026-11-03: LIFTED for ED-009 (2026-11-14)
+
+The emergency flash ban ([incident #9](https://github.com/analienx/gledopto/issues/9)) covered the earlier candidate that left a unit without Zigbee. The owner has lifted it for the corrected, independently reviewed End Device line: **ED-009 was installed over the air on the reference GL-SD-301P on 2026-11-14 and works in daily use** (see issue #11 and `devices/gl-sd-301p/STATUS.md`). Still required: matching hardware (see the README), hosted-CI-built images only, and a separate explicit owner authorization for any live action on a specific device.
+
 ## Source locality
 
 This is a LOCAL checkout. Canonical Supervisor ↔ Executor authority is the

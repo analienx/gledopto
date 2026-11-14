@@ -1,5 +1,9 @@
 # STATUS — GL-SD-301P
 
+## 2026-11-14: flash ban of 2026-11-03 lifted for ED-009
+
+The earlier candidate left a unit with dead Zigbee and needed a wired recovery (critical incident #9, 2026-11-03). The reviewed ED-008 line was then wired-flashed and ran correctly, and ED-009 was installed over the air after a fresh review. The owner accepted the result ("works as charm") and lifted the DO NOT FLASH notice. The incident stays on record in issue #9.
+
 ## 2026-11-14 (latest): ED-009 installed by OTA, working End Device
 
 The owner chose reliable OTA only, with no SWire fallback. Before the update,
