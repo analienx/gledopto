@@ -97,6 +97,10 @@ def validate_target_manifest(manifest_path: Path, inner_path: Path) -> dict:
         "STARTUP_NV_START": "0x3a000",
         "STARTUP_VOLTAGE_GUARD": "1",
         "STARTUP_WIRING_TEST": "PASS",
+        # Over the air a boot that waits or resets on the PB3 reading is
+        # unrecoverable: the SDK voltage_detect loop must be absent.
+        "STARTUP_BOOT_VOLTAGE_INDEPENDENT": "PASS",
+        "SDK_BOOT_VOLTAGE_LOOP": "ABSENT",
         "OTA_CLIENT_QUERY": "AFTER_JOIN_AND_FAILED_TRANSFER_43200S_SDK_P7_NO_STUCK_DOWNLOAD",
     }
     missing = sorted(k for k in expected if k not in fields)
@@ -117,7 +121,9 @@ def validate_target_manifest(manifest_path: Path, inner_path: Path) -> dict:
     except (ValueError,UnicodeError) as exc:
         raise EndDeviceOtaError('invalid startup wiring evidence') from exc
     if any(evidence.get(k)!=v for k,v in {'nv_module':3,'nv_item':230,'nv_start':0x3a000,
-                                         'voltage_guard':1,'target_wiring':'PASS'}.items()):
+                                         'voltage_guard':1,'sdk_boot_voltage_loop':0,
+                                         'boot_independent_of_voltage':'PASS',
+                                         'target_wiring':'PASS'}.items()):
         raise EndDeviceOtaError('startup wiring evidence does not match the safe storage contract')
 
     inner = inner_path.read_bytes()

@@ -98,19 +98,41 @@ candidate is withdrawn from hardware consideration. Keeping the marker's bytes
 unchanged was insufficient: sector rotation could lose it and boot recovery
 would then erase the network. No part of that candidate was flashed here.
 
-The corrected target enables the SDK PB3 voltage guard and checks a fresh ADC
-sample before calling NV. The SDK checks again before each page write and sector
-erase. This reduces brownout exposure; it cannot guarantee a flash operation
-finishes if supply collapses after the check. Isolation ensures damaged ZCL
+The corrected target checks a fresh PB3 ADC sample before calling NV and
+refuses the save below 2200 mV. It reduces brownout exposure; it cannot
+guarantee a flash operation finishes if supply collapses after the check.
+
+An intermediate revision (`e35b4ff`..`7b0ef11`) also set
+`VOLTAGE_DETECT_ENABLE=1`. In the pinned SDK that adds a boot-time
+`voltage_detect(1)` in `platform_init`, before `user_init`: unless five PB3
+samples exceed 2.2 V within one second it calls `SYSTEM_RESET()`, on every
+boot. No custom build had ever read PB3 on this unit, and over the air a unit
+stuck in that loop cannot be recovered (Zigbee never starts). The flag is back
+to 0, so `platform_init` is the same as ED-008's, which runs on this unit. The
+target configures the PB3 VBAT reading itself in `user_init` with the SDK's own
+calls (`drv_adc_init`, `drv_adc_mode_pin_set(DRV_ADC_VBAT_MODE, PB3)`,
+`drv_adc_enable`). It never waits on or resets for the reading. A wrong reading
+can only refuse startup saves, which the bench `startup` cases detect and a
+later OTA can fix. The build fails if `voltage_detect` is linked. Stack, OTA and
+SDK NV writes keep ED-008's behaviour; on Zbit flash parts the SDK's own chip
+level PB3 check still applies to them.
+
+Basic:0xFF11 is a read-only, RAM-only, 10-byte supply snapshot: version 1,
+sample count, first reading after boot, latest reading, lowest reading
+(all mV, little-endian) and the count of saves refused for low voltage. The
+boot sample gives a real PB3 value from the first ED-009 boot. Isolation ensures damaged ZCL
 storage cannot, by itself, invalidate the APP epoch marker. ZCL reporting setup
 may need repair after a ZCL storage failure. The unsafe APP:E6 record is not
 read or migrated; the withdrawn candidate was never deployed.
 
-Executable hosted wiring tests compile the actual target writer, maintenance
-and `user_init` bodies, plus the pinned SDK's actual flash write/erase guards.
-They exercise low voltage, every save-deferral input, NV errors, corrupt and
-valid-but-different readback, and boot-load ordering. Mutation cases must fail
-if the module, voltage check, comparison, DMA gate or boot ordering changes.
+Executable hosted wiring tests compile the actual target supply sampler,
+writer, maintenance and `user_init` bodies. They exercise low voltage, a boot
+with a hopeless 1000 mV reading (init must still reach `bdb_init`), the PB3
+VBAT configuration, the 0xFF11 encoding and saturation, every save-deferral
+input, NV errors, corrupt and valid-but-different readback, and boot-load
+ordering. Mutation cases must fail if the module, voltage check, comparison,
+DMA gate, boot ordering, boot sample or ADC setup changes, or if boot waits on
+the reading.
 The build manifest receives observed module/item/address/guard facts from this
 test report, along with its SHA-256. These are tested source-wiring facts, not
 binary-derived proof or hardware acceptance.

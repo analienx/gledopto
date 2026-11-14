@@ -249,6 +249,19 @@ grep -q 'GLSD301P_HEALTH_ATTR_ID, ZCL_DATA_TYPE_OCTET_STR, ACCESS_CONTROL_READ, 
 if grep 'GLSD301P_HEALTH_ATTR_ID' "$TARGET/glsd301p_telink_target.c" | grep -q 'WRITE\|REPORTABLE'; then
   echo 'ERROR: health attribute must be read-only and never reported' >&2; exit 1;
 fi
+# ED-009: RAM-only v1 PB3/VBAT supply snapshot on Basic:0xFF11, read-only.
+grep -q 'GLSD301P_SUPPLY_ATTR_ID, ZCL_DATA_TYPE_OCTET_STR, ACCESS_CONTROL_READ, g_basic_supply' \
+  "$TARGET/glsd301p_telink_target.c" || {
+  echo 'ERROR: Basic:0xFF11 supply attribute entry missing or not read-only' >&2; exit 1;
+}
+if grep 'GLSD301P_SUPPLY_ATTR_ID' "$TARGET/glsd301p_telink_target.c" | grep -q 'WRITE\|REPORTABLE'; then
+  echo 'ERROR: supply attribute must be read-only and never reported' >&2; exit 1;
+fi
+# The SDK boot-time voltage_detect(1) resets the chip unless five PB3/VBAT
+# samples exceed 2.2 V within 1 s: over the air an unrecoverable boot loop.
+grep -Eq '^#define[[:space:]]+VOLTAGE_DETECT_ENABLE[[:space:]]+0[[:space:]]*$' "$TARGET/app_cfg.h" || {
+  echo 'ERROR: VOLTAGE_DETECT_ENABLE must stay 0 (SDK boot-time voltage reset loop)' >&2; exit 1;
+}
 grep -q 'glsd301p_timer_health_start' "$TARGET/glsd301p_telink_target.c" || {
   echo 'ERROR: health snapshot is never refreshed by the owned 1 s event' >&2; exit 1;
 }
@@ -518,6 +531,11 @@ done
 "$TC32_NM" -u "$app_obj" | grep -E ' U T_evtExcept$' >/dev/null || {
   echo 'ERROR: health exception record is not wired to SDK ev.c' >&2; exit 1;
 }
+for sym in drv_adc_init drv_adc_mode_pin_set drv_adc_enable drv_get_adc_data; do
+  "$TC32_NM" -u "$app_obj" | grep -E " U ${sym}\$" >/dev/null || {
+    echo "ERROR: target does not configure/read the PB3 supply ADC itself: $sym" >&2; exit 1;
+  }
+done
 for obj in "$DIR"/obj/app/*.o; do
   if "$TC32_NM" -u "$obj" 2>/dev/null | grep -E ' U ev_timer_task(Post|Cancel)$' >/dev/null; then
     echo "ERROR: pooled timer API referenced by application object: $obj" >&2; exit 1;
@@ -565,6 +583,14 @@ for sym in "${gc_only_sentinels[@]}"; do
   fi
 done
 echo 'GC_ONLY_LINK_SENTINELS_FINAL_ELF=NONE'
+
+# No boot path may wait or reset on the PB3 reading: the SDK's voltage_detect
+# (SYSTEM_RESET unless five samples > 2.2 V within 1 s) must not be linked.
+if "$TC32_NM" "$elf" | awk '$NF == "voltage_detect" {found=1} END {exit(found ? 0 : 1)}'; then
+  echo 'ERROR: SDK boot-time voltage_detect reset loop linked into final ELF' >&2
+  exit 1
+fi
+echo 'SDK_BOOT_VOLTAGE_LOOP=ABSENT'
 
 # Touchlink remains disabled; only the three inert BDB closure hooks and the
 # zero response-state byte may exist. No ZLL implementation TU is compiled.
@@ -665,10 +691,13 @@ print('STARTUP_NV_ITEM=' + hex(evidence['nv_item']))
 print('STARTUP_NV_START=' + hex(evidence['nv_start']))
 print('STARTUP_VOLTAGE_GUARD=' + str(evidence['voltage_guard']))
 print('STARTUP_WIRING_TEST=' + evidence['target_wiring'])
+print('STARTUP_BOOT_VOLTAGE_INDEPENDENT=' + evidence['boot_independent_of_voltage'])
 print('STARTUP_WIRING_EVIDENCE_SHA256=' + hashlib.sha256(raw).hexdigest())
 PY
+  echo SDK_BOOT_VOLTAGE_LOOP=ABSENT
   echo OTA_CLIENT_QUERY=AFTER_JOIN_AND_FAILED_TRANSFER_43200S_SDK_P7_NO_STUCK_DOWNLOAD
   echo HEALTH_SNAPSHOT=RAM_V2_48B_BASIC_0xFF10_READONLY_1S_OWNED
+  echo SUPPLY_SNAPSHOT=RAM_V1_10B_BASIC_0xFF11_READONLY_BOOT_AND_SAVE_SAMPLES
   echo DEV_IDENTITY=GLSD-ED-009_APP_BUILD_0A_FILE_VERSION_0x7F0A0001_DATE_20261113
   python3 - "$DIR/sdk-patches.json" <<'PY'
 import json, sys

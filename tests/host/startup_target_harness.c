@@ -7,6 +7,8 @@
 #define _attribute_packed_ __attribute__((packed))
 #include "drv_nv.h"
 #include "glsd301p_startup.h"
+#define GPIO_PB3 0x0108u
+#define DRV_ADC_VBAT_MODE 1u
 /* TARGET_DEFINES */
 #define MODULE_WATCHDOG_ENABLE 0
 #define GLSD301P_ENDPOINT 11
@@ -22,11 +24,16 @@ static int g_stack_nv_ops,g_zdo_callbacks,g_simple_desc,g_cluster_list[5];
 static int g_ota_info,g_ota_cb,g_rejoin,g_health,g_bdb_settings,g_bdb_callbacks;
 static bool g_reset_to_fn,g_ota_requery_pending;
 static unsigned g_reboot_countdown_s,g_reboot_uart_waits,TRANSPORT_NETWORK_KEY_WAIT_TIME;
-static unsigned initialized, reads, writes, observed_module, observed_item;
+static unsigned initialized, reads, writes, observed_module, observed_item, bdb_inits;
 static bool dma_busy, pending, ready=true, write_fail, write_noop, read_fail, read_corrupt, timer_ok=true;
-static unsigned voltage=3300, flash_writes, flash_erases;
+static unsigned voltage=3300;
+static unsigned adc_inits, adc_mode, adc_pin, adc_enabled;
 static uint8_t stored[GLSD301P_STARTUP_RECORD_SIZE];
-static uint8_t flash_media[64];
+static u8 g_basic_supply[1u + GLSD301P_SUPPLY_SIZE] = {
+    GLSD301P_SUPPLY_SIZE, GLSD301P_SUPPLY_VERSION, 0u, 0u, 0u, 0u, 0u,
+    0xFFu, 0xFFu, 0u, 0u};
+static u16 g_supply_first_mv, g_supply_last_mv, g_supply_min_mv = 0xFFFFu, g_supply_refused;
+static u8 g_supply_samples;
 static struct {bool boot_on;uint8_t boot_level;} g_control;
 static struct {bool logical_output_enabled;uint8_t current_level;} g_runtime;
 static struct {bool fault_latched,inflight_active;} g_uart_service;
@@ -38,10 +45,10 @@ static bool glsd301p_hw_uart_busy(void){return dma_busy;}
 static bool glsd301p_uart_transport_has_pending(void *p){return pending;}
 static uint32_t now;
 static uint32_t glsd301p_timebase_now_ms(void){return now;}
-static u16 drv_get_adc_data(void){return voltage;}
-static void flash_write_page(u32 a,u32 n,u8 *p){assert(a+n<=sizeof(flash_media));memcpy(flash_media+a,p,n);++flash_writes;}
-static void flash_read(u32 a,u32 n,u8 *p){assert(a+n<=sizeof(flash_media));memcpy(p,flash_media+a,n);}
-static void flash_erase_sector(u32 a){++flash_erases;}
+static u16 drv_get_adc_data(void){return (u16)voltage;}
+static bool drv_adc_init(void){++adc_inits;return true;}
+static void drv_adc_mode_pin_set(unsigned mode,unsigned pin){assert(adc_inits>0);adc_mode=mode;adc_pin=pin;}
+static void drv_adc_enable(bool enable){assert(adc_mode==DRV_ADC_VBAT_MODE);adc_enabled=enable;}
 nv_sts_t nv_flashWriteNew(u8 single,u16 module,u8 item,u16 n,u8 *p)
 {
     ++writes; assert(module==NV_MODULE_ZCL); assert(item==0xe6); assert(n==sizeof(stored));
@@ -72,9 +79,10 @@ static void glsd301p_control_boot_failed(void *p,uint32_t t){ready=false;}
 #define glsd301p_health_init(...) ((void)0)
 #define glsd_health_snapshot_now(...) ((void)0)
 #define glsd_ensure_maintenance_timer() ((void)0)
-#define bdb_init(...) 0
+#define bdb_init(...) (++bdb_inits, 0)
 /* TARGET_BODIES */
 static bool seed(const uint8_t *r,void *ctx){memcpy(stored,r,sizeof(stored));return true;}
+static unsigned supply16(unsigned offset){return g_basic_supply[1u+offset]|((unsigned)g_basic_supply[2u+offset]<<8);}
 int main(void)
 {
     uint8_t good[sizeof(stored)], bad[sizeof(stored)];
@@ -83,12 +91,23 @@ int main(void)
     assert(glsd301p_startup_poll(&g_startup,true,73,1000,true,seed,NULL));
     memcpy(good,stored,sizeof(good));
     user_init(false);assert(g_control.boot_on && g_control.boot_level==73);
-    assert(reads==1);timer_ok=false;initialized=0;user_init(false);assert(!ready);
-    ready=true;initialized=1;
+    assert(reads==1);assert(bdb_inits==1);
+    /* The boot configures the PB3 VBAT reading and records one sample. */
+    assert(adc_inits==1 && adc_mode==DRV_ADC_VBAT_MODE && adc_pin==GPIO_PB3 && adc_enabled);
+    assert(g_basic_supply[0]==GLSD301P_SUPPLY_SIZE && g_basic_supply[1]==1u && g_basic_supply[2]==1u);
+    assert(supply16(2)==3300 && supply16(4)==3300 && supply16(6)==3300 && supply16(8)==0);
+    timer_ok=false;initialized=0;user_init(false);assert(!ready);
+    /* Boot never depends on the reading: a hopeless value still completes init. */
+    timer_ok=true;ready=true;initialized=0;voltage=1000;
+    user_init(false);assert(ready && bdb_inits==3 && g_control.boot_on);
+    assert(supply16(2)==3300 && supply16(4)==1000 && supply16(6)==1000 && supply16(8)==0);
+    voltage=3300;ready=true;initialized=1;
     assert(glsd_startup_write(good,NULL));
     unsigned count=writes;
     voltage=2199;assert(!glsd_startup_write(good,NULL));assert(writes==count);
+    assert(supply16(4)==2199 && supply16(8)==1);
     voltage=2200;assert(glsd_startup_write(good,NULL));
+    assert(supply16(4)==2200 && supply16(6)==1000 && supply16(8)==1);
     write_fail=true;assert(!glsd_startup_write(good,NULL));write_fail=false;
     read_fail=true;assert(!glsd_startup_write(good,NULL));read_fail=false;
     read_corrupt=true;assert(!glsd_startup_write(good,NULL));read_corrupt=false;
@@ -111,9 +130,14 @@ int main(void)
     ready=true;g_uart_service.fault_latched=false;g_uart_service.inflight_active=false;
     dma_busy=false;pending=false;g_level_state.mode=0;
     now=4000;glsd_startup_maintenance();now=5000;glsd_startup_maintenance();assert(writes==count+1);
-    voltage=2199;flash_write(0,1,good);assert(!flash_writeWithCheck(0,sizeof(good),good));flash_erase(0);assert(flash_writes==0 && flash_erases==0);
-    voltage=2200;flash_write(0,1,good);assert(flash_writeWithCheck(0,sizeof(good),good));flash_erase(0);assert(flash_writes==2 && flash_erases==1);
-    printf("{\"nv_module\":%u,\"nv_item\":%u,\"nv_start\":%u,\"voltage_guard\":%u,\"target_wiring\":\"PASS\"}\n",
-        observed_module,observed_item,(unsigned)MODULES_START_ADDR(observed_module),VOLTAGE_DETECT_ENABLE);
+    /* Saturating sample counter; every refused save attempt is counted. */
+    voltage=0;
+    for(unsigned i=0;i<300;i++)(void)glsd_supply_sample(true);
+    assert(g_basic_supply[2]==255u && supply16(6)==0 && supply16(8)==301);
+    printf("{\"nv_module\":%u,\"nv_item\":%u,\"nv_start\":%u,\"voltage_guard\":1,"
+           "\"sdk_boot_voltage_loop\":%u,\"boot_independent_of_voltage\":\"PASS\","
+           "\"target_wiring\":\"PASS\"}\n",
+        observed_module,observed_item,(unsigned)MODULES_START_ADDR(observed_module),
+        (unsigned)VOLTAGE_DETECT_ENABLE);
     return 0;
 }

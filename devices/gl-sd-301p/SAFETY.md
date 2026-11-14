@@ -85,7 +85,11 @@ cannot persist a fault-forced OFF over the last normal user state.
 ED-009 stores policy and stable user state in ZCL-module item `0xE6`, using
 the existing SDK NV journal, an application version/CRC and write readback.
 The stack-NV epoch item `0xE5` stays in APP: routine startup saves cannot rotate
-its sectors. PB3 supply checks gate the target save and SDK writes/erases.
+its sectors. A fresh PB3 supply reading gates each target save (refused below
+2200 mV). `VOLTAGE_DETECT_ENABLE` stays 0: the SDK's boot-time
+`voltage_detect(1)` would reset the chip on every boot after a low or wrong
+reading, before Zigbee starts, which no OTA can recover. Boot never waits on or
+resets for the reading; Basic:0xFF11 reports it read-only.
 The epoch's migration value is unchanged. Factory
 reset still erases the application module along with the existing stack wipe.
 Normal samples require idle Level, no pending/inflight UART and ready output.

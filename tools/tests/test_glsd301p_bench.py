@@ -148,6 +148,42 @@ class BenchTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp, mock.patch.object(c,'read',return_value={'status':'UNVERIFIED'}):
             self.assertFalse(bench.post_ota(c,bench.Journal(Path(tmp))))
 
+    def test_supply_snapshot_decodes_and_gates_saves(self):
+        good=[1,3,0xe4,0x0c,0xe4,0x0c,0xd0,0x0c,0,0]
+        self.assertEqual(bench.decode_supply_snapshot(bytes(good)),
+                         {'version':1,'samples':3,'first_mv':3300,'last_mv':3300,'min_mv':3280,'refused_saves':0})
+        for bad in ([2]+good[1:],good[:9]):
+            with self.assertRaises(ValueError):bench.decode_supply_snapshot(bytes(bad))
+        cases=[(good,'PASS'),
+               ({'type':'Buffer','data':good},'PASS'),
+               ({str(i):v for i,v in enumerate(good)},'PASS'),
+               ([1,0,0,0,0,0,0xff,0xff,0,0],'FAIL'),
+               ([1,2,0x97,0x08,0xe4,0x0c,0x97,0x08,0,0],'FAIL'),
+               ([1,9,0xe4,0x0c,0xe4,0x0c,0xe4,0x0c,1,0],'FAIL'),
+               ([1,2,3],'FAIL')]
+        c=FakeConnection(lambda *args:None)
+        for raw,status in cases:
+            with self.subTest(raw=raw),tempfile.TemporaryDirectory() as tmp, \
+                 mock.patch.object(c,'read',return_value={'status':'PASS','response':{'65297':raw}}):
+                self.assertEqual(bench.supply_case(c,bench.Journal(Path(tmp)),'post-ota','supply')['status'],status)
+
+    def test_post_ota_requires_supply_snapshot(self):
+        c=FakeConnection(lambda *args:None)
+        c.devices=[{'ieee_address':bench.TARGET,'type':'EndDevice','endpoints':{'11':{}},
+                    'software_build_id':bench.BUILD,
+                    'definition':{'exposes':[{'name':'power_on_behavior','values':['off','on','toggle','previous']}]}}]
+        supply=[]
+        def read(cluster,attrs,direction=0):
+            if attrs==['swBuildId']:return {'status':'PASS','response':{'swBuildId':bench.BUILD}}
+            if attrs==['currentFileVersion']:return {'status':'PASS','response':{'currentFileVersion':bench.VERSION}}
+            return {'status':'PASS','response':{'65297':list(supply)}}
+        for value,expected in (([1,1,0xe4,0x0c,0xe4,0x0c,0xe4,0x0c,0,0],True),
+                               ([1,1,0x10,0x08,0x10,0x08,0x10,0x08,0,0],False)):
+            supply[:]=value
+            with self.subTest(expected=expected),tempfile.TemporaryDirectory() as tmp, \
+                 mock.patch.object(c,'read',side_effect=read):
+                self.assertEqual(bench.post_ota(c,bench.Journal(Path(tmp))),expected)
+
     def test_startup_acceptance_settles_and_checks_reboot_and_state(self):
         c=FakeConnection(lambda *args:None);c.info['permit_join']=False
         old={'on':True,'policy':255,'level':73,'health':{'uptime_ms':100000}}

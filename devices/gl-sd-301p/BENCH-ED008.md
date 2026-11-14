@@ -79,7 +79,11 @@ python tools/glsd301p_bench.py --profile C:\private\ed009.json --workdir C:\priv
 
 Requires fresh Basic build and OTA file-version reads, matching bridge metadata,
 EndDevice/endpoint 11 and the four-choice power_on_behavior expose. A stale
-ED-008 build or legacy definition fails. The tool does not trigger another
+ED-008 build or legacy definition fails. It also reads the read-only
+Basic:0xFF11 supply snapshot (case `supply`) and records the first PB3 reading
+after boot, the latest and lowest readings and refused saves. Any reading below
+2200 mV or any refused save fails the case: the device still boots and accepts
+OTA, but startup saves would not persist. The tool does not trigger another
 OTA or re-interview: use the qualified targeted metadata refresh/interview
 procedure after the approved OTA, then rerun this check. Exit 1 means that the
 requested phase failed or remains unverified.

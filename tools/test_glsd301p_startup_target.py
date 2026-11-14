@@ -1,8 +1,11 @@
 #!/usr/bin/env python3
-"""Hosted-only executable tests of actual target functions and SDK flash guards.
+"""Hosted-only executable tests of actual target startup and supply functions.
 
 Extracts whole function bodies without rewriting them; hardware/stack seams are
-stubbed. This is wiring evidence, not a target voltage or power-cut experiment.
+stubbed. Proves the startup-save voltage guard, that boot completes whatever the
+PB3 reading is (no SDK voltage_detect reset loop) and the Basic:0xFF11 supply
+snapshot encoding. This is wiring evidence, not a target voltage or power-cut
+experiment.
 """
 import argparse
 import hashlib
@@ -34,12 +37,11 @@ def generate(root, sdk):
     app = (root/'firmware/glsd301p-ed/app_cfg.h').read_text()
     defs = []
     for text, name in ((target,'GLSD301P_STARTUP_NV_MODULE'),(target,'GLSD301P_NV_ITEM_STARTUP'),
-                       (app,'VOLTAGE_DETECT_ENABLE')):
+                       (target,'GLSD301P_SUPPLY_VERSION'),(target,'GLSD301P_SUPPLY_SIZE'),
+                       (app,'VOLTAGE_DETECT_ENABLE'),(app,'VOLTAGE_DETECT_ADC_PIN')):
         defs.append(re.search(r'^#define\s+'+name+r'\s+[^\n]+', text, re.M).group())
     bodies = '\n'.join(function(target, name) for name in
-                       ('glsd_startup_write','glsd_startup_maintenance','user_init'))
-    flash = (sdk/'proj/drivers/drv_flash.c').read_text()
-    bodies += '\n'+'\n'.join(function(flash,name) for name in ('flash_write','flash_writeWithCheck','flash_erase'))
+                       ('glsd_supply_sample','glsd_startup_write','glsd_startup_maintenance','user_init'))
     threshold=re.search(r'^#define\s+BATTERY_SAFETY_THRESHOLD\s+[^\n]+',
                         (sdk/'proj/drivers/drv_hw.h').read_text(),re.M).group()
     defs.append(threshold)
@@ -59,7 +61,9 @@ def run(root, sdk, out):
     result = subprocess.run([str(exe)],check=True,text=True,capture_output=True)
     evidence = json.loads(result.stdout)
     evidence['target_source_sha256']=hashlib.sha256((root/'firmware/glsd301p-ed/glsd301p_telink_target.c').read_bytes()).hexdigest()
-    evidence['sdk_flash_source_sha256']=hashlib.sha256((sdk/'proj/drivers/drv_flash.c').read_bytes()).hexdigest()
+    evidence['sdk_hw_source_sha256']=hashlib.sha256((sdk/'proj/drivers/drv_hw.c').read_bytes()).hexdigest()
+    if evidence.get('sdk_boot_voltage_loop')!=0:
+        raise ValueError('VOLTAGE_DETECT_ENABLE must stay 0: SDK boot-time voltage_detect resets the chip')
     (out/'startup-target-evidence.json').write_text(json.dumps(evidence,sort_keys=True,indent=2)+'\n')
     print(json.dumps(evidence,sort_keys=True))
     return source
@@ -76,7 +80,10 @@ def main():
         original=source.read_text()
         mutations={
             'wrong-module':('NV_MODULE_ZCL','NV_MODULE_APP'),
-            'missing-voltage':('if (drv_get_adc_data() < BATTERY_SAFETY_THRESHOLD) return false;',''),
+            'missing-voltage':('if (!glsd_supply_sample(true)) return false;',''),
+            'boot-waits-on-voltage':('    (void)glsd_supply_sample(false);','    if (!glsd_supply_sample(false)) return;'),
+            'boot-sample-missing':('    (void)glsd_supply_sample(false);',''),
+            'adc-not-configured':('    drv_adc_mode_pin_set(DRV_ADC_VBAT_MODE, VOLTAGE_DETECT_ADC_PIN);',''),
             'missing-readback-compare':('memcmp(record, check, sizeof(check)) == 0','true'),
             'unsafe-dma':('!g_uart_service.inflight_active','true'),
             'startup-overwritten':('    zb_init();','    glsd_init_power_stage_io();\n    zb_init();'),

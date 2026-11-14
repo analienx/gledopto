@@ -67,7 +67,8 @@ typedef char glsd_startup_separate_from_epoch[
     (GLSD301P_STARTUP_NV_MODULE != NV_MODULE_APP) ? 1 : -1];
 typedef char glsd_startup_zcl_region[
     (MODULES_START_ADDR(GLSD301P_STARTUP_NV_MODULE) == 0x3A000u) ? 1 : -1];
-typedef char glsd_startup_voltage_guard_enabled[(VOLTAGE_DETECT_ENABLE == 1) ? 1 : -1];
+/* No SDK boot-time voltage_detect(1) reset loop (see app_cfg.h). */
+typedef char glsd_no_sdk_boot_voltage_loop[(VOLTAGE_DETECT_ENABLE == 0) ? 1 : -1];
 typedef char glsd_startup_item_is_private[
     (GLSD301P_NV_ITEM_STARTUP > NV_ITEM_APS_BINDING_TABLE_V2 &&
      GLSD301P_NV_ITEM_STARTUP < NV_ITEM_ID_MAX) ? 1 : -1];
@@ -95,6 +96,30 @@ static u8 g_basic_sw_build_id[] = {11,'G','L','S','D','-','E','D','-','0','0','9
  */
 static u8 g_basic_health[1u + GLSD301P_HEALTH_SIZE] = {GLSD301P_HEALTH_SIZE};
 static glsd301p_health_t g_health;
+
+/*
+ * RAM-only v1 supply snapshot body for Basic:0xFF11 (read-only, never
+ * reported, never persisted). PB3/VBAT readings are taken once at boot and
+ * at every startup-save attempt; nothing else depends on them.
+ *   0 u8   version (1)
+ *   1 u8   samples since boot, saturating at 255
+ *   2 u16  first reading after boot, mV (0 before the first sample)
+ *   4 u16  latest reading, mV
+ *   6 u16  lowest reading since boot, mV (0xFFFF before the first sample)
+ *   8 u16  startup saves refused for low voltage, saturating
+ * Little-endian.
+ */
+#define GLSD301P_SUPPLY_ATTR_ID 0xFF11u
+#define GLSD301P_SUPPLY_VERSION 1u
+#define GLSD301P_SUPPLY_SIZE 10u
+static u8 g_basic_supply[1u + GLSD301P_SUPPLY_SIZE] = {
+    GLSD301P_SUPPLY_SIZE, GLSD301P_SUPPLY_VERSION, 0u, 0u, 0u, 0u, 0u,
+    0xFFu, 0xFFu, 0u, 0u};
+static u16 g_supply_first_mv;
+static u16 g_supply_last_mv;
+static u16 g_supply_min_mv = 0xFFFFu;
+static u16 g_supply_refused;
+static u8 g_supply_samples;
 
 /* SDK ev.c exception record: [0] line, [1] code. Fail-closed to zero. */
 extern volatile u16 T_evtExcept[4];
@@ -129,6 +154,7 @@ static const zclAttrInfo_t g_basic_attr_table[] = {
     {ZCL_ATTRID_BASIC_DEV_ENABLED, ZCL_DATA_TYPE_BOOLEAN, ACCESS_CONTROL_READ, (u8 *)&g_basic_device_enabled},
     {ZCL_ATTRID_BASIC_SW_BUILD_ID, ZCL_DATA_TYPE_CHAR_STR, ACCESS_CONTROL_READ, g_basic_sw_build_id},
     {GLSD301P_HEALTH_ATTR_ID, ZCL_DATA_TYPE_OCTET_STR, ACCESS_CONTROL_READ, g_basic_health},
+    {GLSD301P_SUPPLY_ATTR_ID, ZCL_DATA_TYPE_OCTET_STR, ACCESS_CONTROL_READ, g_basic_supply},
     {ZCL_ATTRID_GLOBAL_CLUSTER_REVISION, ZCL_DATA_TYPE_UINT16, ACCESS_CONTROL_READ, (u8 *)&zcl_attr_global_clusterRevision},
 };
 
@@ -540,13 +566,52 @@ static void glsd_health_snapshot_now(uint32_t now_ms)
 
 static void glsd_rejoin_start_attempt(bool from_retry_fire);
 
+/*
+ * One PB3/VBAT reading, recorded in the Basic:0xFF11 snapshot. Returns true
+ * when the reading allows a startup save (>= BATTERY_SAFETY_THRESHOLD).
+ * Never waits, never resets: a wrong reading can only refuse saves.
+ */
+static bool glsd_supply_sample(bool save_attempt)
+{
+    const u16 mv = drv_get_adc_data();
+    const bool allowed = mv >= BATTERY_SAFETY_THRESHOLD;
+    u16 fields[4];
+    u8 i;
+
+    if (g_supply_samples == 0u) {
+        g_supply_first_mv = mv;
+    }
+    if (g_supply_samples < 0xFFu) {
+        g_supply_samples++;
+    }
+    g_supply_last_mv = mv;
+    if (mv < g_supply_min_mv) {
+        g_supply_min_mv = mv;
+    }
+    if (save_attempt && !allowed && g_supply_refused < 0xFFFFu) {
+        g_supply_refused++;
+    }
+
+    fields[0] = g_supply_first_mv;
+    fields[1] = g_supply_last_mv;
+    fields[2] = g_supply_min_mv;
+    fields[3] = g_supply_refused;
+    g_basic_supply[1] = GLSD301P_SUPPLY_VERSION;
+    g_basic_supply[2] = g_supply_samples;
+    for (i = 0u; i < 4u; i++) {
+        g_basic_supply[3u + 2u * i] = (u8)(fields[i] & 0xFFu);
+        g_basic_supply[4u + 2u * i] = (u8)(fields[i] >> 8);
+    }
+    return allowed;
+}
+
 static bool glsd_startup_write(const uint8_t *record, void *context)
 {
     uint8_t check[GLSD301P_STARTUP_RECORD_SIZE];
     (void)context;
     /* SDK owns journal/sector rotation. Acknowledged application durability
      * requires a readback; a failed write never advances our committed state. */
-    if (drv_get_adc_data() < BATTERY_SAFETY_THRESHOLD) return false;
+    if (!glsd_supply_sample(true)) return false;
     if (nv_flashWriteNew(1, GLSD301P_STARTUP_NV_MODULE, GLSD301P_NV_ITEM_STARTUP,
                          GLSD301P_STARTUP_RECORD_SIZE, (u8 *)record) != NV_SUCC)
         return false;
@@ -932,6 +997,18 @@ void user_init(bool isRetention)
 
     /* Electrical safety path is initialized before Zigbee application state. */
     (void)glsd_init_power_stage_io();
+
+    /*
+     * PB3/VBAT reading for the startup-save guard, set up with the same
+     * calls as the SDK's voltage_detect_init() (repeating them on a Zbit
+     * flash part, where the SDK already made them, is harmless). One
+     * sample records the boot value in Basic:0xFF11. The result is never
+     * waited on and never stops the boot.
+     */
+    (void)drv_adc_init();
+    drv_adc_mode_pin_set(DRV_ADC_VBAT_MODE, VOLTAGE_DETECT_ADC_PIN);
+    drv_adc_enable(1);
+    (void)glsd_supply_sample(false);
 
     /*
      * Before the stack reads anything: stack NV left by another firmware

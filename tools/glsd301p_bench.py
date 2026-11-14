@@ -123,7 +123,7 @@ class Journal:
         required += [("power-cycle", f"cycle-{n}", "after") for n in range(1, 4)]
         required += [("soak", f"checkpoint-{n}", None) for n in range(1, 5)]
         if int(self.expected_build[-3:])>=9:
-            required += [('post-ota','converter',None)]
+            required += [('post-ota','converter',None),('post-ota','supply',None)]
             required += [('startup',name,'after') for name in STARTUP_CASES]
         cases = []
         for phase, case, stage in required:
@@ -417,6 +417,50 @@ def health_case(conn, journal, phase, case):
     return result
 
 
+SUPPLY_ATTR = 0xff11
+SUPPLY_SAVE_THRESHOLD_MV = 2200
+
+
+def decode_supply_snapshot(data: bytes) -> dict:
+    """Basic:0xFF11 v1: version, samples, first/last/min mV, refused saves."""
+    if len(data) != 10 or data[0] != 1:
+        raise ValueError("supply snapshot must be version 1 and 10 bytes")
+    u16 = lambda offset: data[offset] | (data[offset + 1] << 8)
+    return {"version": 1, "samples": data[1], "first_mv": u16(2), "last_mv": u16(4),
+            "min_mv": u16(6), "refused_saves": u16(8)}
+
+
+def supply_case(conn, journal, phase, case):
+    """Read-only PB3 supply snapshot; boot never depends on it, saves do."""
+    print(f"[{utc()}] {phase} / {case}: reading supply", flush=True)
+    result = conn.read("genBasic", [SUPPLY_ATTR])
+    if result.get("status") == "PASS":
+        try:
+            raw = result["response"][str(SUPPLY_ATTR)]
+            if isinstance(raw, dict) and "data" in raw:
+                data = raw["data"]
+            elif isinstance(raw, dict):
+                if len(raw) != 10:
+                    raise ValueError("supply byte object has unexpected keys")
+                data = [raw[str(i)] for i in range(10)]
+            else:
+                data = raw
+            supply = decode_supply_snapshot(bytes(data))
+            result["supply"] = supply
+            if supply["samples"] == 0:
+                result["status"] = "FAIL"
+                result["reason"] = "no PB3 supply sample recorded since boot"
+            elif (supply["first_mv"] < SUPPLY_SAVE_THRESHOLD_MV or
+                  supply["min_mv"] < SUPPLY_SAVE_THRESHOLD_MV or supply["refused_saves"]):
+                result["status"] = "FAIL"
+                result["reason"] = "PB3 supply reading below 2200 mV: startup saves are refused"
+        except (KeyError, TypeError, ValueError) as exc:
+            result["status"] = "FAIL"
+            result["reason"] = f"cannot decode supply: {exc}"
+    record(journal, phase, case, result)
+    return result
+
+
 def converter_ready(devices, build):
     rows=[d for d in (devices or []) if d.get('ieee_address')==TARGET]
     if len(rows)!=1:return False,'pinned IEEE missing or duplicated in bridge devices'
@@ -441,7 +485,8 @@ def post_ota(conn,journal):
     journal.put('post-ota','converter','PASS' if ok else 'FAIL',
                 reason=reason or ('' if ok else 'fresh build/version read failed'),
                 expected_build=conn.expected_build,expected_version=conn.expected_version)
-    return ok
+    supply=supply_case(conn,journal,'post-ota','supply')
+    return ok and supply.get('status')=='PASS'
 
 
 def startup_snapshot(conn,journal,name):
