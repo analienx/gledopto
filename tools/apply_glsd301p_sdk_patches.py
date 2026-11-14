@@ -400,9 +400,32 @@ PATCHES = [
         "original_sha256": (
             "5f11eb33626af3821fc830b64bcbce79fb48633ea1ca00890b722144c17b2f2d"
         ),
-        "patched_sha256": "e1a4f403a5d0b593b7cb723825905c792e2e1e06304c4f263d66dfee9af6e752",
+        "patched_sha256": "4c7eb6037e7968c9e2125f6eb94fbd3ee4c4763ce9a902728e199ac2111292cc",
         "marker": "glsd301p_attrRecValid",
         "edits": [
+            {
+                "anchor": (
+                    "    if (!pAttrEntry->data) {\n"
+                    "        return ZCL_STA_UNSUPPORTED_ATTRIBUTE;\n"
+                    "    }\n\n"
+                    "    if (enable) {\n"
+                ),
+                "replacement": (
+                    "    if (!pAttrEntry->data) {\n"
+                    "        return ZCL_STA_UNSUPPORTED_ATTRIBUTE;\n"
+                    "    }\n\n"
+                    "    /* ED-009: validate standard StartUpOnOff before both\n"
+                    "     * ordinary writes and atomic prevalidation. Never\n"
+                    "     * acknowledge a reserved policy or mutate its store. */\n"
+                    "    if (endpoint == 11 && clusterId == 0x0006 &&\n"
+                    "        pWriteRec->attrID == 0x4003 &&\n"
+                    "        pWriteRec->attrData[0] > 2 &&\n"
+                    "        pWriteRec->attrData[0] != 0xff) {\n"
+                    "        return ZCL_STA_INVALID_VALUE;\n"
+                    "    }\n\n"
+                    "    if (enable) {\n"
+                ),
+            },
             {
                 "anchor": (
                     "/***************************************************************************\n"

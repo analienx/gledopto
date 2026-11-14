@@ -149,6 +149,7 @@ static void test_boot_reject_locks_off(void)
 static void test_boot_timeout_fault(void)
 {
     fixture_init();
+    g_ctx.boot_on = true;
     assert(glsd301p_timer_io_start(glsd301p_control_io_cb, &g_ctx));
     assert(glsd301p_control_boot_off(&g_ctx, glsd301p_timebase_now_ms()));
     host_uart_set_busy(true);
@@ -826,8 +827,30 @@ static void test_reset_gesture_hold_does_not_count(void)
            g_runtime.last_push_event == GLSD301P_PUSH_EVENT_TOGGLE);
 }
 
+static void test_configured_startup_obeys_off_guard(void)
+{
+    uint8_t last[6];
+    fixture_init();
+    g_ctx.boot_on = true; g_ctx.boot_level = 73u;
+    assert(glsd301p_timer_io_start(glsd301p_control_io_cb, &g_ctx));
+    assert(glsd301p_control_boot_off(&g_ctx, 0u));
+    assert(host_uart_last_frame(last));
+    assert(memcmp(last, OFF, sizeof(last)) == 0);
+    host_uart_set_busy(true); pump_ms(6u);
+    assert(!glsd301p_runtime_core_is_ready(&g_runtime)); assert(g_onoff == 0u);
+    host_uart_set_busy(false); pump_ms(1u);
+    assert(glsd301p_runtime_core_is_ready(&g_runtime));
+    assert(g_onoff == 1u && g_level.current_level == 73u);
+    pump_ms(1u); assert(host_uart_last_frame(last)); assert(last[3] == 73u);
+    fixture_init(); g_ctx.boot_on = true; g_ctx.boot_level = 255u;
+    assert(glsd301p_timer_io_start(glsd301p_control_io_cb, &g_ctx));
+    assert(glsd301p_control_boot_off(&g_ctx, 0u)); pump_ms(1u);
+    assert(!glsd301p_runtime_core_is_ready(&g_runtime)); assert(g_onoff == 0u);
+}
+
 int main(void)
 {
+    test_configured_startup_obeys_off_guard();
     test_boot_arms_after_off_completion();
     test_boot_reject_locks_off();
     test_boot_timeout_fault();

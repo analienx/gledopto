@@ -33,6 +33,29 @@ track             PRODUCTION_ONLY_NO_SPARE
 | Endpoint | 11 |
 | Existing stock binds | genOnOff + genLevelCtrl → coordinator-side target recorded in evidence |
 
+## Working End Device firmware: ED-009 (live since 2026-11-14)
+
+```text
+softwareBuildID    GLSD-ED-009
+fileVersion        0x7F0A0001
+role               EndDevice (RX on when idle), endpoint 11
+source             PR #12: firmware reviewed at 20123fe; OTA published by CI run 43583914672 at 15ffb75
+OTA SHA-256        d93ed2f8d091dbca2f607da2d418767050f9fb0236fca5f5cf3e4629a63e3fd9
+OTA SHA-512        b37c5c523d00fba8b45968e15bdc8adbd5fdede64912ca08fe5e8324af6486272554302e3ebeea979b6935f0029bc548d801da3e7fb24f6a0cefb3066c4f76d8
+inner .bin SHA-256 07686fb96fe5bde0043cb4c4fb41219f83317552fc02756cc92c9b7b2887b4be
+installed          2026-11-14 by OTA from GLSD-ED-008 (1526 s, 2883 x 50-byte blocks, single attempt)
+post-OTA bench     fresh build PASS, fresh file version PASS, converter PASS, supply PASS
+PB3 supply         first reading after boot 3272 mV, 0 refused saves
+owner acceptance   in daily use: "works as charm"
+```
+
+Not proven yet: the bench `startup` power-cycle cases, stock-to-custom
+conversion by OTA (this unit was first converted by SWire) and vendor
+recovery by OTA. The repository README explains how to reuse it on another
+GL-SD-301P.
+
+The sections below are historical: they describe the earlier PR #6 candidate.
+
 ## Independent End Device candidate
 
 The current safety-reviewed candidate is PR #6 at exact head:
@@ -87,7 +110,7 @@ Frozen quarantined OTA wrapper SHA-256:
 SOFTWARE_GATE            = GREEN
 SAFETY_SWEEP_BLOCKERS    = CLOSED
 CANARY_DECISION_READY    = YES
-LIVE_DEVICE_VALIDATED    = NO
+LIVE_DEVICE_VALIDATED    = YES (ED-009, 2026-11-14)
 GENERAL_RELEASE          = NO
 ```
 

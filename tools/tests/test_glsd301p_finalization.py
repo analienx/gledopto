@@ -40,6 +40,13 @@ def finalized_inner(version: int, size: int = 256) -> bytes:
 
 def target_manifest(path: Path, inner_path: Path) -> None:
     inner = inner_path.read_bytes()
+    evidence_path=path.parent/'startup-wiring/startup-target-evidence.json'
+    evidence_path.parent.mkdir(exist_ok=True)
+    evidence=json.dumps({'nv_module':3,'nv_item':230,'nv_start':0x3a000,
+                         'voltage_guard':1,'sdk_boot_voltage_loop':0,
+                         'boot_independent_of_voltage':'PASS',
+                         'target_wiring':'PASS'}).encode()
+    evidence_path.write_bytes(evidence)
     fields = {
         "QUARANTINED_BUILD": "YES",
         "DEPLOYABLE": "NO",
@@ -59,7 +66,16 @@ def target_manifest(path: Path, inner_path: Path) -> None:
         "UART": "9600_8N1_PB1_TX_PA0_RX",
         "REACHABLE_TARGET_RUNTIME_CHAIN": "PASS",
         "COMMISSIONING": "FACTORY_NEW_STEER_TICK_1S_BACKOFF_5_TO_300S_WATCHDOG_180S_TCLK_SAFE_STRANDED_REJOIN_60S_REJOIN_WATCHDOG_900S_FN_HANDOVER_REMOVAL_RESTEERS",
-        "RESET_GESTURE": "PUSH_10_SHORT_PRESSES_GAP_1000MS_LEAVE_THEN_REBOOT_FACTORY_NEW_VERIFIED",
+        "RESET_GESTURE": "PUSH_10_SHORT_PRESSES_GAP_1000MS_LEAVE_THEN_REBOOT_STACK_NV_ALWAYS_WIPED",
+        "STARTUP_POLICY": "STANDARD_OFF_ON_TOGGLE_PREVIOUS_GUARDED",
+        "STARTUP_NV_MODULE": "3",
+        "STARTUP_NV_ITEM": "0xe6",
+        "STARTUP_NV_START": "0x3a000",
+        "STARTUP_VOLTAGE_GUARD": "1",
+        "STARTUP_WIRING_TEST": "PASS",
+        "STARTUP_WIRING_EVIDENCE_SHA256": hashlib.sha256(evidence).hexdigest(),
+        "STARTUP_BOOT_VOLTAGE_INDEPENDENT": "PASS",
+        "SDK_BOOT_VOLTAGE_LOOP": "ABSENT",
         "OTA_CLIENT_QUERY": "AFTER_JOIN_AND_FAILED_TRANSFER_43200S_SDK_P7_NO_STUCK_DOWNLOAD",
         "FINAL_BINARY_SIZE": str(len(inner)),
         "TEXT_VMA": "0x00001560",
@@ -178,7 +194,7 @@ class FinalizationTests(unittest.TestCase):
             parsed = wrapper.validate_ota(ota.read_bytes())
             self.assertEqual(parsed["manufacturerCode"], 0x124F)
             self.assertEqual(parsed["imageType"], 0x1416)
-            self.assertEqual(parsed["fileVersion"], 0x7F090001)
+            self.assertEqual(parsed["fileVersion"], 0x7F0A0001)
             self.assertEqual((parsed["hardwareVersionMin"], parsed["hardwareVersionMax"]), (2, 2))
             self.assertTrue(meta["bankNeutral"])
             self.assertEqual(meta["physicalBootTargets"], [0, 0x40000])
@@ -197,6 +213,53 @@ class FinalizationTests(unittest.TestCase):
             )
             with self.assertRaises(wrapper.EndDeviceOtaError):
                 wrapper.validate_target_manifest(manifest, inner)
+
+    def test_wrapper_rejects_unsafe_startup_storage_or_guard(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            root=Path(td);inner=root/'glsd301p-ed.final.bin'
+            inner.write_bytes(finalized_inner(wrapper.DEFAULT_FILE_VERSION))
+            manifest=root/'manifest.txt';target_manifest(manifest,inner)
+            good=manifest.read_text()
+            for old,new in [('STARTUP_NV_MODULE=3','STARTUP_NV_MODULE=6'),
+                            ('STARTUP_NV_START=0x3a000','STARTUP_NV_START=0x7a000'),
+                            ('STARTUP_VOLTAGE_GUARD=1','STARTUP_VOLTAGE_GUARD=0'),
+                            ('STARTUP_WIRING_TEST=PASS','STARTUP_WIRING_TEST=FAIL'),
+                            ('STARTUP_BOOT_VOLTAGE_INDEPENDENT=PASS','STARTUP_BOOT_VOLTAGE_INDEPENDENT=FAIL'),
+                            ('SDK_BOOT_VOLTAGE_LOOP=ABSENT','SDK_BOOT_VOLTAGE_LOOP=PRESENT')]:
+                manifest.write_text(good.replace(old,new))
+                with self.subTest(new=new),self.assertRaises(wrapper.EndDeviceOtaError):
+                    wrapper.validate_target_manifest(manifest,inner)
+
+    def test_wrapper_rejects_evidence_with_sdk_boot_voltage_loop(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            root=Path(td);inner=root/'glsd301p-ed.final.bin'
+            inner.write_bytes(finalized_inner(wrapper.DEFAULT_FILE_VERSION))
+            manifest=root/'manifest.txt';target_manifest(manifest,inner)
+            wrapper.validate_target_manifest(manifest,inner)
+            evidence=root/'startup-wiring/startup-target-evidence.json'
+            old_hash=hashlib.sha256(evidence.read_bytes()).hexdigest()
+            for key,value in [('sdk_boot_voltage_loop',1),('boot_independent_of_voltage','FAIL')]:
+                data=json.loads(evidence.read_bytes());data[key]=value
+                raw=json.dumps(data).encode();evidence.write_bytes(raw)
+                text=manifest.read_text().replace(old_hash,hashlib.sha256(raw).hexdigest())
+                manifest.write_text(text);old_hash=hashlib.sha256(raw).hexdigest()
+                with self.subTest(key=key),self.assertRaises(wrapper.EndDeviceOtaError):
+                    wrapper.validate_target_manifest(manifest,inner)
+                data[key]=0 if key=='sdk_boot_voltage_loop' else 'PASS'
+                raw=json.dumps(data).encode();evidence.write_bytes(raw)
+                manifest.write_text(manifest.read_text().replace(old_hash,hashlib.sha256(raw).hexdigest()))
+                old_hash=hashlib.sha256(raw).hexdigest()
+
+    def test_wrapper_rejects_missing_or_tampered_startup_evidence(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            root=Path(td);inner=root/'glsd301p-ed.final.bin'
+            inner.write_bytes(finalized_inner(wrapper.DEFAULT_FILE_VERSION))
+            manifest=root/'manifest.txt';target_manifest(manifest,inner)
+            evidence=root/'startup-wiring/startup-target-evidence.json'
+            evidence.write_text('{}')
+            with self.assertRaises(wrapper.EndDeviceOtaError):wrapper.validate_target_manifest(manifest,inner)
+            evidence.unlink()
+            with self.assertRaises(wrapper.EndDeviceOtaError):wrapper.validate_target_manifest(manifest,inner)
 
     def test_wrapper_rejects_manifest_without_commissioning(self) -> None:
         with tempfile.TemporaryDirectory() as td:

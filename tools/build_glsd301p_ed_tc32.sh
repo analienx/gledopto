@@ -24,7 +24,7 @@ APP_SLOT_SIZE=0x34000
 BANK_B_BASE=0x40000
 BANK_B_SLOT_END=0x74000
 MAC_REGION_START=0x76000
-FILE_VERSION=0x7F090001
+FILE_VERSION=0x7F0A0001
 
 [[ -f "$SDK/platform/boot/8258/boot_8258.link" ]] || { echo 'ERROR: pinned TLSR8258 SDK fixture incomplete' >&2; exit 2; }
 [[ -f "$SDK/zigbee/lib/tc32/libzb_ed.a" ]] || { echo 'ERROR: libzb_ed.a missing' >&2; exit 2; }
@@ -126,6 +126,7 @@ app_sources=(
   "$CORE/glsd301p_bdb_adapter.c"
   "$CORE/glsd301p_health.c"
   "$CORE/glsd301p_stack_nv.c"
+  "$CORE/glsd301p_startup.c"
   "$TARGET/glsd301p_telink_inert_glue.c"
   "$TARGET/glsd301p_telink_link_sentinels.c"
   "$TARGET/glsd301p_telink_target.c"
@@ -248,6 +249,19 @@ grep -q 'GLSD301P_HEALTH_ATTR_ID, ZCL_DATA_TYPE_OCTET_STR, ACCESS_CONTROL_READ, 
 if grep 'GLSD301P_HEALTH_ATTR_ID' "$TARGET/glsd301p_telink_target.c" | grep -q 'WRITE\|REPORTABLE'; then
   echo 'ERROR: health attribute must be read-only and never reported' >&2; exit 1;
 fi
+# ED-009: RAM-only v1 PB3/VBAT supply snapshot on Basic:0xFF11, read-only.
+grep -q 'GLSD301P_SUPPLY_ATTR_ID, ZCL_DATA_TYPE_OCTET_STR, ACCESS_CONTROL_READ, g_basic_supply' \
+  "$TARGET/glsd301p_telink_target.c" || {
+  echo 'ERROR: Basic:0xFF11 supply attribute entry missing or not read-only' >&2; exit 1;
+}
+if grep 'GLSD301P_SUPPLY_ATTR_ID' "$TARGET/glsd301p_telink_target.c" | grep -q 'WRITE\|REPORTABLE'; then
+  echo 'ERROR: supply attribute must be read-only and never reported' >&2; exit 1;
+fi
+# The SDK boot-time voltage_detect(1) resets the chip unless five PB3/VBAT
+# samples exceed 2.2 V within 1 s: over the air an unrecoverable boot loop.
+grep -Eq '^#define[[:space:]]+VOLTAGE_DETECT_ENABLE[[:space:]]+0[[:space:]]*$' "$TARGET/app_cfg.h" || {
+  echo 'ERROR: VOLTAGE_DETECT_ENABLE must stay 0 (SDK boot-time voltage reset loop)' >&2; exit 1;
+}
 grep -q 'glsd301p_timer_health_start' "$TARGET/glsd301p_telink_target.c" || {
   echo 'ERROR: health snapshot is never refreshed by the owned 1 s event' >&2; exit 1;
 }
@@ -257,23 +271,23 @@ grep -q 'glsd301p_health_note_bdb_status' "$TARGET/glsd301p_telink_target.c" || 
 if grep -q 'nv_\|zcl_nv\|reportAttr\|zcl_report' "$CORE/glsd301p_health.c"; then
   echo 'ERROR: health snapshot must not touch NVM or reporting' >&2; exit 1;
 fi
-grep -q '#define FILE_VERSION[[:space:]]*0x7F090001' "$TARGET/version_cfg.h" || {
-  echo 'ERROR: FILE_VERSION must be the allocated 0x7F090001' >&2; exit 1;
+grep -q '#define FILE_VERSION[[:space:]]*0x7F0A0001' "$TARGET/version_cfg.h" || {
+  echo 'ERROR: FILE_VERSION must be the allocated 0x7F0A0001' >&2; exit 1;
 }
-grep -q '#define APP_BUILD[[:space:]]*0x09' "$TARGET/version_cfg.h" || {
-  echo 'ERROR: APP_BUILD must be the allocated 09' >&2; exit 1;
+grep -q '#define APP_BUILD[[:space:]]*0x0A' "$TARGET/version_cfg.h" || {
+  echo 'ERROR: APP_BUILD must be the allocated 0A' >&2; exit 1;
 }
 # The over-the-air Basic identity must match the declared DEV_IDENTITY.
-grep -Fq "g_basic_sw_build_id[] = {11,'G','L','S','D','-','E','D','-','0','0','8'};"   "$TARGET/glsd301p_telink_target.c" || {
-  echo 'ERROR: Basic swBuildId must report GLSD-ED-008' >&2; exit 1;
+grep -Fq "g_basic_sw_build_id[] = {11,'G','L','S','D','-','E','D','-','0','0','9'};"   "$TARGET/glsd301p_telink_target.c" || {
+  echo 'ERROR: Basic swBuildId must report GLSD-ED-009' >&2; exit 1;
 }
-grep -Fq "g_basic_date_code[] = {8,'2','0','2','6','1','1','1','1'};"   "$TARGET/glsd301p_telink_target.c" || {
-  echo 'ERROR: Basic dateCode must report 20261111' >&2; exit 1;
+grep -Fq "g_basic_date_code[] = {8,'2','0','2','6','1','1','1','3'};"   "$TARGET/glsd301p_telink_target.c" || {
+  echo 'ERROR: Basic dateCode must report 20261113' >&2; exit 1;
 }
-grep -Fq "g_basic_app_version = 0x09u;" "$TARGET/glsd301p_telink_target.c" || {
-  echo 'ERROR: Basic appVersion must report APP_BUILD 0x09' >&2; exit 1;
+grep -Fq "g_basic_app_version = 0x0Au;" "$TARGET/glsd301p_telink_target.c" || {
+  echo 'ERROR: Basic appVersion must report APP_BUILD 0x0A' >&2; exit 1;
 }
-[[ "$FILE_VERSION" == '0x7F090001' ]] || {
+[[ "$FILE_VERSION" == '0x7F0A0001' ]] || {
   echo 'ERROR: build FILE_VERSION drifted from allocated identity' >&2; exit 1;
 }
 
@@ -320,6 +334,7 @@ fi
 
 rm -rf "$DIR"
 mkdir -p "$DIR/obj/sdk" "$DIR/obj/app" "$DIR/obj/abi"
+python3 "$ROOT/tools/test_glsd301p_startup_target.py" --sdk-root "$SDK" --out "$DIR/startup-wiring"
 objects=()
 
 # Narrow deterministic SDK patches (hash-pinned, anchor-checked, provenance
@@ -516,6 +531,11 @@ done
 "$TC32_NM" -u "$app_obj" | grep -E ' U T_evtExcept$' >/dev/null || {
   echo 'ERROR: health exception record is not wired to SDK ev.c' >&2; exit 1;
 }
+for sym in drv_adc_init drv_adc_mode_pin_set drv_adc_enable drv_get_adc_data; do
+  "$TC32_NM" -u "$app_obj" | grep -E " U ${sym}\$" >/dev/null || {
+    echo "ERROR: target does not configure/read the PB3 supply ADC itself: $sym" >&2; exit 1;
+  }
+done
 for obj in "$DIR"/obj/app/*.o; do
   if "$TC32_NM" -u "$obj" 2>/dev/null | grep -E ' U ev_timer_task(Post|Cancel)$' >/dev/null; then
     echo "ERROR: pooled timer API referenced by application object: $obj" >&2; exit 1;
@@ -563,6 +583,14 @@ for sym in "${gc_only_sentinels[@]}"; do
   fi
 done
 echo 'GC_ONLY_LINK_SENTINELS_FINAL_ELF=NONE'
+
+# No boot path may wait or reset on the PB3 reading: the SDK's voltage_detect
+# (SYSTEM_RESET unless five samples > 2.2 V within 1 s) must not be linked.
+if "$TC32_NM" "$elf" | awk '$NF == "voltage_detect" {found=1} END {exit(found ? 0 : 1)}'; then
+  echo 'ERROR: SDK boot-time voltage_detect reset loop linked into final ELF' >&2
+  exit 1
+fi
+echo 'SDK_BOOT_VOLTAGE_LOOP=ABSENT'
 
 # Touchlink remains disabled; only the three inert BDB closure hooks and the
 # zero response-state byte may exist. No ZLL implementation TU is compiled.
@@ -652,9 +680,25 @@ grep -q 'libzb_ed' "$map" || { echo 'ERROR: End Device stack archive absent from
   echo RESET_GESTURE=PUSH_10_SHORT_PRESSES_GAP_1000MS_LEAVE_THEN_REBOOT_STACK_NV_ALWAYS_WIPED
   echo STACK_NV=CLEAN_START_ONCE_PER_FIRMWARE_LINE_VERIFIED_BLANK_FRAME_COUNTER_KEPT
   echo NETWORK_KEY_WAIT=10000MS
+  echo STARTUP_POLICY=STANDARD_OFF_ON_TOGGLE_PREVIOUS_GUARDED
+  python3 - "$DIR/startup-wiring/startup-target-evidence.json" <<'PY'
+import hashlib, json, sys
+path = sys.argv[1]
+raw = open(path, 'rb').read()
+evidence = json.loads(raw)
+print('STARTUP_NV_MODULE=' + str(evidence['nv_module']))
+print('STARTUP_NV_ITEM=' + hex(evidence['nv_item']))
+print('STARTUP_NV_START=' + hex(evidence['nv_start']))
+print('STARTUP_VOLTAGE_GUARD=' + str(evidence['voltage_guard']))
+print('STARTUP_WIRING_TEST=' + evidence['target_wiring'])
+print('STARTUP_BOOT_VOLTAGE_INDEPENDENT=' + evidence['boot_independent_of_voltage'])
+print('STARTUP_WIRING_EVIDENCE_SHA256=' + hashlib.sha256(raw).hexdigest())
+PY
+  echo SDK_BOOT_VOLTAGE_LOOP=ABSENT
   echo OTA_CLIENT_QUERY=AFTER_JOIN_AND_FAILED_TRANSFER_43200S_SDK_P7_NO_STUCK_DOWNLOAD
   echo HEALTH_SNAPSHOT=RAM_V2_48B_BASIC_0xFF10_READONLY_1S_OWNED
-  echo DEV_IDENTITY=GLSD-ED-008_APP_BUILD_09_FILE_VERSION_0x7F090001_DATE_20261111
+  echo SUPPLY_SNAPSHOT=RAM_V1_10B_BASIC_0xFF11_READONLY_BOOT_AND_SAVE_SAMPLES
+  echo DEV_IDENTITY=GLSD-ED-009_APP_BUILD_0A_FILE_VERSION_0x7F0A0001_DATE_20261113
   python3 - "$DIR/sdk-patches.json" <<'PY'
 import json, sys
 report = json.load(open(sys.argv[1]))

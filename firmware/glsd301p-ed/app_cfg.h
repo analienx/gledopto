@@ -18,6 +18,15 @@
 
 #define TOUCHLINK_SUPPORT                       0
 #define FIND_AND_BIND_SUPPORT                   0
+/*
+ * Must stay 0. With 1 the SDK's platform_init runs voltage_detect(1) before
+ * user_init and calls SYSTEM_RESET() unless five PB3/VBAT samples exceed
+ * 2.2 V within 1 s. A wrong or low reading would then reset the device on
+ * every boot before Zigbee starts, which no OTA can recover. The target
+ * configures the PB3 reading itself and guards only its own startup saves
+ * (glsd_supply_sample); boot never waits on or resets for the reading.
+ * The build fails if voltage_detect is linked.
+ */
 #define VOLTAGE_DETECT_ENABLE                   0
 #define FLASH_PROTECT_ENABLE                    1
 #define MODULE_WATCHDOG_ENABLE                  1
@@ -25,8 +34,9 @@
 
 #if defined(MCU_CORE_8258)
 #define CLOCK_SYS_CLOCK_HZ                      48000000
-/* Telink drv_hw.c initializes an ADC input for flash safe-voltage handling even
- * when application voltage detection is disabled. Genuine same-model GLEDOPTO
+/* PB3 VBAT-mode reading for flash safe-voltage handling. The SDK uses it for
+ * Zbit flash parts; the target uses it to guard its startup saves. Genuine
+ * same-model GLEDOPTO
  * firmware was independently traced through the unique drv_adc_mode_pin_set
  * helper/caller and resolves this VBAT-mode argument to GPIO_PB3. Keep this
  * exact pin locked unless the vendor-proof gate is deliberately superseded. */

@@ -90,7 +90,17 @@ def validate_target_manifest(manifest_path: Path, inner_path: Path) -> dict:
         # Recovery surface: without these a factory-new device (Leave,
         # reset, unrestorable NV) can never rejoin and OTA recovery is lost.
         "COMMISSIONING": "FACTORY_NEW_STEER_TICK_1S_BACKOFF_5_TO_300S_WATCHDOG_180S_TCLK_SAFE_STRANDED_REJOIN_60S_REJOIN_WATCHDOG_900S_FN_HANDOVER_REMOVAL_RESTEERS",
-        "RESET_GESTURE": "PUSH_10_SHORT_PRESSES_GAP_1000MS_LEAVE_THEN_REBOOT_FACTORY_NEW_VERIFIED",
+        "RESET_GESTURE": "PUSH_10_SHORT_PRESSES_GAP_1000MS_LEAVE_THEN_REBOOT_STACK_NV_ALWAYS_WIPED",
+        "STARTUP_POLICY": "STANDARD_OFF_ON_TOGGLE_PREVIOUS_GUARDED",
+        "STARTUP_NV_MODULE": "3",
+        "STARTUP_NV_ITEM": "0xe6",
+        "STARTUP_NV_START": "0x3a000",
+        "STARTUP_VOLTAGE_GUARD": "1",
+        "STARTUP_WIRING_TEST": "PASS",
+        # Over the air a boot that waits or resets on the PB3 reading is
+        # unrecoverable: the SDK voltage_detect loop must be absent.
+        "STARTUP_BOOT_VOLTAGE_INDEPENDENT": "PASS",
+        "SDK_BOOT_VOLTAGE_LOOP": "ABSENT",
         "OTA_CLIENT_QUERY": "AFTER_JOIN_AND_FAILED_TRANSFER_43200S_SDK_P7_NO_STUCK_DOWNLOAD",
     }
     missing = sorted(k for k in expected if k not in fields)
@@ -99,6 +109,22 @@ def validate_target_manifest(manifest_path: Path, inner_path: Path) -> dict:
     wrong = [f"{k}={fields[k]!r}" for k, v in expected.items() if fields[k] != v]
     if wrong:
         raise EndDeviceOtaError("build manifest violates target contract: " + ", ".join(wrong))
+
+    evidence_path=manifest_path.parent/'startup-wiring/startup-target-evidence.json'
+    if not evidence_path.is_file():
+        raise EndDeviceOtaError('missing executable startup wiring evidence')
+    evidence_raw=evidence_path.read_bytes()
+    if hashlib.sha256(evidence_raw).hexdigest()!=fields.get('STARTUP_WIRING_EVIDENCE_SHA256'):
+        raise EndDeviceOtaError('startup wiring evidence hash mismatch')
+    try:
+        evidence=json.loads(evidence_raw)
+    except (ValueError,UnicodeError) as exc:
+        raise EndDeviceOtaError('invalid startup wiring evidence') from exc
+    if any(evidence.get(k)!=v for k,v in {'nv_module':3,'nv_item':230,'nv_start':0x3a000,
+                                         'voltage_guard':1,'sdk_boot_voltage_loop':0,
+                                         'boot_independent_of_voltage':'PASS',
+                                         'target_wiring':'PASS'}.items()):
+        raise EndDeviceOtaError('startup wiring evidence does not match the safe storage contract')
 
     inner = inner_path.read_bytes()
     validate_finalized_image(
@@ -154,6 +180,12 @@ def validate_target_manifest(manifest_path: Path, inner_path: Path) -> dict:
             "factoryNewCommissioning": True,
             "resetGesture": fields["RESET_GESTURE"],
             "otaClientQuery": fields["OTA_CLIENT_QUERY"],
+            "startupPolicy": fields["STARTUP_POLICY"],
+            "startupStorage": {"module": int(fields["STARTUP_NV_MODULE"]),
+                               "item": int(fields["STARTUP_NV_ITEM"], 0),
+                               "address": int(fields["STARTUP_NV_START"], 0),
+                               "voltageGuard": fields["STARTUP_VOLTAGE_GUARD"] == "1"},
+            "startupWiringEvidenceSha256": fields['STARTUP_WIRING_EVIDENCE_SHA256'],
         },
         "hardwareContract": {
             "adcFlashSafetyPin": "PB3",

@@ -67,16 +67,36 @@ The Telink integration should initialize in this order:
 1. initialize GPIO/UART without emitting a non-zero frame;
 2. initialize `glsd301p_output_guard_t` (locked/not-ready);
 3. transmit one confirmed OFF frame through the guard;
-4. restore application state: the boot state is fixed (logical OFF, level
-   `0xFE`, minimum `0x02`); no output state is persisted, and the ZCL
-   `StartUpOnOff`/`StartUpCurrentLevel` attributes are read-only and report
-   exactly this behavior;
+4. ED-009: load a validated application startup record. Missing or invalid
+   records default to logical OFF, level `0xFE`, minimum `0x02`. Standard
+   writable `StartUpOnOff` selects OFF/ON/toggle/previous; read-only
+   `StartUpCurrentLevel=0xFF` restores committed brightness. This load never
+   sends an output frame or changes network storage;
 5. arm the guard only if restored level/minimum state is valid;
 6. apply the desired restored logical state through the guard;
 7. route subsequent Zigbee, PUSH and PB4 output requests through the same guard.
 
-Watchdog/reset/brownout restart naturally returns to step 1, so stale RAM or a
-partial application initialization cannot immediately re-energize the load.
+Watchdog/reset/brownout restart naturally returns to step 1. Configured ON or
+previous-ON may energize only after the complete guard sequence succeeds.
+The policy applies to all boots, including watchdog resets; it does not claim
+to distinguish a mains cut from a software reset. A faulted/unready runtime
+cannot persist a fault-forced OFF over the last normal user state.
+
+ED-009 stores policy and stable user state in ZCL-module item `0xE6`, using
+the existing SDK NV journal, an application version/CRC and write readback.
+The stack-NV epoch item `0xE5` stays in APP: routine startup saves cannot rotate
+its sectors. A fresh PB3 supply reading gates each target save (refused below
+2200 mV). `VOLTAGE_DETECT_ENABLE` stays 0: the SDK's boot-time
+`voltage_detect(1)` would reset the chip on every boot after a low or wrong
+reading, before Zigbee starts, which no OTA can recover. Boot never waits on or
+resets for the reading; Basic:0xFF11 reports it read-only.
+The epoch's migration value is unchanged. Factory
+reset still erases the application module along with the existing stack wipe.
+Normal samples require idle Level, no pending/inflight UART and ready output.
+The 1 s maintenance event waits for two matching safe samples at least 1 s
+apart: usually 1–2 s after a state/settings change. A power cut before that
+restores the prior committed snapshot. Write failures retain that snapshot
+and retry at most once per 30 s. No write occurs for unchanged idle state.
 
 ## Network commissioning and recovery surface
 

@@ -272,6 +272,8 @@ jobs:
           # shellcheck disable=SC2086
           cc $strict $inc src/glsd301p_stack_nv.c tests/test_glsd301p_stack_nv.c \
             -o build/host-tests/test_glsd301p_stack_nv
+          cc $strict $inc src/glsd301p_startup.c tests/test_glsd301p_startup.c \
+            -o build/host-tests/test_glsd301p_startup
       - name: Install 32-bit toolchain for pool-exact harnesses
         shell: bash
         run: |
@@ -283,6 +285,17 @@ jobs:
           cc -m32 -fsanitize=address,undefined build/m32probe.c -o build/m32probe
           build/m32probe
           echo 'M32_TOOLCHAIN=PASS'
+      - name: Execute actual startup target and SDK flash guard bodies
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/test_glsd301p_startup_target.py --sdk-root telink-sdk/tl_zigbee_sdk --out build/startup-wiring --mutants
+      - name: Exercise pinned SDK NV sector rotation and power-cut isolation
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/test_glsd301p_startup_nv.py --sdk-root telink-sdk/tl_zigbee_sdk --out build/startup-nv | tee build/startup-nv-result.log
+          grep -q '^SDK_NV_ISOLATION=PASS' build/startup-nv-result.log
       - name: Build M4 dispatch harness (real patched SDK ZCL + ASan/UBSan)
         shell: bash
         run: |
@@ -580,11 +593,13 @@ jobs:
           build/host-tests/test_glsd301p_zcl_dispatch
           build/host-tests/test_glsd301p_health
           build/host-tests/test_glsd301p_stack_nv
+          build/host-tests/test_glsd301p_startup
       - name: Run health decoder fixtures
         shell: bash
         run: |
           set -euo pipefail
           python3 tools/tests/test_glsd301p_health_decode.py -v
+          python3 tools/tests/test_glsd301p_bench.py -v
       - name: Adversarially verify End Device architecture firewall
         shell: bash
         run: bash tests/test_glsd301p_target_contract.sh
@@ -724,6 +739,7 @@ jobs:
           mkdir -p "$out"
           cp "$src/glsd301p-ed.final.bin" "$out/glsd301p-ed_0x00000.bin"
           cp "$src/manifest.txt" "$src/sdk-patches.json" "$src/glsd301p-ed.map" "$out/"
+          cp "$src/startup-wiring/startup-target-evidence.json" "$out/"
           (cd "$out" && sha256sum glsd301p-ed_0x00000.bin | tee SHA256SUMS)
           echo "WIRED_IMAGE_BYTES=$(stat -c %s "$out/glsd301p-ed_0x00000.bin")"
           echo "WIRED_IMAGE_SOURCE=${{ github.sha }}"
