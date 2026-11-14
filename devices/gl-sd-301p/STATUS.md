@@ -1,6 +1,36 @@
 # STATUS — GL-SD-301P
 
-## 2026-11-01 (latest) — third review round: "dormant" withdrawn
+## 2026-11-14 (latest): ED-009 installed by OTA, working End Device
+
+The owner chose reliable OTA only, with no SWire fallback. Before the update,
+the SDK boot-time `voltage_detect(1)` reset loop was removed
+(`VOLTAGE_DETECT_ENABLE=0`, app-level PB3 guard on startup saves, read-only
+Basic `0xFF11` supply snapshot; `20123fe`). CI then published the exact OTA
+on manual runs (`15ffb75`); its bytes are identical to the reviewed
+`20123fe` build.
+
+Live sequence on `0xa4c13850cfcdb3a4`:
+
+1. The converter `1b5915c6…` was hot-installed through
+   `bridge/request/converter/save`, after checking it against the live
+   zigbee-herdsman-converters 26.115.1. ED-008 kept its old exposes.
+2. The image was staged in the Zigbee2MQTT data directory with a one-entry
+   index (sha512, modelId, min/max fileVersion = ED-008). A read-only check
+   returned `update_available: true`. The first index had
+   `hardwareVersionMin/Max` and never matched, because the Telink query
+   carries no hardware version (`fc = 0`).
+3. A single targeted update ran with 50-byte blocks: 1526 s, status ok,
+   from `GLSD-ED-008`/`0x7F090001` to `GLSD-ED-009`/`0x7F0A0001`.
+   Zigbee2MQTT re-interviewed the device itself; it stayed an End Device.
+4. Bench `post-ota`: fresh build, fresh version, converter and supply all
+   PASS. The first PB3 reading was 3272 mV with 0 refused saves.
+
+Owner acceptance: in daily use and "works as charm". ED-009 is the working
+End Device firmware for this dimmer. Still open: the bench `startup`
+power-cycle cases, stock-to-custom conversion by OTA and an exercised
+vendor recovery.
+
+## 2026-11-01 — third review round: "dormant" withdrawn
 
 A third independent review showed that every way of keeping a removed unit
 quiet also created a path where it never comes back on its own. Dormant is

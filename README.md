@@ -6,10 +6,10 @@
 
 **Clean-room firmware, hardware interoperability research, and tooling for turning compatible mains-powered GLEDOPTO/Telink devices from Zigbee routers into always-awake End Devices (leaf nodes) — without giving up normal lighting control.**
 
-![Status](https://img.shields.io/badge/GL--SD--301P-software%20gate%20green-brightgreen)
+![Status](https://img.shields.io/badge/GL--SD--301P-working%20End%20Device-brightgreen)
 ![Zigbee](https://img.shields.io/badge/Zigbee-RX--on--idle%20End%20Device-blue)
 ![MCU](https://img.shields.io/badge/Telink-TLSR8258-orange)
-![Stage](https://img.shields.io/badge/live%20canary-pending-yellow)
+![Stage](https://img.shields.io/badge/ED--009-live%20on%20hardware-brightgreen)
 
 </div>
 
@@ -63,21 +63,35 @@ flowchart LR
 - the original secondary power-stage architecture
 - OTA/recovery plumbing needed for controlled validation
 
-### Current status
+### Current status: working End Device firmware (ED-009)
+
+**`GLSD-ED-009` (fileVersion `0x7F0A0001`) runs on a real GL-SD-301P as an always-awake End Device and works in daily use.** It was installed over the air on 2026-11-14 from the previous custom build ED-008, and the owner reports that it "works as charm". Other GL-SD-301P owners can use it as a working End Device firmware for this dimmer, within the limits below.
 
 | Area | State |
 |---|---|
 | Hardware architecture | **Established** |
-| Zigbee target | **RX-on-idle End Device** |
-| Router role | **Disabled in candidate** |
-| Pinned Telink SDK/toolchain build | **PASS** |
-| Host interoperability tests | **PASS** |
-| Safety/adversarial checks | **PASS** |
-| Reproducible quarantined firmware | **PASS** |
-| Single-device live canary | **Pending** |
-| General/public OTA release | **Not authorized** |
+| Zigbee role on hardware | **RX-on-idle End Device, verified live** |
+| Router role | **Disabled** (`libzb_ed.a`, no routing, no children) |
+| On/Off, Level, physical PUSH, reporting | **Working in daily use** |
+| Configurable power-on behavior | **New in ED-009**: off / on / toggle / previous, with the brightness remembered |
+| Custom-to-custom OTA (ED-008 → ED-009) | **Proven live**: one transfer, about 25 min at 50-byte blocks, device rejoined by itself |
+| PB3 supply reading after boot | **3272 mV** (Basic `0xFF11`), so startup settings save normally |
+| Pinned Telink SDK/toolchain build, host and safety tests | **PASS** on hosted CI |
+| Stock → custom conversion by OTA | **Not proven**: the first install on the reference unit was a wired SWire flash |
+| Vendor-firmware recovery by OTA | Planned (downgrade topic, same-model vendor image), **not yet exercised** |
 
-The current frozen software candidate is tracked in **PR #6**. Its software gate is green; successful behavior on the physical production device still requires the controlled canary and post-flash validation. Do not interpret a green CI build as a blanket recommendation to flash hardware.
+#### Using it on your own GL-SD-301P
+
+1. **Check that you have the same hardware.** Use this only on a GL-SD-301P that reports `hwVersion 2`, manufacturer code `0x124F` (4687) and image type `0x1416` (5142), with the TLSR8258 module described in [`devices/gl-sd-301p/`](devices/gl-sd-301p/). Other revisions or GLEDOPTO models are **not** supported.
+2. **Get the exact CI-built image.** Run the *GL-SD-301P final no-spare readiness* workflow manually (`workflow_dispatch`) on the release commit. It publishes the `.ota`, the raw `.bin`, the build manifest and SHA-256/SHA-512 sums as a run artifact. The live-proven ED-009 OTA has SHA-256 `d93ed2f8d091dbca2f607da2d418767050f9fb0236fca5f5cf3e4629a63e3fd9`. Don't flash a local build; the hosted build is the reference.
+3. **Install the Zigbee2MQTT external converter** [`devices/gl-sd-301p/zigbee2mqtt/glsd301p_ed.js`](devices/gl-sd-301p/zigbee2mqtt/glsd301p_ed.js) first. It has been checked against zigbee-herdsman-converters 26.115.1 (live), 26.125.0 and the latest release (CI).
+4. **First install from stock firmware:** the reference unit was converted by a wired SWire flash of the raw image. Converting stock firmware over the air is untested; treat it as experimental and keep a wired recovery option.
+5. **Updating an already-converted unit:** use a one-entry Zigbee2MQTT OTA index that names the image's `sha512`, `modelId` `GL-SD-301P-ED` and your current `fileVersion`. **Do not set `hardwareVersionMin`/`Max`**: the Telink OTA client sends no hardware version in its query, so Zigbee2MQTT would never match the entry. Send the targeted `bridge/request/device/ota_update/update` request for your device only.
+6. **After the update,** confirm a fresh `swBuildId` and OTA `currentFileVersion` read from the device. Then read Basic `0xFF11` and check that the supply readings are at least 2200 mV.
+
+A removed unit re-joins on the next permit-join, like most Zigbee devices. Add its IEEE address to the Zigbee2MQTT `blocklist` to keep it out. Safety rules and behavior details: [`devices/gl-sd-301p/SAFETY.md`](devices/gl-sd-301p/SAFETY.md).
+
+This is independent firmware for one hardware revision, offered as-is. A green CI build alone is not a recommendation to flash a different unit.
 
 ## Why this may be useful beyond one dimmer
 
@@ -103,7 +117,9 @@ This repository is deliberately evidence-driven. It contains more than firmware 
 - [`.github/workflows/`](.github/workflows/) — reproducible analysis/build gates
 - [`AGENTS.md`](AGENTS.md) — automation/supervisor operating constraints
 - [Issue #1](https://github.com/analienx/gledopto/issues/1) — the detailed GL-SD-301P engineering ledger
-- [PR #6](https://github.com/analienx/gledopto/pull/6) — current clean-room End Device implementation and safety-gated build
+- [PR #12](https://github.com/analienx/gledopto/pull/12) — ED-009, the working End Device firmware (startup behavior, supply guard, OTA artifact publication)
+- [Issue #11](https://github.com/analienx/gledopto/issues/11) — ED-009 review gate and live OTA result
+- [PR #6](https://github.com/analienx/gledopto/pull/6) — earlier clean-room End Device candidate (historical)
 
 The active implementation branch additionally separates vendor/reference evidence, the documented interoperability interface, and independently authored firmware so that one is not casually treated as the other.
 
