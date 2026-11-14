@@ -1,14 +1,5 @@
 # GL-SD-301P — device ledger
 
-> [!CAUTION]
-> ## ⛔ CRITICAL — DO NOT FLASH THIS FIRMWARE
-> **Current experimental GL-SD-301P firmware is NOT safe to flash or deploy.** A real-device flash has left **Zigbee functionality completely non-operational** (no Zigbee connectivity/control). **The physical PUSH/button control continues to work**, so the device is not completely electrically dead, but its Zigbee firmware/functionality is effectively **soft-bricked**.
->
-> **Recovery requires a physical wired flashing/programming connection.** **Do not rely on Zigbee OTA recovery** when Zigbee is no longer operational. Do not flash any candidate binary, OTA wrapper, release artifact, or development build from this project to a device.
->
-> **STATUS: HARDWARE FAILURE OBSERVED · FLASHING BLOCKED · NO PUBLIC/PRODUCTION RELEASE.** Treat previous green CI/software checks as *build/test results only*, **not proof of device safety**. Flashing stays prohibited until root cause is identified, a corrected build is independently validated on recoverable bench hardware, and the warning is explicitly lifted.
-
-
 GLEDOPTO GL-SD-301P Zigbee triac AC dimmer, mains powered.
 
 ## Production unit
@@ -42,9 +33,32 @@ track             PRODUCTION_ONLY_NO_SPARE
 | Endpoint | 11 |
 | Existing stock binds | genOnOff + genLevelCtrl → coordinator-side target recorded in evidence |
 
+## Working End Device firmware: ED-009 (live since 2026-11-14)
+
+```text
+softwareBuildID    GLSD-ED-009
+fileVersion        0x7F0A0001
+role               EndDevice (RX on when idle), endpoint 11
+source             PR #12: firmware reviewed at 20123fe; OTA published by CI run 43583914672 at 15ffb75
+OTA SHA-256        d93ed2f8d091dbca2f607da2d418767050f9fb0236fca5f5cf3e4629a63e3fd9
+OTA SHA-512        b37c5c523d00fba8b45968e15bdc8adbd5fdede64912ca08fe5e8324af6486272554302e3ebeea979b6935f0029bc548d801da3e7fb24f6a0cefb3066c4f76d8
+inner .bin SHA-256 07686fb96fe5bde0043cb4c4fb41219f83317552fc02756cc92c9b7b2887b4be
+installed          2026-11-14 by OTA from GLSD-ED-008 (1526 s, 2883 x 50-byte blocks, single attempt)
+post-OTA bench     fresh build PASS, fresh file version PASS, converter PASS, supply PASS
+PB3 supply         first reading after boot 3272 mV, 0 refused saves
+owner acceptance   in daily use: "works as charm"
+```
+
+Not proven yet: the bench `startup` power-cycle cases, stock-to-custom
+conversion by OTA (this unit was first converted by SWire) and vendor
+recovery by OTA. The repository README explains how to reuse it on another
+GL-SD-301P.
+
+The sections below are historical: they describe the earlier PR #6 candidate.
+
 ## Independent End Device candidate
 
-The **historical software-reviewed candidate — NOW UNSAFE TO FLASH** — is PR #6 at exact head:
+The current safety-reviewed candidate is PR #6 at exact head:
 
 ```text
 760c141925f29e517831c92afd61bd9c15e1b7b5
@@ -90,20 +104,19 @@ Frozen quarantined OTA wrapper SHA-256:
 43e6996fb55dd5569f450117ac430b8dd11d35f23a878b4680439f84b65c899b
 ```
 
-## Current gate — flashing suspended
+## Current gate
 
 ```text
-SOFTWARE_GATE            = HISTORICAL_GREEN_ONLY
-SAFETY_SWEEP_BLOCKERS    = HARDWARE_FAILURE_OPEN
-CANARY_DECISION_READY    = NO
-LIVE_DEVICE_VALIDATED    = FAILED_ZIGBEE_NON_OPERATIONAL
-PHYSICAL_PUSH           = STILL_FUNCTIONAL
-RECOVERY                = WIRED_FLASH_REQUIRED
-FLASH_AUTHORIZATION     = REVOKED_DO_NOT_FLASH
-GENERAL_RELEASE         = BLOCKED
+SOFTWARE_GATE            = GREEN
+SAFETY_SWEEP_BLOCKERS    = CLOSED
+CANARY_DECISION_READY    = YES
+LIVE_DEVICE_VALIDATED    = YES (ED-009, 2026-11-14)
+GENERAL_RELEASE          = NO
 ```
 
-**Post-flash hardware failure has been observed.** Zigbee functions are non-operational; the physical PUSH control still works. Recovery requires a wired programming connection. Earlier software-green results and prior canary-readiness language are superseded by this incident. **No OTA, wired deployment of the uncorrected firmware, or further live canary is authorized.** Root-cause analysis, recoverable bench-device validation, and a new explicit safety decision are required before the gate can reopen.
+The remaining proof is hardware/runtime validation on the exact production
+device under the latest bounded authorization in issue #1. Green CI is not
+equivalent to a successful live conversion.
 
 Canonical clean-room interface and safety documentation live alongside the
 candidate branch/PR. Status history: `STATUS.md`. Evidence: repo `evidence/`

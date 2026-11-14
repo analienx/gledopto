@@ -1,23 +1,91 @@
 # STATUS — GL-SD-301P
 
-> [!CAUTION]
-> ## ⛔ CRITICAL — DO NOT FLASH THIS FIRMWARE
-> **Current experimental GL-SD-301P firmware is NOT safe to flash or deploy.** A real-device flash has left **Zigbee functionality completely non-operational** (no Zigbee connectivity/control). **The physical PUSH/button control continues to work**, so the device is not completely electrically dead, but its Zigbee firmware/functionality is effectively **soft-bricked**.
->
-> **Recovery requires a physical wired flashing/programming connection.** **Do not rely on Zigbee OTA recovery** when Zigbee is no longer operational. Do not flash any candidate binary, OTA wrapper, release artifact, or development build from this project to a device.
->
-> **STATUS: HARDWARE FAILURE OBSERVED · FLASHING BLOCKED · NO PUBLIC/PRODUCTION RELEASE.** Treat previous green CI/software checks as *build/test results only*, **not proof of device safety**. Flashing stays prohibited until root cause is identified, a corrected build is independently validated on recoverable bench hardware, and the warning is explicitly lifted.
+## 2026-11-14: flash ban of 2026-11-03 lifted for ED-009
 
-## 2026-11-03 — critical Zigbee flashing failure; firmware deployment STOP
+The earlier candidate left a unit with dead Zigbee and needed a wired recovery (critical incident #9, 2026-11-03). The reviewed ED-008 line was then wired-flashed and ran correctly, and ED-009 was installed over the air after a fresh review. The owner accepted the result ("works as charm") and lifted the DO NOT FLASH notice. The incident stays on record in issue #9.
 
-- **Observed:** after flashing the experimental firmware, Zigbee functionality ceased (no Zigbee communication/control).
-- **Still works:** local physical PUSH/button control.
-- **Recovery:** a physical wired firmware flash/programming connection is required; OTA is not a viable recovery route while Zigbee is nonfunctional.
-- **Decision:** immediately block all flashing, OTA distribution and production claims for the current firmware. Earlier green software/CI gates and canary readiness are superseded by observed hardware failure.
-- **Exit criteria:** identify root cause; demonstrate restore/recovery with a wired connection; fix and independently test the candidate on recoverable bench hardware; explicitly re-authorize any hardware canary. Do **not** assume recovery has already succeeded.
+## 2026-11-14 (latest): ED-009 installed by OTA, working End Device
 
----
+The owner chose reliable OTA only, with no SWire fallback. Before the update,
+the SDK boot-time `voltage_detect(1)` reset loop was removed
+(`VOLTAGE_DETECT_ENABLE=0`, app-level PB3 guard on startup saves, read-only
+Basic `0xFF11` supply snapshot; `20123fe`). CI then published the exact OTA
+on manual runs (`15ffb75`); its bytes are identical to the reviewed
+`20123fe` build.
 
+Live sequence on `0xa4c13850cfcdb3a4`:
+
+1. The converter `1b5915c6…` was hot-installed through
+   `bridge/request/converter/save`, after checking it against the live
+   zigbee-herdsman-converters 26.115.1. ED-008 kept its old exposes.
+2. The image was staged in the Zigbee2MQTT data directory with a one-entry
+   index (sha512, modelId, min/max fileVersion = ED-008). A read-only check
+   returned `update_available: true`. The first index had
+   `hardwareVersionMin/Max` and never matched, because the Telink query
+   carries no hardware version (`fc = 0`).
+3. A single targeted update ran with 50-byte blocks: 1526 s, status ok,
+   from `GLSD-ED-008`/`0x7F090001` to `GLSD-ED-009`/`0x7F0A0001`.
+   Zigbee2MQTT re-interviewed the device itself; it stayed an End Device.
+4. Bench `post-ota`: fresh build, fresh version, converter and supply all
+   PASS. The first PB3 reading was 3272 mV with 0 refused saves.
+
+Owner acceptance: in daily use and "works as charm". ED-009 is the working
+End Device firmware for this dimmer. Still open: the bench `startup`
+power-cycle cases, stock-to-custom conversion by OTA and an exercised
+vendor recovery.
+
+## 2026-11-01 — third review round: "dormant" withdrawn
+
+A third independent review showed that every way of keeping a removed unit
+quiet also created a path where it never comes back on its own. Dormant is
+gone, and a CI gate forbids it. A removed unit re-joins on the next
+permit-join; use the Zigbee2MQTT `blocklist` to keep it out. Also added:
+a rejoin-to-steering handover on a factory-new device and pinned SDK patch
+P7, which keeps the OTA client from sticking in "download in progress" (the
+round-3 timing watchdog was replaced by it after the fourth review). Identity unchanged (`GLSD-ED-007`,
+`0x7F080001`, never flashed); bind to the exact image hash in the review
+record.
+
+## 2026-11-01 (later) — two independent acceptance review rounds, fixes in
+
+The over-the-air identity is now **`GLSD-ED-007`, APP_BUILD `0x08`,
+fileVersion `0x7F080001`**, dateCode `20261101`. It supersedes
+`GLSD-ED-006` / `0x7F070001`, which was never flashed.
+
+- Round 1 (A1–A10) and round 2 (B1–B10) were done by separate reviewers,
+  each checked against the pinned SDK source. They found real recovery gaps:
+  a reboot loop after a failed TC link-key exchange, a device that could be
+  stranded off the network, an OTA re-query that silently did nothing, and
+  a Leave with rejoin wrongly treated as removal. All are fixed with tests.
+  Dispositions:
+  `HARDENING-FLASH-READINESS-REVIEW-20261101.md`.
+- Live read-only checks: Zigbee2MQTT is `2.14.2`, which is enough for URL
+  requests. The live tuple matches the preflight. The stock unit is a
+  **Router**, and up to 11 End Devices may use it as parent; they will
+  re-parent after the switch to End Device.
+- Still required: hosted CI on the final head, the external converter
+  installed, and explicit human authorization. No device action is
+  authorized.
+
+## 2026-11-01 — flash-readiness review: recovery surface fixed, not yet re-gated
+
+The active candidate is the PR #8 hardening branch
+(`codex/glsd301p-client-hardening`); PR #6 `760c141` stays frozen as the
+previous reviewed reference.
+
+A flash-readiness review of `109b6b1` found that a factory-new device could
+never commission again (no network steering, no reset path, no reboot on
+Leave). That would make vendor OTA recovery undeliverable after a Leave or an
+unrestorable stock NV. Fixed together with a planned recovery request,
+a Zigbee2MQTT external converter, read-only StartUp attributes, OTA query
+after join and a corrected over-the-air identity (`GLSD-ED-006`,
+`0x7F070001`). Details and local verification:
+`HARDENING-FLASH-READINESS-REVIEW-20261101.md`.
+
+Gate state: locally the host harnesses, architecture firewall and real TC32
+build pass; hosted CI, a fresh independent acceptance review and read-only
+Zigbee2MQTT downgrade verification are still required. No device action is
+authorized.
 
 ## 2026-09-18 — execution model and durable project state reconciled
 

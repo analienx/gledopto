@@ -1,0 +1,290 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+SRC="$ROOT/tests/test_glsd301p_target_contract.c"
+INC="$ROOT/firmware/glsd301p-ed"
+CFG="$INC/app_cfg.h"
+TARGET_SRC="$INC/glsd301p_telink_target.c"
+CC="${CC:-cc}"
+TMP="$(mktemp -d)"
+trap 'rm -rf "$TMP"' EXIT
+
+base_defs=(
+  -DMCU_CORE_8258=1
+  -DEND_DEVICE=1
+  -DROUTER=0
+  -DCOORDINATOR=0
+  -DZB_ED_ROLE=1
+  -DZB_ROUTER_ROLE=0
+  -DZB_COORDINATOR_ROLE=0
+  -DPM_ENABLE=0
+  -DZB_MAC_RX_ON_WHEN_IDLE=1
+  -DZCL_ON_OFF_SUPPORT=1
+  -DZCL_LEVEL_CTRL_SUPPORT=1
+  -DZCL_GROUP_SUPPORT=1
+  -DAPS_GROUP_TABLE_NUM=8
+  -DGLSD301P_ENDPOINT=0x0B
+)
+
+compile_ok() {
+  "$CC" -std=c11 -Wall -Wextra -Werror -pedantic -I"$INC" \
+    "${base_defs[@]}" "$SRC" -o "$TMP/ok"
+  "$TMP/ok"
+}
+
+expect_fail() {
+  local name="$1"
+  shift
+  local filtered=("${base_defs[@]}")
+
+  # Replace every overridden -D key rather than stacking duplicate definitions.
+  # A negative case therefore passes only when our contract itself rejects it.
+  for override in "$@"; do
+    local key="${override%%=*}"
+    local next=()
+    for item in "${filtered[@]}"; do
+      if [[ "$item" != "$key="* ]]; then
+        next+=("$item")
+      fi
+    done
+    filtered=("${next[@]}")
+  done
+  filtered+=("$@")
+
+  if "$CC" -std=c11 -Wall -Wextra -Werror -pedantic -I"$INC" \
+      "${filtered[@]}" "$SRC" -o "$TMP/$name" >"$TMP/$name.log" 2>&1; then
+    echo "ERROR: architecture firewall accepted forbidden case: $name" >&2
+    exit 1
+  fi
+  if ! grep -q 'GL-SD-301P' "$TMP/$name.log"; then
+    echo "ERROR: forbidden case $name failed for a non-contract reason" >&2
+    cat "$TMP/$name.log" >&2
+    exit 1
+  fi
+  echo "TARGET_CONTRACT_REJECT_${name}=PASS"
+}
+
+require_source() {
+  local pattern="$1" label="$2"
+  grep -Eq "$pattern" "$TARGET_SRC" || {
+    echo "ERROR: target source pin role missing/drifted: $label" >&2
+    exit 1
+  }
+}
+
+CONTROL_SRC="$ROOT/src/glsd301p_control.c"
+SERVICE_SRC="$ROOT/src/glsd301p_uart_service.c"
+TIMERS_SRC="$ROOT/src/glsd301p_timer_events.c"
+COMMANDS_SRC="$ROOT/src/glsd301p_zcl_commands.c"
+
+require_control_source() {
+  local pattern="$1" label="$2"
+  grep -Eq "$pattern" "$CONTROL_SRC" || {
+    echo "ERROR: shared control pin missing/drifted: $label" >&2
+    exit 1
+  }
+}
+
+# The actual target configuration is part of the contract, not just the numeric
+# host fixture. This blocks a future SDK-board-example regression back to PC5.
+grep -Eq '^#define[[:space:]]+VOLTAGE_DETECT_ADC_PIN[[:space:]]+GPIO_PB3[[:space:]]*$' "$CFG" || {
+  echo 'ERROR: GL-SD-301P ADC flash-safety pin must remain GPIO_PB3' >&2
+  exit 1
+}
+if grep -Eq '^#define[[:space:]]+VOLTAGE_DETECT_ADC_PIN[[:space:]]+GPIO_PC5([[:space:]]|$)' "$CFG"; then
+  echo 'ERROR: obsolete PC5 ADC fixture returned to production target' >&2
+  exit 1
+fi
+
+# The real target must never be allowed to opt out of the post-SDK enum and
+# collision assertions. Only temporary reference-analysis copies may flip this
+# switch to zero while compiling alternate GPIO candidates.
+grep -Eq '^#define[[:space:]]+GLSD301P_TARGET_ENABLE_SDK_PIN_ASSERTS[[:space:]]+1[[:space:]]*$' "$CFG" || {
+  echo 'ERROR: production post-SDK pin assertions must remain enabled' >&2
+  exit 1
+}
+if grep -Eq '^#define[[:space:]]+GLSD301P_TARGET_ENABLE_SDK_PIN_ASSERTS[[:space:]]+0([[:space:]]|$)' "$CFG"; then
+  echo 'ERROR: reference-only pin-assertion bypass leaked into production config' >&2
+  exit 1
+fi
+
+# Lock implementation pin roles separately from evidence confidence. PB3 is
+# vendor-firmware-confirmed by the semantic reference gate. PB1/PA0 are HIGH,
+# PC2 is HIGH/functional, and PB4's pin/behavior is confirmed while its physical
+# business meaning intentionally remains unknown.
+require_source 'drv_uart_pin_set\(UART_TX_PB1,[[:space:]]*UART_RX_PA0\)' 'UART PB1 TX / PA0 RX'
+require_source 'drv_gpio_read\(GPIO_PC2\)' 'PC2 PUSH read'
+require_source 'drv_gpio_func_set\(GPIO_PC2\)' 'PC2 PUSH GPIO mode'
+require_source 'drv_gpio_output_en\(GPIO_PC2,[[:space:]]*false\)' 'PC2 PUSH output disabled'
+require_source 'drv_gpio_input_en\(GPIO_PC2,[[:space:]]*true\)' 'PC2 PUSH input enabled'
+require_source 'drv_gpio_read\(GPIO_PB4\)' 'PB4 auxiliary read'
+require_source 'drv_gpio_func_set\(GPIO_PB4\)' 'PB4 auxiliary GPIO mode'
+require_source 'drv_gpio_output_en\(GPIO_PB4,[[:space:]]*false\)' 'PB4 auxiliary output disabled'
+require_source 'drv_gpio_input_en\(GPIO_PB4,[[:space:]]*true\)' 'PB4 auxiliary input enabled'
+require_source 'drv_gpio_up_down_resistor\(GPIO_PB4,[[:space:]]*PM_PIN_PULLDOWN_100K\)' 'PB4 100k pulldown'
+
+# Safety-sweep regressions: physical PUSH owns the local control plane, reserved
+# Level 0xFF is rejected before normalization, and runtime UART is nonblocking.
+# IO/Level/UART policy lives in the shared control plane (identical code in
+# firmware and hosted harnesses); the target keeps ZCL wiring and the HW seam.
+require_control_source 'glsd301p_runtime_core_poll_push_ex\(' 'PUSH takeover-aware runtime API'
+require_control_source 'if[[:space:]]*\(took_control\)' 'PUSH takeover branch'
+require_control_source 'glsd301p_control_level_cancel\(' 'PUSH cancels remote level transition'
+require_control_source 'glsd301p_timer_level_stop\(' 'transition cancel stops owned Level event'
+# The reserved-Level guard moved with the rest of the cluster-command policy
+# into the shared harness-covered module; the target keeps thin adapters.
+grep -Eq 'cmd->level[[:space:]]*==[[:space:]]*GLSD301P_ZCL_LEVEL_UNKNOWN' "$COMMANDS_SRC" || {
+  echo 'ERROR: shared ZCL pin missing/drifted: reserved Level 0xFF rejection' >&2
+  exit 1
+}
+grep -Eq 'glsd301p_zcl_(onoff|level)_command' "$TARGET_SRC" || {
+  echo 'ERROR: target no longer delegates to the shared ZCL command policy' >&2
+  exit 1
+}
+grep -Eq 'GLSD301P_HEALTH_ATTR_ID, ZCL_DATA_TYPE_OCTET_STR, ACCESS_CONTROL_READ, g_basic_health' "$TARGET_SRC" || {
+  echo 'ERROR: Basic:0xFF10 health attribute entry missing or not read-only' >&2
+  exit 1
+}
+if grep 'GLSD301P_HEALTH_ATTR_ID' "$TARGET_SRC" | grep -Eq 'WRITE|REPORTABLE'; then
+  echo 'ERROR: health attribute must be read-only and never reported' >&2
+  exit 1
+fi
+require_source 'uart_tx_is_busy\(\)' 'nonblocking UART busy probe'
+require_source 'uart_dma_send\(g_uart_tx_dma\)' 'nonblocking UART DMA start'
+require_control_source 'glsd301p_timebase_age_ms' 'elapsed-time deadline basis'
+require_source 'glsd301p_timer_io_start' 'owned static IO event registration'
+
+if grep -q 'drv_uart_tx_start' "$TARGET_SRC" "$CONTROL_SRC" "$SERVICE_SRC"; then
+  echo 'ERROR: blocking UART wrapper must be gone (boot uses static DMA)' >&2
+  exit 1
+fi
+if grep -Eq 'while[[:space:]]*\([^)]*(uart|UART)' "$TARGET_SRC" "$CONTROL_SRC" "$SERVICE_SRC"; then
+  echo 'ERROR: runtime UART polling loop reintroduced' >&2
+  exit 1
+fi
+if grep -q 'TL_ZB_TIMER_SCHEDULE\|TL_ZB_TIMER_CANCEL\|ev_timer_taskPost\|ev_timer_taskCancel' \
+    "$TARGET_SRC" "$CONTROL_SRC" "$TIMERS_SRC"; then
+  echo 'ERROR: pooled timer API reintroduced in application code' >&2
+  exit 1
+fi
+grep -q '#include "ev_timer.h"' "$TIMERS_SRC" || {
+  echo 'ERROR: owned timer events must bind the native SDK event type' >&2
+  exit 1
+}
+# Shared policy modules must stay SDK-independent (timer ownership binds only
+# the native event header, which carries no hardware dependency).
+if grep -Eq '#include "(tl_common|zb_api|zcl_|bdb|ota|drv_gpio|drv_uart)\.h"' \
+    "$ROOT/src/glsd301p_control.c" "$ROOT/src/glsd301p_uart_service.c" \
+    "$ROOT/src/glsd301p_timebase.c" "$ROOT/src/glsd301p_uart_transport.c" \
+    "$ROOT/src/glsd301p_runtime_core.c"; then
+  echo 'ERROR: SDK/hardware include leaked into shared policy modules' >&2
+  exit 1
+fi
+if grep -q 'GPIO_' "$CONTROL_SRC" "$SERVICE_SRC"; then
+  echo 'ERROR: GPIO roles must live in the target HW seam, not shared policy' >&2
+  exit 1
+fi
+echo 'TARGET_PUSH_TAKEOVER_CANCELS_REMOTE_LEVEL=PASS'
+echo 'TARGET_RESERVED_LEVEL_FF_REJECTED=PASS'
+echo 'TARGET_UART_RUNTIME_NONBLOCKING=PASS'
+echo 'TARGET_OWNED_STATIC_EVENTS=PASS'
+echo 'TARGET_SHARED_POLICY_SDK_INDEPENDENT=PASS'
+
+if grep -q 'GPIO_PB3' "$TARGET_SRC"; then
+  echo 'ERROR: PB3 is reserved for ADC flash-safety handling and must not be reused by application GPIO code' >&2
+  exit 1
+fi
+
+
+# Recovery surface: a factory-new device (after Leave, reset gesture or NV the
+# stack cannot restore) must commission again or OTA recovery is unreachable.
+require_source 'bdb_networkSteerStart\(\)' 'factory-new network steering start'
+[[ "$(grep -co 'bdb_networkSteerStart' "$TARGET_SRC")" -eq 1 ]] || {
+  echo 'ERROR: target must contain exactly one steering start site' >&2; exit 1;
+}
+require_source 'glsd301p_bdb_tick\(' 'level-triggered commissioning tick'
+require_source 'glsd301p_rejoin_note_steer_start_result' 'steering outcome ownership'
+require_source 'GLSD301P_BDB_STEER_FAILURE' 'terminal commissioning failure mapping'
+require_source 'glsd_leave_cnf_cb,' 'own-Leave confirm registered'
+require_source 'glsd301p_control_take_network_reset_request' 'PUSH reset gesture consumed'
+require_source 'ota_queryStart\(GLSD301P_OTA_QUERY_INTERVAL_S\)' 'OTA query after join'
+# Acceptance-review fixes (2026-11-01):
+# - a BDB-internal Leave during steering (TCLK failure) must not reboot;
+# - a coordinator removal makes the device dormant instead of re-steering;
+# - the gesture always ends factory new, clearing NV explicitly if needed;
+# - a failed/aborted OTA transfer re-arms the periodic query;
+# - the 1 s maintenance event is re-registered if registration failed.
+# Follow-up review: Leave origin is decided in the tested rejoin module
+# (TCLK settle window, dormant never blocks rejoin); OTA re-query is
+# deferred out of the OTA timer callback; a refused image switch reboots;
+# no rejoin starts during the gesture's reboot countdown.
+# Third review: no "dormant" state of any kind -- every variant could
+# strand the device. Only the gesture's Leave reboots.
+if grep -Eqi 'dormant' "$TARGET_SRC" "$ROOT/src/glsd301p_rejoin.c"; then
+  echo 'ERROR: dormant/suppressed connectivity states are forbidden (recovery must stay reachable)' >&2; exit 1
+fi
+# Fourth review: the stuck DOWNLOAD_IN_PROGRESS state is fixed at its SDK
+# source (pinned patch P7), not by a timing heuristic in the application
+# that could abort healthy server-paced transfers.
+grep -q '"id": "P7-ota-client-no-stuck-download"' "$ROOT/tools/apply_glsd301p_sdk_patches.py" || {
+  echo 'ERROR: SDK patch P7 (OTA client never stuck in DOWNLOAD_IN_PROGRESS) missing' >&2; exit 1;
+}
+if grep -q 'ota_upgradeAbort()' "$TARGET_SRC"; then
+  echo 'ERROR: application OTA abort heuristics are forbidden (use the SDK-source fix)' >&2; exit 1
+fi
+require_source 'g_ota_requery_pending = true;' 'OTA re-query deferred out of the OTA callback'
+require_source 'glsd_arm_reboot\(1u\);' 'reboot after refused OTA image switch'
+[[ "$(grep -c 'if (g_reset_to_fn) {' "$TARGET_SRC")" -ge 2 ]] || {
+  echo 'ERROR: rejoin start must be gated during the gesture reboot countdown' >&2; exit 1;
+}
+# The gesture wipes stack NV unconditionally (a factory-new device used to
+# skip the wipe and kept foreign records); the same policy runs once at
+# boot before zb_init for a firmware line change.
+[[ "$(grep -c 'glsd301p_stack_nv_ensure_clean(' "$TARGET_SRC")" -eq 2 ]] || {
+  echo 'ERROR: target must wipe stack NV at exactly two sites (boot, gesture)' >&2; exit 1;
+}
+require_source 'GLSD301P_STACK_NV_MODULE_COUNT, true\);' 'gesture wipe is forced'
+require_source 'GLSD301P_STACK_NV_MODULE_COUNT, false\);' 'boot wipe is marker-gated'
+if grep -q 'nv_resetToFactoryNew' "$TARGET_SRC"; then
+  echo 'ERROR: gesture must not fall back to the factory-new-gated SDK reset' >&2; exit 1
+fi
+if grep -q 'glsd301p_rejoin_request_steer_now' "$TARGET_SRC"; then
+  echo 'ERROR: a factory-new gesture must wipe and reboot, not just re-steer' >&2; exit 1
+fi
+[[ "$(grep -co 'ota_queryStart(GLSD301P_OTA_QUERY_INTERVAL_S)' "$TARGET_SRC")" -eq 2 ]] || {
+  echo 'ERROR: OTA query must be armed after join and re-armed after a failed transfer' >&2; exit 1;
+}
+require_source 'glsd_ensure_maintenance_timer\(\);' 'maintenance event registration retried'
+require_source 'in\.connectivity = glsd301p_rejoin_health_byte' 'connectivity state exported in health snapshot'
+require_source 'ACCESS_CONTROL_READ \| ACCESS_CONTROL_WRITE, &g_startup.policy' 'StartUpOnOff is writable'
+require_source 'GLSD301P_NV_ITEM_STARTUP' 'startup uses private ZCL NV item'
+require_source 'g_control.boot_on = glsd301p_startup_boot_on' 'startup enters guarded restore'
+echo 'TARGET_FACTORY_NEW_COMMISSIONING=PASS'
+echo 'TARGET_RESET_GESTURE_AND_LEAVE_REBOOT=PASS'
+echo 'TARGET_LEAVE_ONLY_GESTURE_REBOOTS_NO_DORMANT=PASS'
+echo 'TARGET_OTA_STUCK_DOWNLOAD_FIXED_AT_SDK_SOURCE_P7=PASS'
+echo 'TARGET_OTA_QUERY_REARM_AFTER_FAILURE=PASS'
+
+echo 'TARGET_ADC_FLASH_SAFETY_PIN_GPIO_PB3=PASS'
+echo 'TARGET_PRODUCTION_SDK_PIN_ASSERTIONS=ENABLED'
+echo 'TARGET_UART_PIN_ROLE_PB1_PA0=PASS'
+echo 'TARGET_PUSH_PIN_ROLE_PC2=PASS'
+echo 'TARGET_AUX_PIN_ROLE_PB4=PASS'
+echo 'TARGET_ADC_PB3_APPLICATION_REUSE=NONE'
+
+compile_ok
+echo 'TARGET_CONTRACT_VALID_END_DEVICE=PASS'
+
+expect_fail ROUTER -DROUTER=1 -DZB_ROUTER_ROLE=1
+expect_fail COORDINATOR -DCOORDINATOR=1 -DZB_COORDINATOR_ROLE=1
+expect_fail NOT_END_DEVICE -DEND_DEVICE=0 -DZB_ED_ROLE=0
+expect_fail PM_ENABLED -DPM_ENABLE=1
+expect_fail SLEEPY_RX -DZB_MAC_RX_ON_WHEN_IDLE=0
+expect_fail NO_GROUP_RX -DZCL_GROUP_SUPPORT=0
+expect_fail NO_ONOFF -DZCL_ON_OFF_SUPPORT=0
+expect_fail NO_LEVEL -DZCL_LEVEL_CTRL_SUPPORT=0
+expect_fail WRONG_ENDPOINT -DGLSD301P_ENDPOINT=1
+expect_fail WRONG_MCU -DMCU_CORE_8258=0
+
+echo 'GLSD301P_TARGET_ARCHITECTURE_FIREWALL=PASS'
