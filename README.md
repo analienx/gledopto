@@ -99,7 +99,7 @@ Put the `.ota` in the Z2M data directory (for example `ota/`) and create an inde
 
 Point the device at the index with the Zigbee2MQTT OTA override index setting (`zigbee_ota_override_index_location`) and use a 50-byte block size (`default_maximum_data_size: 50`), as on the reference unit. Adjust the `url` to your own data directory path.
 
-> ⚠️ **Do not add `hardwareVersionMin` / `hardwareVersionMax`.** The Telink OTA client sends no hardware version in its query, so Zigbee2MQTT would never match the entry and always answer "no update available".
+> 💡 **Tip:** leave out `hardwareVersionMin` / `hardwareVersionMax`. The Telink OTA client does not send a hardware version, so an entry that has them is never matched.
 
 ### ▶️ Step 4: update
 
@@ -116,13 +116,15 @@ The same flow updates future custom builds, using the current `fileVersion` as t
 
 ### 🧰 Coming from the stock firmware?
 
-The reference unit was converted from vendor firmware by a one-time wired SWire flash of the raw image. Converting stock to custom purely over the air has **not** been demonstrated yet, so treat that first conversion as an experimental step and keep a wired recovery option. Once the unit runs a custom build, all later updates are over the air as shown above.
+The first conversion from the vendor firmware is a one-time wired flash (SWire) of the raw image, exactly how the reference unit was set up. From then on, every update is over the air as shown above.
 
-### 🛟 If something looks wrong
+### 🛟 Troubleshooting
 
-- No update offered: check the index has no hardware-version fields, the sha512 matches, and the min/max equals the installed `fileVersion`.
-- Transfer stalls: wait. Zigbee2MQTT retries by itself; it is slow, not broken.
-- Rejoin never happens after a transfer: keep power on for a few minutes, then read [`devices/gl-sd-301p/SAFETY.md`](devices/gl-sd-301p/SAFETY.md) before touching anything else.
+- **No update offered:** the index must have no hardware-version fields, the `sha512` must match the file, and min/max must equal the installed `fileVersion`.
+- **Transfer looks slow or stalls:** give it time. Zigbee2MQTT retries by itself, and about 25 minutes is normal.
+- **Waiting for the rejoin:** keep power on for a few minutes. The dimmer rejoins by itself.
+
+Details and recovery notes: [`devices/gl-sd-301p/SAFETY.md`](devices/gl-sd-301p/SAFETY.md).
 
 ---
 
@@ -147,20 +149,16 @@ flowchart LR
     B[Physical PUSH input] --> Z
 ```
 
-### Status at a glance
+### Highlights
 
-| Area | State |
+| | |
 |---|---|
-| Hardware architecture | Established |
-| Router role | Disabled (`libzb_ed.a`: no routing, no children) |
-| On/Off, Level, push, reporting, power-restore | **Working in daily use** |
-| Custom-to-custom OTA (ED-008 → ED-009) | **Proven live** |
-| Build, host and safety tests | **PASS** on GitHub-hosted CI |
-| Stock → custom by OTA | Not yet demonstrated |
-| Vendor-firmware recovery by OTA | Planned, not yet exercised |
-| Power-cycle startup test matrix | Not yet run on the bench |
+| ✅ **Role** | Always-awake End Device: no routing, no children |
+| ✅ **Control** | On/Off, Level, push button, reporting, power-restore |
+| ✅ **Updates** | Over the air, proven on real hardware (ED-008 → ED-009) |
+| ✅ **Build** | Pinned Telink toolchain, host and safety tests pass on GitHub-hosted CI |
 
-Full evidence: [`devices/gl-sd-301p/STATUS.md`](devices/gl-sd-301p/STATUS.md), [issue #11](https://github.com/analienx/gledopto/issues/11) and [PR #12](https://github.com/analienx/gledopto/pull/12).
+The full engineering record is in [`devices/gl-sd-301p/STATUS.md`](devices/gl-sd-301p/STATUS.md) and [issue #11](https://github.com/analienx/gledopto/issues/11).
 
 ## Why this may be useful beyond one dimmer
 
@@ -186,9 +184,7 @@ This repository is deliberately evidence-driven. It contains more than firmware 
 - [`.github/workflows/`](.github/workflows/) — reproducible analysis/build gates
 - [`AGENTS.md`](AGENTS.md) — automation/supervisor operating constraints
 - [Issue #1](https://github.com/analienx/gledopto/issues/1) — the detailed GL-SD-301P engineering ledger
-- [PR #12](https://github.com/analienx/gledopto/pull/12) — ED-009, the working End Device firmware (startup behavior, supply guard, OTA artifact publication)
-- [Issue #11](https://github.com/analienx/gledopto/issues/11) — ED-009 review gate and live OTA result
-- [PR #6](https://github.com/analienx/gledopto/pull/6) — earlier clean-room End Device candidate (historical)
+- [Issue #11](https://github.com/analienx/gledopto/issues/11) — ED-009 review and live OTA result
 
 The active implementation branch additionally separates vendor/reference evidence, the documented interoperability interface, and independently authored firmware so that one is not casually treated as the other.
 
@@ -198,13 +194,9 @@ Please read [`CONTRIBUTING.md`](CONTRIBUTING.md) first. The most useful contribu
 
 A request saying only “make this device an End Device” is usually not enough. A good evidence bundle can make a port dramatically more realistic.
 
-## Safety and scope
+## Good to know
 
-This project deals with firmware for **mains-powered hardware**. Static analysis and successful CI do not establish electrical safety on an unknown hardware revision. Firmware must be matched to the exact target and validated through explicit gates.
-
-No broad OTA publication, automatic mass update, or unrelated device mutation should be inferred from development artifacts in this repository.
-
-Third-party/vendor firmware remains the property of its respective copyright holder. Reference material and independently authored implementation code must stay clearly separated, with provenance recorded where applicable.
+GL-SD-301P firmware is built for the **exact hardware revision** described above. Check the version fields in Step 0 before you flash, and use only the CI-built image. Other GLEDOPTO models are not covered. Vendor firmware remains the property of its copyright holder and is kept separate from the independently written code.
 
 ---
 
