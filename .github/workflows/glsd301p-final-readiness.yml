@@ -199,10 +199,42 @@ jobs:
             --recovery-url 'https://example.invalid/GL-SD-301P_V20851203_20251230.ota' \
             --out "$RUNNER_TEMP/release-plan.json" > /dev/null
           python3 -c "import json,sys; p=json.load(open(sys.argv[1])); assert p['targetIeee']=='0xa4c13850cfcdb3a4'; assert p['usesGlobalOverrideIndex'] is False; assert p['authorizationGranted'] is False and p['executionPermitted'] is False; assert p['plannedUpdateRequest']['payload']['id']=='0xa4c13850cfcdb3a4'; r=p['plannedRecoveryRequest']; assert r['payload']['id']=='0xa4c13850cfcdb3a4' and r['isDowngrade'] is True and r['topic'].endswith('/ota_update/update/downgrade') and p['zigbee2mqtt']['operatorMustVerifyServedBytesSha512'] is True; print('EXACT_IEEE_INERT_RELEASE_PLAN=PASS_AUTH_FALSE_RECOVERY_PLANNED')" "$RUNNER_TEMP/release-plan.json"
-      - name: Enforce quarantine/no publication
+      # Owner decision 2026-11-14: ED-009 is installed by OTA only (no SWire
+      # fallback), so manual runs publish the exact wrapped OTA as a private
+      # run artifact. Pull-request and push runs still publish nothing.
+      # Publishing is not OTA authorization: the sidecar stays quarantined
+      # and every live action remains a separate owner gate.
+      - name: Stage exact OTA image (manual runs only)
+        if: github.event_name == 'workflow_dispatch'
         shell: bash
         run: |
           set -euo pipefail
-          echo 'CI_ARTIFACT_UPLOAD=NONE'
+          src="$RUNNER_TEMP/glsd301p-ed/target"
+          out="$RUNNER_TEMP/glsd301p-ed-ota"
+          mkdir -p "$out"
+          cp "$src/glsd301p-ed.quarantined.ota" "$src/glsd301p-ed.quarantined.ota.quarantine.json" \
+             "$src/glsd301p-ed.final.bin" "$src/manifest.txt" "$out/"
+          cp "$RUNNER_TEMP/release-plan.json" "$out/"
+          (cd "$out" && sha256sum glsd301p-ed.quarantined.ota glsd301p-ed.final.bin | tee SHA256SUMS)
+          (cd "$out" && sha512sum glsd301p-ed.quarantined.ota | tee SHA512SUMS)
+          echo "OTA_IMAGE_BYTES=$(stat -c %s "$out/glsd301p-ed.quarantined.ota")"
+          echo "OTA_IMAGE_SOURCE=$SOURCE_HEAD"
+      - name: Upload exact OTA image (manual runs only)
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/upload-artifact@v4
+        with:
+          name: glsd301p-ed-ota-${{ github.sha }}
+          path: ${{ runner.temp }}/glsd301p-ed-ota/
+          if-no-files-found: error
+          retention-days: 30
+      - name: Enforce quarantine/no live action
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo 'CI_ARTIFACT_UPLOAD=OTA_IMAGE_MANUAL_RUN_ONLY'
+          else
+            echo 'CI_ARTIFACT_UPLOAD=NONE'
+          fi
           echo 'LIVE_CUSTOM_OTA=NO_GO'
           echo 'PRODUCTION_DEVICE_MUTATION=NO_GO'
