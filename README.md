@@ -1,84 +1,61 @@
-<div align="center">
+# Gledopto firmware lab
 
-# 💡 Gledopto firmware lab
+Custom Zigbee firmware for the GLEDOPTO GL-SD-301P AC dimmer. It runs the dimmer as an
+always-on End Device instead of a router, so it controls its own lamp and doesn't carry
+traffic for the rest of your mesh. You install it over the air from Zigbee2MQTT.
 
-### GL-SD-301P now runs as a quiet, always-awake Zigbee End Device.
+Current release: **`GLSD-ED-009`** (file version `0x7F0A0001`). It has been in daily use on a
+real dimmer since 2026-11-14.
 
-**Independent, open firmware that turns the GLEDOPTO GL-SD-301P AC dimmer from a Zigbee router into a well-behaved leaf node, with full dimming and configurable power-restore behavior. Proven on real hardware, installed over the air.**
+## Features
 
-![Status](https://img.shields.io/badge/GL--SD--301P-working%20End%20Device-brightgreen?style=for-the-badge)
-![Firmware](https://img.shields.io/badge/firmware-GLSD--ED--009-blue?style=for-the-badge)
-![OTA](https://img.shields.io/badge/installed%20by-OTA-success?style=for-the-badge)
-![MCU](https://img.shields.io/badge/Telink-TLSR8258-orange?style=for-the-badge)
+- Zigbee End Device that stays awake (RX on when idle). No routing and no child devices.
+- On/Off, dimming, the physical push button, attribute reporting and bindings all work as before.
+- `power_on_behavior` sets what happens when mains comes back: `off`, `on`, `toggle` or `previous`.
+  The last brightness is remembered.
+- OTA updates from Zigbee2MQTT. No wires, no opening the case.
 
-</div>
+## Requirements
 
----
+- Zigbee2MQTT 2.x with zigbee-herdsman-converters 26.115 or newer
+- A GL-SD-301P that is paired and online. Check these values before you start (Z2M →
+  device → *About*, or read them in the *Dev console*):
 
-## 🎉 It works
-
-On **2026-11-14** firmware **`GLSD-ED-009`** was installed **over the air** on a real, in-use GL-SD-301P in a living room. It joined back by itself, kept its End Device role, dims and switches normally, and the owner's verdict was: *"works as charm"*.
-
-| | |
+| Field | Must be |
 |---|---|
-| 🟢 **Zigbee role** | Always-awake **End Device**: no routing, no children, no mesh traffic for other devices |
-| 💡 **Control** | On/Off, Level (dimming), physical push button, attribute reporting, bindings |
-| 🔌 **Power-restore** | **New:** choose what the lamp does when mains returns, with the brightness remembered |
-| 📡 **Update path** | Over-the-air from Zigbee2MQTT: one transfer, about 25 minutes, no wires, no opening the case |
-| 🔋 **Supply check** | First reading after boot **3272 mV**, so startup settings save normally |
-| 🧪 **Build** | Pinned Telink toolchain, host and safety tests: all green on GitHub-hosted CI |
-
-### 🔌 Power-restore behavior
-
-Set `power_on_behavior` in Zigbee2MQTT (or the Home Assistant device page) to decide what happens after a power cut:
-
-| Choice | After mains returns |
-|---|---|
-| **off** | stays off |
-| **on** | turns on at the remembered brightness |
-| **toggle** | the opposite of its state before the cut |
-| **previous** | restores exactly the on/off state it had, at the remembered brightness |
-
-Tip: if the dimmer's power is switched by a wall switch, use **on**. `previous` needs about three quiet seconds after the last change before the power is cut.
-
----
-
-## 🚀 Flash it on your own GL-SD-301P
-
-You need Zigbee2MQTT 2.x with zigbee-herdsman-converters 26.115 or newer, an MQTT client or the Z2M frontend, and the dimmer paired and online.
-
-### ✅ Step 0: confirm it is the same hardware
-
-Read these from the device (Z2M → *Dev console* → *Zigbee* → Read, or the *About* tab). All must match:
-
-| Field | Expected |
-|---|---|
-| Model | GL-SD-301P (GLEDOPTO), endpoint 11 |
+| Model / endpoint | GL-SD-301P (GLEDOPTO), endpoint 11 |
 | Hardware version | `2` |
-| Manufacturer code (OTA) | `0x124F` (4687) |
+| OTA manufacturer code | `0x124F` (4687) |
 | OTA image type | `0x1416` (5142) |
 
-Other revisions and other GLEDOPTO models are **not** covered. If anything differs, stop and open a research issue instead.
+If anything differs, stop. Other revisions and other GLEDOPTO models aren't supported.
 
-### 📥 Step 1: get the image
+## Install
 
-1. Open **Actions → "GL-SD-301P final no-spare readiness" → Run workflow** on the release commit.
-2. Download the run artifact `glsd301p-ed-ota-<sha>`. It contains the `.ota`, the raw `.bin`, the build manifest and SHA-256/SHA-512 sums.
-3. Check the hash of the `.ota` against the sums file. The image proven live is:
+The steps are the same whether the dimmer runs the stock firmware or an earlier build from
+this repo. Only the version in the OTA index changes.
+
+### 1. Get the image
+
+Run **Actions → "GL-SD-301P final no-spare readiness" → Run workflow** and download the
+`glsd301p-ed-ota-<sha>` artifact. Check the `.ota` against the sums file. The released ED-009
+image is:
 
 ```text
 SHA-256  d93ed2f8d091dbca2f607da2d418767050f9fb0236fca5f5cf3e4629a63e3fd9
 ```
 
-Always use the hosted-CI build. It is the reference; a locally built image has no evidence behind it.
+Use the CI build, not a local one.
 
-### 🧩 Step 2: install the converter
+### 2. Add the converter
 
-Copy [`devices/gl-sd-301p/zigbee2mqtt/glsd301p_ed.js`](devices/gl-sd-301p/zigbee2mqtt/glsd301p_ed.js) into your Zigbee2MQTT data directory and list it under `external_converters`. Restart Zigbee2MQTT. Do this **before** the update so the device keeps its exposes and gains `power_on_behavior` afterwards.
+Copy [`devices/gl-sd-301p/zigbee2mqtt/glsd301p_ed.js`](devices/gl-sd-301p/zigbee2mqtt/glsd301p_ed.js)
+into the Zigbee2MQTT data directory, add it under `external_converters` and restart Z2M.
+Do this before you update.
 
-### 📡 Step 3: serve the image with a one-entry OTA index
+### 3. Create a local OTA index
 
-Put the `.ota` in the Z2M data directory (for example `ota/`) and create an index file for it. This is the exact entry used on the reference unit (ED-008 → ED-009):
+Put the `.ota` in the Z2M data directory (for example `ota/`) and create an index with one entry:
 
 ```json
 [
@@ -97,147 +74,108 @@ Put the `.ota` in the Z2M data directory (for example `ota/`) and create an inde
 ]
 ```
 
-Point the device at the index with the Zigbee2MQTT OTA override index setting (`zigbee_ota_override_index_location`) and use a 50-byte block size (`default_maximum_data_size: 50`), as on the reference unit. Adjust the `url` to your own data directory path.
+Set `minFileVersion` and `maxFileVersion` to the version the dimmer runs now (OTA attribute
+`currentFileVersion`):
 
-> 💡 **Tip:** leave out `hardwareVersionMin` / `hardwareVersionMax`. The Telink OTA client does not send a hardware version, so an entry that has them is never matched.
+| Dimmer runs | min/max |
+|---|---|
+| Stock firmware (`20651203`) | `637612033` (`0x26013001`) |
+| `GLSD-ED-008` | `2131296257` (`0x7F090001`) |
 
-### ▶️ Step 4: update
+Fix the `url` to match your data directory. Point Z2M at the file with
+`zigbee_ota_override_index_location` and set `default_maximum_data_size: 50`.
 
-In Zigbee2MQTT open the device → **OTA** tab → *Check for updates*. It must say an update is available. Then press **Update**. A normal transfer takes about 25 minutes at 50-byte blocks. Leave the lamp alone, don't restart Z2M and don't power-cycle the dimmer until it finishes. The device reboots and rejoins by itself.
+Leave out `hardwareVersionMin`/`hardwareVersionMax`. The dimmer doesn't send a hardware
+version in its OTA query, so an entry that has them never matches.
 
-### 🔎 Step 5: verify
+### 4. Update
 
-- `swBuildId` reads **`GLSD-ED-009`** and OTA `currentFileVersion` is **2131361793** (`0x7F0A0001`).
-- The device is still an **End Device** and `power_on_behavior` shows up.
-- Read Basic attribute `0xFF11` (supply snapshot): readings must be **2200 mV or higher**. The reference unit reads about 3272 mV.
-- Test On/Off, dimming and the push button.
+Open the device in Z2M → **OTA** → *Check for updates*. When it reports an update, press
+**Update**. The transfer takes about 25 minutes. Don't restart Z2M or cut power to the dimmer
+while it runs. When it's done, the dimmer reboots and rejoins by itself.
 
-The same flow updates future custom builds, using the current `fileVersion` as the min/max in the index.
+### 5. Check
 
-### 🧰 Coming from the stock firmware?
+- `swBuildId` is `GLSD-ED-009` and `currentFileVersion` is `2131361793`.
+- The device shows as an End Device and has `power_on_behavior`.
+- Basic attribute `0xFF11` (supply reading) is 2200 mV or more. The reference unit reads about 3272 mV.
+- On/Off, dimming and the push button work.
 
-The first conversion from the vendor firmware is a one-time wired flash (SWire) of the raw image, exactly how the reference unit was set up. From then on, every update is over the air as shown above.
+### Updating from the stock firmware
 
-### 🛟 Troubleshooting
+The stock firmware ships with the same Telink OTA client and uses the same manufacturer code
+and image type, and ED-009 has a higher file version. The stock firmware therefore accepts
+the image through the normal OTA steps above. You don't need a wired flash.
 
-- **No update offered:** the index must have no hardware-version fields, the `sha512` must match the file, and min/max must equal the installed `fileVersion`.
-- **Transfer looks slow or stalls:** give it time. Zigbee2MQTT retries by itself, and about 25 minutes is normal.
-- **Waiting for the rejoin:** keep power on for a few minutes. The dimmer rejoins by itself.
+The reference unit was first flashed over SWire only because it had to be recovered from an
+earlier test build. Nobody has done a stock-to-ED-009 OTA on real hardware yet. If you try
+it, please report the result in an issue. If the dimmer can't use the stock network settings
+after the update, it comes back as a new device: turn on permit join and let it pair.
 
-Details and recovery notes: [`devices/gl-sd-301p/SAFETY.md`](devices/gl-sd-301p/SAFETY.md).
+## Troubleshooting
 
----
+- **No update offered:** remove any hardware-version fields, check that `sha512` matches the
+  file, and check that min/max equal the installed `currentFileVersion`.
+- **Transfer is slow:** about 25 minutes is normal. Z2M retries failed blocks by itself.
+- **Device doesn't come back:** leave it powered for a few minutes. If it still isn't back,
+  turn on permit join.
 
-## What this project is about
+Recovery notes are in [`devices/gl-sd-301p/SAFETY.md`](devices/gl-sd-301p/SAFETY.md).
 
-A mains-powered Zigbee device is often shipped as a **Router**. When the router implementation is weak, children attach to it, routes traverse it, and one flaky light can disturb parts of the mesh that have nothing to do with it.
+## How it works
 
-> Keep the device mains-powered and permanently listening, but make it a **Zigbee End Device / leaf** so it controls its own load without routing for the rest of the network.
+The dimmer has a Telink TLSR8258 Zigbee chip that drives a separate power-stage controller
+over UART (9600 8N1, PB1 TX / PA0 RX). This firmware replaces only the Zigbee side and keeps
+that link, so the dimming hardware behaves the same.
 
 ```text
 ZB_ED_ROLE=1   ZB_ROUTER_ROLE=0   RX_ON_WHEN_IDLE=1
 PM_ENABLE=0    POWER_SOURCE=MAINS ENDPOINT=11
 ```
 
-Not a router, not a sleepy battery device: **an always-awake mains-powered leaf node.** The product-specific hardware path is preserved. A Telink TLSR8258 talks to the existing power-stage controller over **9600 8N1 UART (PB1 TX / PA0 RX)**.
-
 ```mermaid
 flowchart LR
-    C[Zigbee coordinator / mesh] <-->|On/Off, Level, reports| Z[GL-SD-301P\nTLSR8258\nRX-on-idle End Device]
-    Z -->|9600 8N1\n6-byte control frames| P[Existing power-stage controller]
-    P --> L[AC dimmer / load]
-    B[Physical PUSH input] --> Z
+    C[Coordinator] <-->|On/Off, Level, reports| Z[TLSR8258<br/>End Device]
+    Z -->|UART 9600 8N1| P[Power-stage controller]
+    P --> L[Lamp]
+    B[Push button] --> Z
 ```
 
-### Highlights
+## Building
 
-| | |
+| Path | Contents |
 |---|---|
-| ✅ **Role** | Always-awake End Device: no routing, no children |
-| ✅ **Control** | On/Off, Level, push button, reporting, power-restore |
-| ✅ **Updates** | Over the air, proven on real hardware (ED-008 → ED-009) |
-| ✅ **Build** | Pinned Telink toolchain, host and safety tests pass on GitHub-hosted CI |
+| [`src/`](src/) | Device logic: control, startup/power-restore, UART link, push input, rejoin |
+| [`firmware/glsd301p-ed/`](firmware/glsd301p-ed/) | Telink target config, pin map, version |
+| [`tools/`](tools/) | Build script, SDK patches, OTA wrapper, checks, bench tools |
+| [`tests/`](tests/) | Host tests |
+| [`devices/gl-sd-301p/`](devices/gl-sd-301p/) | Device notes, Z2M converter, status |
 
-The full engineering record is in [`devices/gl-sd-301p/STATUS.md`](devices/gl-sd-301p/STATUS.md) and [issue #11](https://github.com/analienx/gledopto/issues/11).
+The easiest way is GitHub Actions: fork the repo, enable Actions and run the
+[readiness workflow](.github/workflows/glsd301p-final-readiness.yml). It pins the
+[Telink Zigbee SDK](https://github.com/telink-semi/telink_zigbee_sdk) at `V3.7.2.0`
+(`d5bc2f7b`) and the TC32 toolchain `tc32_gcc_v2.0`, runs the tests and produces the `.ota`.
 
-## Why this may be useful beyond one dimmer
-
-The more interesting outcome is not one custom binary. It is a repeatable method for investigating other devices that are poor or unnecessary Zigbee routers.
-
-A good future candidate is a device that:
-
-1. is mains powered and therefore does not need sleepy operation;
-2. uses a supported/researchable Zigbee MCU;
-3. can keep its product-specific load controller intact;
-4. has enough evidence to reconstruct its endpoint, clusters, GPIO and hardware interfaces safely;
-5. would be more valuable to your network as an always-awake leaf than as a router.
-
-That could eventually include additional GLEDOPTO dimmers, controllers, bulbs or related Telink-based hardware — **but support is model/revision specific, not assumed from branding alone**.
-
-## 🛠️ Source code and how to build it
-
-Everything needed is in this repository.
-
-| Path | What it is |
-|---|---|
-| [`src/`](src/) | Device logic: control, startup and power-restore, UART link to the power stage, push input, rejoin, health |
-| [`firmware/glsd301p-ed/`](firmware/glsd301p-ed/) | Telink target: stack and app configuration, pin contract, version (`0x7F0A0001`) |
-| [`tools/`](tools/) | Build script, SDK patches, OTA wrapper and preflight checks, bench and decode tools |
-| [`tests/`](tests/) | Host tests for the device logic |
-| [`devices/gl-sd-301p/zigbee2mqtt/`](devices/gl-sd-301p/zigbee2mqtt/) | The Zigbee2MQTT converter |
-
-### Build on GitHub (recommended)
-
-The pinned build runs in [`.github/workflows/glsd301p-final-readiness.yml`](.github/workflows/glsd301p-final-readiness.yml), so you do not need to set up a toolchain:
-
-1. Fork the repository and enable Actions.
-2. **Actions → GL-SD-301P final no-spare readiness → Run workflow.**
-3. Download the `glsd301p-ed-ota-<sha>` artifact: the `.ota`, the raw `.bin`, the manifest and the SHA-256/SHA-512 sums.
-
-The workflow checks out the Telink Zigbee SDK at the exact commit `d5bc2f7b0c1f8536fe21c8127ca680ea8214bc8e` (tag `V3.7.2.0`), downloads the TC32 toolchain `tc32_gcc_v2.0` and verifies its SHA-256 (`33b854be…`), checks the vendor-recovery contract, builds with [`tools/build_glsd301p_ed_tc32.sh`](tools/build_glsd301p_ed_tc32.sh), runs the host and safety tests and checks the image, then wraps it as an OTA file.
-
-### Build on your own machine
-
-You need the same two pieces the workflow uses: the [Telink Zigbee SDK](https://github.com/telink-semi/telink_zigbee_sdk) at the pinned commit and the TC32 toolchain (`tc32-elf-gcc`). Then:
+To build locally with the same SDK and toolchain:
 
 ```bash
 export TELINK_SDK_ROOT=/path/to/telink-sdk/tl_zigbee_sdk
 export TC32_CC=/path/to/tc32/bin/tc32-elf-gcc
-bash tools/build_glsd301p_ed_tc32.sh      # output in $OUT_DIR (default /tmp/glsd301p-ed-tc32)
+bash tools/build_glsd301p_ed_tc32.sh   # output in $OUT_DIR (default /tmp/glsd301p-ed-tc32)
 ```
 
-This project treats the GitHub-hosted build as the reference, so compare any local image with the hashes from a workflow run before you flash it.
+Compare a local build against the CI hashes before you flash it.
 
-## What is actually in this repository
+## Other devices
 
-This repository is deliberately evidence-driven. It contains more than firmware source:
+The same approach could work for other mains-powered GLEDOPTO/Telink devices, but each model
+and revision has to be checked separately. If you have one in mind, read
+[`CONTRIBUTING.md`](CONTRIBUTING.md) and open an issue with the device details (model,
+revision, Zigbee identity, endpoints, firmware version, OTA info, photos).
 
-- [`devices/`](devices/) — per-device hardware and protocol ledgers
-- [`evidence/`](evidence/) — captured, sanitized observations and analysis results
-- [`tools/`](tools/) — firmware/static-analysis and validation tooling
-- [`.github/workflows/`](.github/workflows/) — reproducible analysis/build gates
-- [`AGENTS.md`](AGENTS.md) — automation/supervisor operating constraints
-- [Issue #1](https://github.com/analienx/gledopto/issues/1) — the detailed GL-SD-301P engineering ledger
-- [Issue #11](https://github.com/analienx/gledopto/issues/11) — ED-009 review and live OTA result
+## Notes
 
-The active implementation branch additionally separates vendor/reference evidence, the documented interoperability interface, and independently authored firmware so that one is not casually treated as the other.
-
-## Want to investigate another device?
-
-Please read [`CONTRIBUTING.md`](CONTRIBUTING.md) first. The most useful contribution is **evidence**: exact model/revision, Zigbee identity, endpoint descriptors, current role, software build/date code, logs, OTA metadata, photos or public documentation where legally shareable.
-
-A request saying only “make this device an End Device” is usually not enough. A good evidence bundle can make a port dramatically more realistic.
-
-## Good to know
-
-GL-SD-301P firmware is built for the **exact hardware revision** described above. Check the version fields in Step 0 before you flash, and use only the CI-built image. Other GLEDOPTO models are not covered. Vendor firmware remains the property of its copyright holder and is kept separate from the independently written code.
-
----
-
-<div align="center">
-
-**Goal:** fewer unwanted Zigbee routers, while keeping the devices themselves fully useful.
-
-If you own a GLEDOPTO/Telink device that looks like a good candidate, open a device-research issue with the evidence described in [`CONTRIBUTING.md`](CONTRIBUTING.md).
-
-</div>
+- Engineering history: [`devices/gl-sd-301p/STATUS.md`](devices/gl-sd-301p/STATUS.md),
+  [issue #1](https://github.com/analienx/gledopto/issues/1), [issue #11](https://github.com/analienx/gledopto/issues/11).
+- Vendor firmware belongs to its copyright holder. It is kept apart from the code written
+  here (see [`CLEAN_ROOM.md`](CLEAN_ROOM.md)).
